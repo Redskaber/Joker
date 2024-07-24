@@ -1,0 +1,25 @@
+// (* (- 123) (group 45.67))
+// -123*(45.67) == 5408.81 != 5408.8099 == 2 != 1 != 2 == 10
+// 123 == true
+// 0 == false
+// (-123*(45.67) == 5408.81 != 5408.8099) == true
+// false == true
+// ((-123.0*(45.67) == 5408.81 != 5408.8099) != (1 != true) == (10 != false) == true) != null
+// (-123.0*(45.67) == 5408.81) != (1==1)
+// (((-123.0*(45.67) == 5408.81) != (1!=true))) <= ((10!=false) <= true) == (true == false) < 1
+// (-123.0*(45.67) == 5408.81 - 100) != (1==1) == "String Constant"
+// 123 + 235.5  // err: called `Result::unwrap()` on an `Err` value: TypeMismatch
+// -123*(200/2)-1 // == -12301
+// 365*24*60*(60/3600) // == 8760  
+// know: rust slash i32/i32 = i32, f64/f64 = f64, so 60/3600 default = 0, so need to transfer to f64 first
+// (3000*(10/2))*(10/2+3) // == 18000
+// 1 == 1 // == true
+// 1 != 1 // == false
+// !true // == false
+// !false // == true
+// 1/0 // err: attempted division by zero
+// null // == null
+// null == null // == true
+// null == 32 // == false
+// "12" != 12 // error type mismatch
+"12" == "12" // == true

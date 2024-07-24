@@ -1,0 +1,61 @@
+// this is a comment
+(( )){} []       
+
+!*+-/=<> <= ==  != 
+"hello world"
+123     
+123.456 
+true    
+false   
+null    
+if (true) {}
+else if (false or true) {}
+else {} 
+
+while (true) {
+  break;
+}     
+
+for (var i = 0; i < 10; i++) {
+  print i;
+} 
+
+var demo = 1;
+
+match demo {
+  1 => print demo,
+  2 => print demo,
+  _ => break,
+};
+
+
+var arg1 = 10;
+var arg2 = 20;
+
+fun function(arg1, arg2) {
+  var l1 = arg1;
+  var l2 = arg2;
+  
+  print l1;
+  print l2;
+
+  return l1 + l2;
+};
+
+function(arg1, arg2);
+
+
+class Person {
+  var Pname = alex;
+  
+  fun init(self, name, age) {
+    this.name = name;
+    this.age = age;
+  };
+};
+
+super() 
+
+
+var dict = {};
+var array = [];
