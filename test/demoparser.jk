@@ -22,4 +22,22 @@
 // null == null // == true
 // null == 32 // == false
 // "12" != 12 // error type mismatch
-"12" == "12" // == true
+// "12" == "12" // == true => used stmt after need add ;
+// "12" == "12"; 
+12 == 12; 
+(-123*(45.67)); 
+365*24*60*(60/3600); 
+1.0/3.0;  // 0.3,333,333,333,333,333
+print "Hello, world!";
+print 1 + 2 * 3;
+print true;
+var x = 10;
+var y = 20;
+print x;
+print y;
+print x + y;
+print x - y;
+print x * y;
+print x / y;
+print z; // error: use of undeclared variable `z`
+

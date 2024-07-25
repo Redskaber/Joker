@@ -25,8 +25,7 @@ use std::fmt::{Debug, Display};
 
 use super::{
     ast::{
-        binary, grouping, literal_bool, literal_f64, literal_i32, literal_null, literal_str, unary,
-        Expr,
+        binary, expr_stmt, grouping, literal_bool, literal_f64, literal_i32, literal_null, literal_str, literal_variable, print_stmt, unary, var_stmt, Expr, Statement, Literal, 
     },
     error::{JokerError, ReportError},
     token::{Token, TokenType},
@@ -44,8 +43,12 @@ impl<'a> Parser<'a> {
     }
 
     // 解析入口
-    pub fn parse(&mut self) -> Result<Box<Expr<'a>>, ParserError> {
-        self.parse_expression()
+    pub fn parse(&mut self) -> Result<Vec<Statement<'a>>, ParserError> {
+        let mut statements: Vec<Statement> = Vec::new();
+        while !self.is_at_end() {
+            statements.push(self.parse_declaration()?);
+        }
+        return Ok(statements);
     }
 
     // 辅助函数，用来获取并检查下一个token
@@ -83,7 +86,7 @@ impl<'a> Parser<'a> {
         panic!("{}", ParserError::new(self.peek().unwrap(), msg));
     }
     // 同步递归下降解析器: next handle
-    fn _synchronize(&mut self) {
+    fn synchronize(&mut self) {
         self.advance();
         while !self.is_at_end() {
             if self.previous().unwrap().token_type == TokenType::Semicolon {
@@ -106,6 +109,66 @@ impl<'a> Parser<'a> {
     }
 
     // 解析：语法规则
+    // program        → declaration* EOF ;
+    // 
+    // declaration    → varDecl
+    //                | statement ;
+    // 
+    // statement      → exprStmt
+    //                | printStmt ;
+    // 
+    // exprStmt       → expression ";" ;
+    // printStmt      → "print" expression ";" ; 
+    fn parse_declaration(&mut self) -> Result<Statement<'a>, ParserError> {
+        if self.matcher(&TokenType::Var) {
+            self.advance();
+            match self.parse_var_declaration() {
+                Ok(stmt) => return Ok(stmt),
+                Err(err) => {
+                    self.synchronize();
+                    return Err(err);
+                },
+            }
+        }
+        match self.parse_statement() {
+            Ok(stmt) => Ok(stmt),
+            Err(err) => {
+                self.synchronize();
+                Err(err)
+            }
+        }
+    }
+    fn parse_var_declaration(&mut self) -> Result<Statement<'a>, ParserError> {
+        let var_name: &Token<'a> = self.consume(TokenType::Identifier, String::from("Expect variable name."))?;
+        let mut var_value: Box<Expr<'a>> = literal_null();
+        if self.matcher(&TokenType::Equal) {
+            self.advance();
+            var_value = self.parse_expression()?;
+        }
+
+        self.consume(TokenType::Semicolon, String::from("Expect ';' after variable declaration."))?;
+        Ok(var_stmt(var_name, var_value))
+
+    } 
+    fn parse_statement(&mut self) -> Result<Statement<'a>, ParserError> {
+        if self.matcher(&TokenType::Print) {
+            self.advance();
+            return self.parse_print_statement();
+        }
+        self.parse_expression_statement()
+    }
+    fn parse_print_statement(&mut self) -> Result<Statement<'a>, ParserError> {
+        let expr: Box<Expr<'a>> = self.parse_expression()?;
+        self.consume(TokenType::Semicolon, String::from("Expect ';' after value."))?;
+        Ok(print_stmt(expr))
+    }
+    fn parse_expression_statement(&mut self) -> Result<Statement<'a>, ParserError> {
+        let expr: Box<Expr<'a>> = self.parse_expression()?;
+        self.consume(TokenType::Semicolon, String::from("Expect ';' after expression."))?;
+        Ok(expr_stmt(expr))
+    }
+
+    // expression     → equality ;
     fn parse_expression(&mut self) -> Result<Box<Expr<'a>>, ParserError> {
         self.parse_equality()
     }
@@ -221,16 +284,31 @@ impl<'a> Parser<'a> {
                 return Ok(literal_null());
             }
             TokenType::I32 => {
-                let current: i32 = self.advance().unwrap().literal.into();
-                return Ok(literal_i32(current));
+                match self.advance().unwrap().literal.try_into() {
+                    Ok(current) => return Ok(literal_i32(current)),
+                    Err(err) => return Err(ParserError::new(self.peek().unwrap(), String::from(err))),
+                };
             }
             TokenType::F64 => {
-                let current: f64 = self.advance().unwrap().literal.into();
-                return Ok(literal_f64(current));
+                match self.advance().unwrap().literal.try_into() {
+                    Ok(current) => return Ok(literal_f64(current)),
+                    Err(err) => return Err(ParserError::new(self.peek().unwrap(), String::from(err))),
+                };
             }
             TokenType::Str => {
-                let current: &str = self.advance().unwrap().literal.into();
-                return Ok(literal_str(current));
+                match self.advance().unwrap().literal.try_into() {
+                    Ok(current) => return Ok(literal_str(current)),
+                    Err(err) => return Err(ParserError::new(self.peek().unwrap(), String::from(err))),
+                };
+            }
+            TokenType::Identifier => {
+                match self.advance() {
+                    Some(current) => return Ok(literal_variable(current)),
+                    None => return Err(ParserError::new(
+                        &Token::new(TokenType::Eof, "", Literal::Null, 0), 
+                        String::from("The variable assignment statement has an left value, but there is no right value error!")
+                    )),
+                };
             }
             _ => {
                 return Err(ParserError::new(

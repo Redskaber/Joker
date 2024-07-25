@@ -4,10 +4,10 @@ use std::fs;
 use std::io;
 use std::result;
 
-use super::error::eval_error;
 use super::error::parser_error;
 use super::error::scanner_error;
 use super::error::Error;
+use super::interpreter::Interpreter;
 use super::{
     error::{ReportError, RuntimeError},
     parse::Parser,
@@ -42,7 +42,8 @@ fn run_file(path: &str) -> io::Result<()> {
             Error::RuntimeError(run_err) => match run_err {
                 RuntimeError::EvalError(_)
                 | RuntimeError::ScannerError(_)
-                | RuntimeError::ParseError(_) => {
+                | RuntimeError::ParseError(_) 
+                | RuntimeError::DataEnvError(_) => {
                     run_err.report();
                     std::process::exit(70)
                 }
@@ -77,16 +78,13 @@ fn run<'a>(source: &'a str) -> result::Result<(), Error> {
     let mut scanner: Scanner = Scanner::new(source);
     match scanner.scan_tokens() {
         Ok(tokens) => {
-            // for token in tokens {
-            //     println!("Token:\t{}\n\t{:#?}", token, token);
-            // }
             let mut parser = Parser::new(tokens.as_slice());
             match parser.parse() {
-                Ok(expr) => {
-                    match expr.evaluate() {
-                        Ok(value) => println!("expr: {expr}, \tvalue: {value}"),
-                        Err(err) => return Err(eval_error(err)),
-                    };
+                Ok(stmts) => {
+                    let mut interpreter = Interpreter::new(stmts);
+                    if let Err(err) = interpreter.interpret() {
+                        return Err(Error::RuntimeError(RuntimeError::new(err)))
+                    }
                 }
                 Err(err) => return Err(parser_error(err)),
             }
