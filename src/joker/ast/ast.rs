@@ -27,7 +27,10 @@
 //!     printStmt      → "print" expression ";" ; 
 //!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
 //! 
-//!     expression     → equality ;
+//!     expression     → assignment ;
+//!     assignment     → IDENTIFIER "=" assignment
+//!                     | equality ; 
+//! 
 //!     equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //!     comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 //!     term           → factor ( ( "-" | "+" ) factor )* ;
@@ -71,6 +74,7 @@ impl<'a> Var<'a> {
 pub enum Expr<'a> {
     Literal(Literal<'a>),
     Unary(Unary<'a>),
+    Assign(Assign<'a>),
     Binary(Binary<'a>),
     Variable(Variable<'a>),   // right value
     Grouping(Box<Expr<'a>>),
@@ -101,6 +105,20 @@ impl<'a> Unary<'a> {
         Unary { l_opera, r_expr }
     }
 }
+
+
+#[derive(Debug)]
+pub struct Assign<'a> {
+    pub name: &'a Token<'a>,
+    pub value: Box<Expr<'a>>,
+}
+
+impl<'a> Assign<'a> {
+    pub fn new(name: &'a Token<'a>, value: Box<Expr<'a>>) -> Assign<'a> {
+        Assign { name, value }
+    }
+}
+
 
 /// Binary Operator
 /// 比较运算 && 算术运算

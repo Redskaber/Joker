@@ -25,7 +25,7 @@ use std::fmt::{Debug, Display};
 
 use super::{
     ast::{
-        binary, expr_stmt, grouping, literal_bool, literal_f64, literal_i32, literal_null, literal_str, literal_variable, print_stmt, unary, var_stmt, Expr, Statement, Literal, 
+        assign, binary, expr_stmt, grouping, literal_bool, literal_f64, literal_i32, literal_null, literal_str, literal_variable, print_stmt, unary, var_stmt, Expr, Literal, Statement 
     },
     error::{JokerError, ReportError},
     token::{Token, TokenType},
@@ -168,9 +168,33 @@ impl<'a> Parser<'a> {
         Ok(expr_stmt(expr))
     }
 
-    // expression     → equality ;
+    // expression     → assignment ;
+    // assignment     → IDENTIFIER "=" assignment
+    //                | equality ;
     fn parse_expression(&mut self) -> Result<Box<Expr<'a>>, ParserError> {
-        self.parse_equality()
+        self.parse_assignment()
+    }
+    
+
+    fn parse_assignment(&mut self) -> Result<Box<Expr<'a>>, ParserError> {
+        let expr = self.parse_equality()?;
+
+        if self.matcher(&TokenType::Equal) {
+            let equal = self.advance().unwrap();
+            let value = self.parse_assignment()?;
+
+            match *expr {
+                Expr::Variable(variable) => {
+                    let name = variable.name;
+                    return Ok(assign(name, value))
+                },
+                _ => return Err(ParserError::new(
+                    equal, 
+                    String::from("Invalid assignment target.")
+                ))
+            }
+        }
+        Ok(expr)
     }
 
     // equality    -→ comparison ( ( "!=" | "==" ) comparison )* ;

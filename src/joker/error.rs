@@ -97,6 +97,9 @@ pub fn scanner_error(err: ScannerError) -> Error {
 pub fn eval_error_new<'a>(token:&'a Token<'a>, msg: String) -> RuntimeError {
     RuntimeError::EvalError(EvalError::new(token, msg))
 }
+pub fn data_env_error_new<'a>(token:&'a Token<'a>, msg: String) -> RuntimeError {
+    RuntimeError::DataEnvError(DataEnvError::new(token, msg))
+}
 
 
 #[cfg(test)]

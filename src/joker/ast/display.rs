@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use super::{ast::{Binary, Expr, Literal, Statement, Unary, Variable}, Var};
+use super::{ast::{Binary, Expr, Literal, Statement, Unary, Variable}, Assign, Var};
 
 
 
@@ -27,6 +27,7 @@ impl<'a> Display for Expr<'a> {
         match self {
             Expr::Literal(literal) => Display::fmt(literal, f),
             Expr::Unary(unary) => Display::fmt(unary, f),
+            Expr::Assign(assign) => Display::fmt(assign, f),
             Expr::Binary(binary) => Display::fmt(binary, f),
             Expr::Variable(right_var) => Display::fmt(right_var, f),
             Expr::Grouping(expr) => {
@@ -88,6 +89,14 @@ impl<'a> Display for Unary<'a> {
         write!(f, ")")
     }
 }
+
+// Explain yourself: build ast expr
+impl<'a> Display for Assign<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Assign(name: {}, value: {})", self.name, self.value)
+    }
+}
+
 
 // Explain yourself: build ast expr
 impl<'a> Display for Binary<'a> {

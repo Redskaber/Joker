@@ -2,7 +2,7 @@
 use std::boxed::Box;
 use super::{
     super::token::Token,
-    ast::{Binary, Expr, Literal, Statement, Unary, Var, Variable},
+    ast::{Binary, Expr, Literal, Statement, Unary, Var, Variable}, Assign,
 };
 
 
@@ -26,6 +26,9 @@ pub fn literal_variable<'a>(var_name: &'a Token<'a>) -> Box<Expr<'a>> {
 }
 pub fn unary<'a>(l_opera: &'a Token<'a>, r_expr: Box<Expr<'a>>) -> Box<Expr<'a>> {
     Box::new(Expr::Unary(Unary::new(l_opera, r_expr)))
+}
+pub fn assign<'a>(name: &'a Token<'a>, value: Box<Expr<'a>>) -> Box<Expr<'a>> {
+    Box::new(Expr::Assign(Assign::new(name, value)))
 }
 pub fn binary<'a>(
     l_expr: Box<Expr<'a>>,
