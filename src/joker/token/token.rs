@@ -1,12 +1,11 @@
 //! This file is joker token.rs.
-use std::collections::HashMap;
+//!
+//!
 use std::fmt::{Debug, Display};
 
 use super::super::r#type::Object;
-use lazy_static::lazy_static;
 
-
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum TokenType {
     // ()
     LeftParen,
@@ -123,35 +122,6 @@ impl Display for TokenType {
     }
 }
 
-
-// lazy_static keyword
-lazy_static! {
-    pub(crate) static ref KEYWORD: HashMap<&'static str, TokenType> = {
-        let mut keyword: HashMap<&str, TokenType> = HashMap::new();
-        keyword.insert("and", TokenType::And);
-        keyword.insert("class", TokenType::Class);
-        keyword.insert("else", TokenType::Else);
-        keyword.insert("false", TokenType::False);
-        keyword.insert("for", TokenType::For);
-        keyword.insert("fun", TokenType::Fun);
-        keyword.insert("if", TokenType::If);
-        keyword.insert("null", TokenType::Null);
-        keyword.insert("or", TokenType::Or);
-        keyword.insert("print", TokenType::Print);
-        keyword.insert("return", TokenType::Return);
-        keyword.insert("super", TokenType::Super);
-        keyword.insert("this", TokenType::This);
-        keyword.insert("true", TokenType::True);
-        keyword.insert("var", TokenType::Var);
-        keyword.insert("while", TokenType::While);
-        keyword.insert("break", TokenType::Break);
-        keyword.insert("match", TokenType::Match);
-        keyword.insert("struct", TokenType::Struct);
-        keyword
-    };
-}
-
-
 // 词素和标记（词法单元）
 pub struct Token {
     pub ttype: TokenType,
@@ -161,12 +131,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(
-        ttype: TokenType,
-        lexeme: String,
-        literal: Option<Object>,
-        line: usize,
-    ) -> Token {
+    pub fn new(ttype: TokenType, lexeme: String, literal: Option<Object>, line: usize) -> Token {
         Token {
             ttype,
             lexeme,
@@ -174,11 +139,11 @@ impl Token {
             line,
         }
     }
-
     pub fn eof(line: usize) -> Token {
         Token::new(TokenType::Eof, String::new(), None, line)
     }
 }
+
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.ttype {
@@ -243,18 +208,19 @@ impl Display for Token {
     }
 }
 
-
 impl Debug for Token {
-   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let literal: String = match &self.literal {
-            Some(literal) => format!("Some({})",literal.to_string()),
+            Some(literal) => format!("Some({})", literal.to_string()),
             None => String::from("None"),
         };
-        write!(f , "Token(ttype: {}, lexeme: {}, literal: {}, line: {})", 
-                    self.ttype, self.lexeme, literal, self.line,)
-   } 
+        write!(
+            f,
+            "Token(ttype: {}, lexeme: {}, literal: {}, line: {})",
+            self.ttype, self.lexeme, literal, self.line,
+        )
+    }
 }
-
 
 #[cfg(test)]
 mod test {}

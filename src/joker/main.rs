@@ -60,6 +60,3 @@ fn run(source: String) -> result::Result<(), JokerError> {
     }
     Ok(())
 }
-
-
-

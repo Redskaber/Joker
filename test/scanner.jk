@@ -27,3 +27,12 @@ break
 match
 struct
 
+
+// more comment.
+/*
+  \n\n\n
+  This is first line.
+  This is second line.
+  this is three line.
+*/
+

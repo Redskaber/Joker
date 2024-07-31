@@ -27,7 +27,7 @@ impl Display for Literal {
         match self {
             Literal::I32(i32_) => write!(f, "{i32_}"),
             Literal::F64(f64_) => write!(f, "{f64_}"),
-            Literal::Str(str_) => write!(f, "{str_}"),
+            Literal::Str(str_) => write!(f, "\"{str_}\""),
             Literal::Bool(bool_) => write!(f, "{bool_}"),
             Literal::Null => write!(f, "null"),
         }

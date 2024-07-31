@@ -2,32 +2,36 @@
 //! 
 
 use super::{
-    super::{token::TokenType, env::GlobalDataEnv,error::{RuntimeError, eval_error_new}},
-    ast::{Statement, Var, Variable, Expr, Binary, Literal, Unary},
+    super::{
+        env::DataEnv, 
+        error::{eval_error_new, data_env_error_new, RuntimeError}, 
+        token::TokenType
+    },
+    ast::{Binary, Expr, Literal, Statement, Unary, Var, Variable, Assign}, 
 };
 
 impl<'a> Statement<'a> {
     // Explain yourself: get eval
-    pub fn execute<'d>(&self, env: &'d mut GlobalDataEnv<'a>) -> Result<(), RuntimeError> {
+    pub fn execute<'d>(&self, env: &'d mut DataEnv<'a>) -> Result<Option<Literal<'a>>, RuntimeError> {
         match self{
             Statement::Expr(expr) => {
                 match  expr.execute(env) {
-                    Ok(_) => Ok(()),
+                    Ok(_) => Ok(None),
                     Err(err) => Err(err),
                 }
             },
             Statement::Print(print) => {
                 match print.execute(env) {
                     Ok(value) => {
-                        println!("stmt: {}", value);
-                        Ok(())
+                        println!("stmt: {}", value.unwrap());
+                        Ok(None)
                     },
                     Err(err) => Err(err),
                 }
             },
             Statement::Var(left_var) => {
                 match left_var.execute(env) {
-                    Ok(_) => Ok(()),
+                    Ok(_) => Ok(None),
                     Err(err) => Err(err), 
                 }
             },
@@ -39,11 +43,17 @@ impl<'a> Statement<'a> {
 // left var 
 impl<'a> Var<'a> {
     // Explain yourself: get eval
-    pub fn execute<'d>(&self, env: &'d mut GlobalDataEnv<'a>) -> Result<(), RuntimeError> {
+    pub fn execute<'d>(&self, env: &'d mut DataEnv<'a>) -> Result<Option<Literal<'a>>, RuntimeError> {
         match self.value.execute(env) {
             Ok(literal) => {   // set global var-val
-                env.define_var(self.name.lexeme, literal);
-                Ok(())
+                match literal {
+                    Some(literal) => env.define_var(self.name.lexeme, literal),
+                    None => return Err(data_env_error_new(
+                        self.name,
+                        String::from("(right var) variable is None!"),
+                    ))
+                }
+                Ok(None)
             },
             Err(err) => return Err(err),
         }
@@ -52,10 +62,11 @@ impl<'a> Var<'a> {
 
 impl<'a> Expr<'a> {
     // Explain yourself: get eval
-    pub fn execute<'d>(&self, env: &'d mut GlobalDataEnv<'a>) -> Result<Literal<'a>, RuntimeError> {
+    pub fn execute<'d>(&self, env: &'d mut DataEnv<'a>) -> Result<Option<Literal<'a>>, RuntimeError> {
         match self {
             Expr::Literal(literal) => literal.execute(),
             Expr::Unary(unary) => unary.execute(env),
+            Expr::Assign(assign) => assign.execute(env),
             Expr::Binary(binary) => binary.execute(env),
             Expr::Variable(right_var) => right_var.execute(env),
             Expr::Grouping(expr) => expr.execute(env),
@@ -65,24 +76,24 @@ impl<'a> Expr<'a> {
 
 // Explain yourself: get eval
 impl<'a> Literal<'a> {
-    pub fn execute(&self) -> Result<Literal<'a>, RuntimeError> {
-        Ok(*self)
+    pub fn execute(&self) -> Result<Option<Literal<'a>>, RuntimeError> {
+        Ok(Some(*self))
     }
 }
 impl<'a> Unary<'a> {
-    pub fn execute<'d>(&self, env: &'d mut GlobalDataEnv<'a>) -> Result<Literal<'a>, RuntimeError> {
-        let value = self.r_expr.execute(env)?;
+    pub fn execute<'d>(&self, env: &'d mut DataEnv<'a>) -> Result<Option<Literal<'a>>, RuntimeError> {
+        let value = self.r_expr.execute(env)?.unwrap();
         match self.l_opera.token_type {
             TokenType::Bang => match value {
-                Literal::Bool(bool_) => Ok(Literal::Bool(!bool_)),
+                Literal::Bool(bool_) => Ok(Some(Literal::Bool(!bool_))),
                 _ => Err(eval_error_new(
                     self.l_opera,
                     String::from(format!("This value '{}' cannot be !{}", value, value))
                 )),
             },
             TokenType::Minus => match value {
-                Literal::I32(i32_) => Ok(Literal::I32(-i32_)),
-                Literal::F64(f64_) => Ok(Literal::F64(-f64_)),
+                Literal::I32(i32_) => Ok(Some(Literal::I32(-i32_))),
+                Literal::F64(f64_) => Ok(Some(Literal::F64(-f64_))),
                 _ => Err(eval_error_new(
                     self.l_opera,
                     String::from(format!("This value '{}' cannot be -{}", value, value)))),
@@ -98,19 +109,31 @@ impl<'a> Unary<'a> {
     }
 }
 
+impl<'a> Assign<'a> {
+    pub fn execute<'d>(&self, env: &'d mut DataEnv<'a>) -> Result<Option<Literal<'a>>, RuntimeError> {
+        let value = self.value.execute(env)?.unwrap();
+        if let Err(err) = env.assign(self.name, value) {
+            return Err(RuntimeError::DataEnvError(err))
+        }
+        Ok(None)
+    }
+}
+
+
 impl<'a> Binary<'a> {
         // Explain yourself: get eval
-    pub fn execute<'d>(&self, env: &'d mut GlobalDataEnv<'a>) -> Result<Literal<'a>, RuntimeError> {
-        let l_value: Literal = self.l_expr.execute(env)?;
-        let r_value: Literal = self.r_expr.execute(env)?;
+    pub fn execute<'d>(&self, env: &'d mut DataEnv<'a>) -> Result<Option<Literal<'a>>, RuntimeError> {
+        
+        let l_value: Literal = self.l_expr.execute(env)?.unwrap();
+        let r_value: Literal = self.r_expr.execute(env)?.unwrap();
         match self.m_opera.token_type {
             TokenType::BangEqual => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::Bool(l_i32 != r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::Bool(l_f64 != r_f64)),
-                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Literal::Bool(l_str != r_str)),
-                (Literal::Null, Literal::Null) => Ok(Literal::Bool(false)),
-                (Literal::Null, _) => Ok(Literal::Bool(true)),
-                (_, Literal::Null) => Ok(Literal::Bool(true)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::Bool(l_i32 != r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::Bool(l_f64 != r_f64))),
+                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Some(Literal::Bool(l_str != r_str))),
+                (Literal::Null, Literal::Null) => Ok(Some(Literal::Bool(false))),
+                (Literal::Null, _) => Ok(Some(Literal::Bool(true))),
+                (_, Literal::Null) => Ok(Some(Literal::Bool(true))),
                 _ => Err(eval_error_new(
                     self.m_opera,
                     String::from(format!(
@@ -120,12 +143,12 @@ impl<'a> Binary<'a> {
                 ))
             },
             TokenType::EqualEqual => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::Bool(l_i32 == r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::Bool(l_f64 == r_f64)),
-                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Literal::Bool(l_str == r_str)),
-                (Literal::Null, Literal::Null) => Ok(Literal::Bool(true)),
-                (Literal::Null, _) => Ok(Literal::Bool(false)),
-                (_, Literal::Null) => Ok(Literal::Bool(false)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::Bool(l_i32 == r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::Bool(l_f64 == r_f64))),
+                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Some(Literal::Bool(l_str == r_str))),
+                (Literal::Null, Literal::Null) => Ok(Some(Literal::Bool(true))),
+                (Literal::Null, _) => Ok(Some(Literal::Bool(false))),
+                (_, Literal::Null) => Ok(Some(Literal::Bool(false))),
                 _ => Err(eval_error_new(
                     self.m_opera,
                     String::from(format!(
@@ -135,9 +158,9 @@ impl<'a> Binary<'a> {
                 )),
             },
             TokenType::Greater => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::Bool(l_i32 > r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::Bool(l_f64 > r_f64)),
-                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Literal::Bool(l_str > r_str)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::Bool(l_i32 > r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::Bool(l_f64 > r_f64))),
+                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Some(Literal::Bool(l_str > r_str))),
                 _ => Err(eval_error_new(
                     self.m_opera,
                     String::from(format!(
@@ -147,9 +170,9 @@ impl<'a> Binary<'a> {
                 )),
             },
             TokenType::GreaterEqual => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::Bool(l_i32 >= r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::Bool(l_f64 >= r_f64)),
-                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Literal::Bool(l_str >= r_str)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::Bool(l_i32 >= r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::Bool(l_f64 >= r_f64))),
+                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Some(Literal::Bool(l_str >= r_str))),
                 _ => Err(eval_error_new(
                     self.m_opera,
                     String::from(format!(
@@ -159,9 +182,9 @@ impl<'a> Binary<'a> {
                 )),
             },
             TokenType::Less => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::Bool(l_i32 < r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::Bool(l_f64 < r_f64)),
-                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Literal::Bool(l_str < r_str)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::Bool(l_i32 < r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::Bool(l_f64 < r_f64))),
+                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Some(Literal::Bool(l_str < r_str))),
                 _ => Err(eval_error_new(
                     self.m_opera,
                     String::from(format!(
@@ -171,9 +194,9 @@ impl<'a> Binary<'a> {
                 )),
             },
             TokenType::LessEqual => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::Bool(l_i32 <= r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::Bool(l_f64 <= r_f64)),
-                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Literal::Bool(l_str <= r_str)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::Bool(l_i32 <= r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::Bool(l_f64 <= r_f64))),
+                (Literal::Str(l_str), Literal::Str(r_str)) => Ok(Some(Literal::Bool(l_str <= r_str))),
                 _ => Err(eval_error_new(
                     self.m_opera,
                     String::from(format!(
@@ -183,14 +206,14 @@ impl<'a> Binary<'a> {
                 )),
             },
             TokenType::Plus => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::I32(l_i32 + r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::F64(l_f64 + r_f64)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::I32(l_i32 + r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::F64(l_f64 + r_f64))),
                 // pending...
                 (Literal::I32(l_i32), Literal::F64(r_f64)) => {
-                    Ok(Literal::F64(l_i32 as f64 + r_f64))
+                    Ok(Some(Literal::F64(l_i32 as f64 + r_f64)))
                 }
                 (Literal::F64(l_f64), Literal::I32(r_i32)) => {
-                    Ok(Literal::F64(l_f64 + r_i32 as f64))
+                    Ok(Some(Literal::F64(l_f64 + r_i32 as f64)))
                 }
                 // String + => next local language impl, this is &str
                 _ => Err(eval_error_new(
@@ -202,8 +225,8 @@ impl<'a> Binary<'a> {
                 )),
             },
             TokenType::Minus => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::I32(l_i32 - r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::F64(l_f64 - r_f64)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::I32(l_i32 - r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::F64(l_f64 - r_f64))),
                 _ => Err(eval_error_new(
                     self.m_opera,
                     String::from(format!(
@@ -215,7 +238,7 @@ impl<'a> Binary<'a> {
             TokenType::Slash => match (l_value, r_value) {
                 (Literal::I32(l_i32), Literal::I32(r_i32)) => {
                     if r_i32 != 0 {
-                        Ok(Literal::F64(l_i32 as f64 / r_i32 as f64))
+                        Ok(Some(Literal::F64(l_i32 as f64 / r_i32 as f64)))
                     } else {
                         Err(eval_error_new(
                             self.m_opera,
@@ -228,7 +251,7 @@ impl<'a> Binary<'a> {
                 }
                 (Literal::F64(l_f64), Literal::F64(r_f64)) => {
                     if r_f64 != 0.0 {
-                        Ok(Literal::F64(l_f64 / r_f64))
+                        Ok(Some(Literal::F64(l_f64 / r_f64)))
                     } else {
                         Err(eval_error_new(
                             self.m_opera,
@@ -248,13 +271,13 @@ impl<'a> Binary<'a> {
                 )),
             },
             TokenType::Star => match (l_value, r_value) {
-                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Literal::I32(l_i32 * r_i32)),
-                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Literal::F64(l_f64 * r_f64)),
+                (Literal::I32(l_i32), Literal::I32(r_i32)) => Ok(Some(Literal::I32(l_i32 * r_i32))),
+                (Literal::F64(l_f64), Literal::F64(r_f64)) => Ok(Some(Literal::F64(l_f64 * r_f64))),
                 (Literal::I32(l_i32), Literal::F64(r_f64)) => {
-                    Ok(Literal::F64(l_i32 as f64 * r_f64))
+                    Ok(Some(Literal::F64(l_i32 as f64 * r_f64)))
                 }
                 (Literal::F64(l_f64), Literal::I32(r_i32)) => {
-                    Ok(Literal::F64(l_f64 * r_i32 as f64))
+                    Ok(Some(Literal::F64(l_f64 * r_i32 as f64)))
                 }
                 _ => Err(eval_error_new(
                     self.m_opera,
@@ -278,9 +301,9 @@ impl<'a> Binary<'a> {
 
 // right var
 impl<'a> Variable<'a> {
-    pub fn execute<'d>(&self, env: &'d mut GlobalDataEnv<'a>) -> Result<Literal<'a>, RuntimeError> {
+    pub fn execute<'d>(&self, env: &'d mut DataEnv<'a>) -> Result<Option<Literal<'a>>, RuntimeError> {
         match env.get_var_value(self.name) {
-            Ok(value) => Ok(*value),
+            Ok(value) => Ok(Some(value)),
             Err(err) => Err(RuntimeError::DataEnvError(err)), 
         }
     }

@@ -7,7 +7,6 @@ use super::super::{
     token::{Token, TokenType},
 };
 
-
 #[derive(Debug)]
 pub struct Scanner {
     source: Vec<char>,
@@ -103,19 +102,17 @@ impl Scanner {
                         }
                         self.advance();
                     }
+                } else if self.is_match('*') {
+                    self.scan_comment()?;
                 } else {
                     self.add_token(TokenType::Slash);
                 }
             }
-            ' ' 
-            | '\r' 
-            | '\t' => {}
+            ' ' | '\r' | '\t' => {}
             '\n' => self.line += 1,
             '"' => self.scan_string()?,
             '0'..='9' => self.scan_number()?,
-            'a'..='z' 
-            | 'A'..='Z' 
-            | '_' => self.scan_identifier()?,
+            'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier()?,
             _ => {
                 return Err(JokerError::error(
                     self.line,
@@ -132,7 +129,34 @@ impl Scanner {
 
     fn add_token_object(&mut self, ttype: TokenType, literal: Option<Object>) {
         let lexeme: String = self.source[self.start..self.current].iter().collect();
-        self.tokens.push(Token::new(ttype, lexeme, literal, self.line));
+        self.tokens
+            .push(Token::new(ttype, lexeme, literal, self.line));
+    }
+
+    fn scan_comment(&mut self) -> Result<(), JokerError> {
+        while let Some(ch) = self.peek() {
+            match ch {
+                '\n' => self.line += 1,
+                '*' => match self.next_peek() {
+                    Some(next_ch) => {
+                        if *next_ch == '/' {
+                            self.advance();
+                            self.advance();
+                            break;
+                        }
+                    }
+                    None => {
+                        return Err(JokerError::error(
+                            self.line,
+                            String::from("Unterminated comment."),
+                        ))
+                    }
+                },
+                _ => {}
+            }
+            self.advance();
+        }
+        Ok(())
     }
 
     fn scan_string(&mut self) -> Result<(), JokerError> {
@@ -154,7 +178,9 @@ impl Scanner {
         self.advance();
 
         // TODO: handle escape sequence
-        let text: String = self.source[self.start + 1..self.current - 1].iter().collect();
+        let text: String = self.source[self.start + 1..self.current - 1]
+            .iter()
+            .collect();
         self.add_token_object(TokenType::Str, Some(literal_str(text)));
         Ok(())
     }
@@ -170,11 +196,11 @@ impl Scanner {
         while Scanner::is_digit(self.peek()) {
             self.advance();
         }
-        
+
         if self.peek() == Some(&'.') {
-            if Scanner::is_digit(self.next_peek()){
+            if Scanner::is_digit(self.next_peek()) {
                 self.advance();
-                while Scanner::is_digit(self.peek()){
+                while Scanner::is_digit(self.peek()) {
                     self.advance();
                 }
                 let f64_text: String = self.source[self.start..self.current].iter().collect();
@@ -182,21 +208,20 @@ impl Scanner {
                 return Ok(());
             } else {
                 return Err(JokerError::error(
-                    self.line, 
-                    String::from("floating-point numbers require fractional parts.")
+                    self.line,
+                    String::from("floating-point numbers require fractional parts."),
                 ));
             }
         }
 
         let i32_text: String = self.source[self.start..self.current].iter().collect();
         self.add_token_object(TokenType::I32, Some(literal_i32(i32_text)));
-        return Ok(());
+        Ok(())
     }
-    
+
     fn is_alpha_numeric(op_ch: Option<&char>) -> bool {
         match op_ch {
-            Some(ch) => ch.is_ascii_alphanumeric() 
-            || *ch == '_',
+            Some(ch) => ch.is_ascii_alphanumeric() || *ch == '_',
             None => false,
         }
     }
@@ -205,10 +230,10 @@ impl Scanner {
         while Scanner::is_alpha_numeric(self.peek()) {
             self.advance();
         }
-        
+
         let text: String = self.source[self.start..self.current].iter().collect();
         match Scanner::keywords(&text) {
-            Some(keyword) => self.add_token(keyword),  
+            Some(keyword) => self.add_token(keyword),
             None => self.add_token(TokenType::Identifier),
         }
         Ok(())
@@ -256,16 +281,6 @@ impl Scanner {
         self.source.get(self.current + 1)
     }
 }
-
-
-
-
-
-
-
-
-
-
 
 
 

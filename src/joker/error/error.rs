@@ -10,11 +10,9 @@ impl JokerError {
     }
 
     pub fn report(&self, loc: String) {
-        eprintln!("[line {}] where: '{}', \n\tmsg: {}\n", self.line, loc, self.msg);
+        eprintln!(
+            "[line {}] where: '{}', \n\tmsg: {}\n",
+            self.line, loc, self.msg
+        );
     }
 }
-
-
-
-
-
