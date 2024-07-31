@@ -1,3 +1,7 @@
 /target
 /.idea
 /.vscode
+/Cargo.lock
+/src/joker/ast/build.rs
+/tools/target/
+/tools/Cargo.lock
