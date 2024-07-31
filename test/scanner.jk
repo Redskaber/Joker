@@ -1,0 +1,29 @@
+([{< <= == >= >}])  //1
+// comment          //2
+!                   //3
+*                   //4
+/                   //5
+"this is string"
+"new os"
+
+// keyword
+and
+class
+else
+false
+for
+fun
+if
+null
+or
+print
+return
+super
+this
+true
+var
+while
+break
+match
+struct
+
