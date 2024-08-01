@@ -1,11 +1,12 @@
 //! This file is joker
 use std::env;
 use std::fs;
-use std::io;
-use std::io::{stdout, Write};
+use std::io::{self, stdout, Write};
 use std::result;
 
-use super::{error::JokerError, scanner::Scanner, token::Token};
+use super::r#type::literal_f64;
+use super::r#type::literal_i32;
+use super::{error::JokerError, scanner::Scanner, token::{Token, TokenType}, ast::{AstPrinter, Expr, Literal, Binary, Unary, Grouping}};
 
 pub fn joker_main() {
     let args: Vec<String> = env::args().collect();
@@ -58,5 +59,17 @@ fn run(source: String) -> result::Result<(), JokerError> {
     for token in tokens {
         println!("{token:#?}");
     }
+    let binary: Expr = Expr::Binary(Binary::new(
+        Box::new(Expr::Unary(Unary::new(
+            Token::new(TokenType::Minus, String::new(), None, 0),
+            Box::new(Expr::Literal(Literal::new(Some(literal_f64(123.0)))))
+        ))),    
+        Token::new(TokenType::Slash, String::new(), None, 0),
+        Box::new(Expr::Grouping(Grouping::new(Box::new(Expr::Literal(Literal::new(Some(literal_f64(123.0))))))))
+    ));
+    println!("binary: {binary}");
+    let ast_printer = AstPrinter::new();
+    println!("ast: {}", ast_printer.print(&binary)?);
+
     Ok(())
 }

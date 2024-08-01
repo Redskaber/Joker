@@ -38,12 +38,10 @@ pub fn literal_str(text: String) -> Object {
     Object::Literal(Literal::Str(text))
 }
 
-pub fn literal_f64(f64_text: String) -> Object {
-    let f64_: f64 = f64_text.parse::<f64>().unwrap();
+pub fn literal_f64(f64_: f64) -> Object {
     Object::Literal(Literal::F64(f64_))
 }
 
-pub fn literal_i32(i32_text: String) -> Object {
-    let i32_: i32 = i32_text.parse::<i32>().unwrap();
+pub fn literal_i32(i32_: i32) -> Object {
     Object::Literal(Literal::I32(i32_))
 }

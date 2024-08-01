@@ -211,7 +211,7 @@ impl Display for Token {
 impl Debug for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let literal: String = match &self.literal {
-            Some(literal) => format!("Some({})", literal.to_string()),
+            Some(literal) => format!("Some({})", literal),
             None => String::from("None"),
         };
         write!(

@@ -1,56 +1,32 @@
-//! This file is abstract syntax tree (AST) impl !
-//!
-//! Base Syntax (存在歧义):
-//!     expression     → literal
-//!                    | unary
-//!                    | binary
-//!                    | grouping ;
-//!
-//!     literal        → NUMBER | STRING | "true" | "false" | "nil" ;
-//!     grouping       → "(" expression ")" ;
-//!     unary          → ( "-" | "!" ) expression ;
-//!     binary         → expression operator expression ;
-//!     operator       → "==" | "!=" | "<" | "<=" | ">" | ">="
-//!                    | "+"  | "-"  | "*" | "/" ;
+//! This file is macro build ast;
 //!
 //!
-//!
-//! Next Syntax RuleSet(使用优先级与结合性, 解决歧义):
-//!
-//!     program        → statement* EOF ;
-//!     
-//!     statement      → exprStmt               
-//!                     | printStmt             
-//!                     | varStmt ;             
-//!
-//!     exprStmt       → expression ";" ;
-//!     printStmt      → "print" expression ";" ;
-//!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
-//!
-//!     expression     → assignment ;
-//!     assignment     → IDENTIFIER "=" assignment
-//!                     | equality ;
-//!
-//!     equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-//!     comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-//!     term           → factor ( ( "-" | "+" ) factor )* ;
-//!     factor         → unary ( ( "/" | "*" ) unary )* ;
-//!     unary          → ( "!" | "-" ) unary
-//!                     | grouping ;
-//!
-//!     grouping      -> "(" expression ")" ;
-//!                     | primary ;
-//!
-//!     primary        → I32| F64 | STRING | "true" | "false" | "null"
-//!                     | IDENTIFIER ;
-//!
-//!
-//!
-use super::super::{
-    r#type::Object,
-    error::JokerError,
-    token::Token,
-};
+
+// define_ast!(
+//  enum_name {
+//      arm_struct(f_name: f_type),
+//      arm_struct(f_name: f_type),
+//  },
+//  trait_name,
+//  trait_name,
+// )
+//
+
+#[derive(Debug)]
+struct Object;
+#[derive(Debug)]
+struct Token;
+struct JokerError;
+impl std::fmt::Display for Object {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+impl std::fmt::Display for Token {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
 
 
 macro_rules! define_ast {
@@ -82,7 +58,9 @@ macro_rules! define_ast {
 
         impl $struct_name {
             pub fn new($($field: $field_type),*) -> $struct_name {
-                $struct_name { $($field),* }
+                $struct_name {
+                    $($field: $field),*
+                }
             }
         }
         )*
@@ -125,24 +103,24 @@ macro_rules! define_ast {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut fields = Vec::new();
-                $(fields.push(format!("{}: {:#?}", stringify!($field), self.$field).to_string());)*
+                $(fields.push(format!("{}: {}", stringify!($field), self.$field).to_string());)*
                 let format_args = fields.join(", ").trim_end_matches(", ").to_string();
                 write!(f, "{}({})", stringify!($struct_name), format_args)
             }
-        }                
+        }    
         )*
+        
     };
 }
 
-
+// 定义具体的枚举类型和访问者模式
 define_ast! {
     Expr {
-        Literal     { value: Option<Object> },
+        Literal     { value: Object },
         Unary       { l_opera: Token, r_expr: Box<Expr> },
         Binary      { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Grouping    { expr: Box<Expr> },
     },
-    ExprVisitor     { visit_literal, visit_unary, visit_binary, visit_grouping },
+    ExprVisitor { visit_literal, visit_unary, visit_binary, visit_grouping },
     ExprAccept,
 }
-

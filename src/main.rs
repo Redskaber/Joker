@@ -5,6 +5,6 @@ mod joker;
 // use joker::*;
 
 fn main() {
-    let _ = joker::joker_main();
+    joker::joker_main();
     // idea::automata::automata_main();
 }

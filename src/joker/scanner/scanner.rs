@@ -174,7 +174,7 @@ impl Scanner {
                 self.line,
                 String::from("Unterminated string."),
             ));
-        }
+        } 
         self.advance();
 
         // TODO: handle escape sequence
@@ -204,7 +204,8 @@ impl Scanner {
                     self.advance();
                 }
                 let f64_text: String = self.source[self.start..self.current].iter().collect();
-                self.add_token_object(TokenType::F64, Some(literal_f64(f64_text)));
+                let f64_: f64 = f64_text.parse::<f64>().unwrap();
+                self.add_token_object(TokenType::F64, Some(literal_f64(f64_)));
                 return Ok(());
             } else {
                 return Err(JokerError::error(
@@ -215,7 +216,8 @@ impl Scanner {
         }
 
         let i32_text: String = self.source[self.start..self.current].iter().collect();
-        self.add_token_object(TokenType::I32, Some(literal_i32(i32_text)));
+        let i32_: i32 = i32_text.parse::<i32>().unwrap();
+        self.add_token_object(TokenType::I32, Some(literal_i32(i32_)));
         Ok(())
     }
 
