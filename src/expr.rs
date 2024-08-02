@@ -1,4 +1,9 @@
-use super::super::{error::JokerError, r#type::Object, token::Token};
+use super::super::{
+    r#type::Object,
+    error::JokerError,
+    token::Token,
+};
+
 
 pub enum Expr {
     Literal(Literal),
@@ -8,7 +13,7 @@ pub enum Expr {
 }
 
 pub struct Literal {
-    pub value: Object,
+    pub value: Option<Object>,
 }
 
 pub struct Unary {
@@ -26,6 +31,17 @@ pub struct Grouping {
     pub expr: Box<Expr>,
 }
 
+impl<T> ExprVisitor<T> for Expr {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        match self {
+            Expr::Literal(literal) => literal.accept(visitor),
+            Expr::Unary(unary) => unary.accept(visitor),
+            Expr::Binary(binary) => binary.accept(visitor),
+            Expr::Grouping(grouping) => grouping.accept(visitor),
+        }
+    }
+}
+
 pub trait ExprVisitor<T> {
     fn visit_literal(&self, expr: &Literal) -> Result<T, JokerError>;
     fn visit_unary(&self, expr: &Unary) -> Result<T, JokerError>;
@@ -35,17 +51,6 @@ pub trait ExprVisitor<T> {
 
 pub trait ExprAccept<T> {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError>;
-}
-
-impl ExprAccept<T> for Expr {
-    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
-        match self {
-            Expr::Literal(literal) => literal.accept(visitor),
-            Expr::Unary(unary) => unary.accept(visitor),
-            Expr::Binary(binary) => binary.accept(visitor),
-            Expr::Grouping(grouping) => grouping.accept(visitor),
-        }
-    }
 }
 
 impl<T> ExprAccept<T> for Literal {
@@ -71,3 +76,4 @@ impl<T> ExprAccept<T> for Grouping {
         visitor.visit_grouping(self)
     }
 }
+

@@ -119,19 +119,37 @@ macro_rules! define_ast {
                     $($ast_name::$struct_name(expr) => Display::fmt(expr, f)),*
                 }
             }
+        }
+
+        $(define_ast!{@impl_display $struct_name, $($field: $field_type),*})*
+    };
+
+    (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
+        define_ast!{@impl_display_inner $struct_name, $($field : $field_type),*}
+    };
+    
+    (@impl_display_inner Literal, $field:ident : $field_type:ty) => {
+        impl Display for Literal {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let format_args = match &self.$field {
+                    Some(value) => value.to_string(),
+                    None => "None".to_string(),
+                };
+                write!(f, "Literal(value: {})", format_args)
+            }
         }    
-        
-        $(
+    };
+    
+    (@impl_display_inner $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut fields = Vec::new();
-                $(fields.push(format!("{}: {:#?}", stringify!($field), self.$field).to_string());)*
+                $(fields.push(format!("{}: {}", stringify!($field), self.$field).to_string());)*
                 let format_args = fields.join(", ").trim_end_matches(", ").to_string();
                 write!(f, "{}({})", stringify!($struct_name), format_args)
             }
-        }                
-        )*
-    };
+        } 
+    }
 }
 
 
