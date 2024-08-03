@@ -4,7 +4,6 @@
 //!     expression     → literal
 //!                    | unary
 //!                    | binary
-//!                    | Trinomial
 //!                    | grouping ;
 //!
 //!     literal        → NUMBER | STRING | "true" | "false" | "nil" ;
@@ -20,14 +19,16 @@
 //!
 //!     program        → statement* EOF ;
 //!     
-//!     statement      → exprStmt               
+//!     statement      → exprStmt
+//!                     | TrinomialStmt               
 //!                     | printStmt             
 //!                     | varStmt ;             
 //!
 //!     exprStmt       → expression ";" ;
 //!     printStmt      → "print" expression ";" ;
 //!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
-//!
+//!     TrinomialStmt  → expression "?" expression ":" expression ";" ;  
+//! 
 //!     expression     → assignment ;
 //!     assignment     → IDENTIFIER "=" assignment
 //!                     | equality ;

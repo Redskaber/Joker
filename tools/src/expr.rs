@@ -1,4 +1,4 @@
-use super::super::{
+use super::{
     r#type::Object,
     error::JokerError,
     token::Token,

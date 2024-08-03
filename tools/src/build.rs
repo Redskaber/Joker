@@ -32,8 +32,8 @@ fn define_ast(output_dir: &String, base_name: &String, types: &[String]) -> io::
     let mut tree_types: Vec<TreeType> = Vec::new();
 
     // header
-    writeln!(file, "use super::super::{{")?;
-    writeln!(file, "    r#type::Object,")?;
+    writeln!(file, "use super::{{")?;
+    writeln!(file, "    object::Object,")?;
     writeln!(file, "    error::JokerError,")?;
     writeln!(file, "    token::Token,")?;
     writeln!(file, "}};\n\n")?;
