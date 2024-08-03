@@ -4,8 +4,8 @@
 //!
 
 use super::{
-    ast::{Binary, Expr, Grouping, Literal, Trinomial, Unary},
-    error::ReportError,
+    ast::{Binary, Expr, Grouping, Literal, Unary},
+    error::{JokerError, ReportError},
     token::{Token, TokenType},
 };
 
@@ -59,24 +59,24 @@ impl Parser {
         }
     }
     // stmt -> stmt ? stmt : stmt;
-    //        | exprStmt; 
+    //        | exprStmt;
     // let stmt = self.stmt()?;
     // if self.is_match(&[TokenType::Question]) {
     //     let m_stmt: Stmt = self.stmt()?;
     //     if self.is_match(&[TokenType::Colon]) {
     //         let r_stmt: Stmt = self.stmt()?;
     //         return Ok(Trinomial::into_expr(Box::new(stmt), Box::new(m_stmt), Box::new(r_stmt)));
-    //     } 
+    //     }
     //     return Err(ParseError::new(self.previous(), String::from("Expected ':' after '?'")));
     // }
-    // Ok(expr)    
-    //        
+    // Ok(expr)
+    //
     // exprStmt -> equality
-    fn expression(&mut self) -> Result<Expr, ParseError> {
+    fn expression(&mut self) -> Result<Expr, JokerError> {
         self.equality()
     }
     // equality -> comparison ( ( "!=" | "==")  comparison )*
-    fn equality(&mut self) -> Result<Expr, ParseError> {
+    fn equality(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.comparison()?;
         while self.is_match(&[TokenType::BangEqual, TokenType::Equal]) {
             let m_opera: Token = self.previous();
@@ -86,7 +86,7 @@ impl Parser {
         Ok(expr)
     }
     // comparison -> term ( ( ">" | ">=" | "<" | "<=") term )*;
-    fn comparison(&mut self) -> Result<Expr, ParseError> {
+    fn comparison(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.term()?;
         while self.is_match(&[
             TokenType::Greater,
@@ -101,7 +101,7 @@ impl Parser {
         Ok(expr)
     }
     // term -> factor ( ( "-" | "+" ) factor )* ;
-    fn term(&mut self) -> Result<Expr, ParseError> {
+    fn term(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.factor()?;
         while self.is_match(&[TokenType::Minus, TokenType::Plus]) {
             let m_opera: Token = self.previous();
@@ -111,7 +111,7 @@ impl Parser {
         Ok(expr)
     }
     // factor -> unary ( ( "/" | "*" ) unary )* ;
-    fn factor(&mut self) -> Result<Expr, ParseError> {
+    fn factor(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.unary()?;
         while self.is_match(&[TokenType::Slash, TokenType::Star]) {
             let m_opera: Token = self.previous();
@@ -122,7 +122,7 @@ impl Parser {
     }
     // unary -> ( "!" | "-" ) unary
     //          | grouping ;
-    fn unary(&mut self) -> Result<Expr, ParseError> {
+    fn unary(&mut self) -> Result<Expr, JokerError> {
         if self.is_match(&[TokenType::Bang, TokenType::Minus]) {
             let l_opera: Token = self.previous();
             let r_expr: Expr = self.unary()?;
@@ -132,7 +132,7 @@ impl Parser {
     }
     // grouping -> "(" expression ")" ;
     //              | primary ;
-    fn grouping(&mut self) -> Result<Expr, ParseError> {
+    fn grouping(&mut self) -> Result<Expr, JokerError> {
         if self.is_match(&[TokenType::LeftParen]) {
             let expr: Expr = self.expression()?;
             self.consume(
@@ -145,7 +145,7 @@ impl Parser {
     }
     // primary -> I32| F64 | STRING | "true" | "false" | "null"
     //          | IDENTIFIER ;
-    fn primary(&mut self) -> Result<Expr, ParseError> {
+    fn primary(&mut self) -> Result<Expr, JokerError> {
         match self.peek().ttype {
             TokenType::False => Ok(Literal::into_expr(self.advance().literal)),
             TokenType::True => Ok(Literal::into_expr(self.advance().literal)),
@@ -153,14 +153,14 @@ impl Parser {
             TokenType::I32 => Ok(Literal::into_expr(self.advance().literal)),
             TokenType::F64 => Ok(Literal::into_expr(self.advance().literal)),
             TokenType::Str => Ok(Literal::into_expr(self.advance().literal)),
-            _ => Err(ParseError::new(self.peek(), String::from("not impl!"))),
+            _ => Err(JokerError::new(&self.peek(), String::from("not impl!"))),
         }
     }
-    fn consume(&mut self, expected: &TokenType, msg: String) -> Result<Token, ParseError> {
+    fn consume(&mut self, expected: &TokenType, msg: String) -> Result<Token, JokerError> {
         if self.check(expected) {
             Ok(self.advance())
         } else {
-            Err(ParseError::new(self.peek(), msg))
+            Err(JokerError::new(&self.peek(), msg))
         }
     }
     fn synchronize(&mut self) {
@@ -182,36 +182,5 @@ impl Parser {
             }
             self.advance();
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct ParseError {
-    line: usize,
-    where_: String,
-    msg: String,
-}
-
-impl ParseError {
-    pub fn new(token: Token, msg: String) -> ParseError {
-        let where_: String = if token.ttype == TokenType::Eof {
-            String::from(" at end")
-        } else {
-            format!(" at '{}'", token.lexeme)
-        };
-        ParseError {
-            line: token.line,
-            where_,
-            msg,
-        }
-    }
-}
-
-impl ReportError for ParseError {
-    fn report(&self) {
-        eprintln!(
-            "[line {}] where: '{}', \n\tmsg: {}\n",
-            self.line, self.where_, self.msg
-        );
     }
 }

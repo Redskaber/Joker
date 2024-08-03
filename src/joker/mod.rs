@@ -6,5 +6,6 @@ mod parse;
 mod scanner;
 mod token;
 mod object;
+mod interpreter;
 
 pub use main::joker_main;

@@ -3,8 +3,8 @@
 //!
 
 use super::{
-    ast::{Binary, Expr, ExprAccept, ExprVisitor, Grouping, Literal, Unary},
-    error::{JokerError, ReportError},
+    ast::{Binary, Expr, ExprAcceptor, ExprVisitor, Grouping, Literal, Unary},
+    error::{JokerError, ReportError}, object::Object,
 };
 
 pub struct AstPrinter;
@@ -43,8 +43,7 @@ impl AstPrinter {
 impl ExprVisitor<String> for AstPrinter {
     fn visit_literal(&self, expr: &Literal) -> Result<String, JokerError> {
         match &expr.value {
-            Some(value) => Ok(value.to_string()),
-            None => Ok("null".to_string()),
+            Object::Literal(literal) => Ok(literal.to_string())
         }
     }
     fn visit_unary(&self, expr: &Unary) -> Result<String, JokerError> {
@@ -53,9 +52,6 @@ impl ExprVisitor<String> for AstPrinter {
     fn visit_binary(&self, expr: &Binary) -> Result<String, JokerError> {
         self.parenthesize(&expr.m_opera.lexeme, &[&expr.l_expr, &expr.r_expr])
     }
-    fn visit_trinomial(&self,expr: &super::ast::Trinomial) -> Result<String,JokerError> {
-        self.parenthesize("trinomial" , &[&expr.l_expr, &expr.m_expr, &expr.r_expr])
-    }
     fn visit_grouping(&self, expr: &Grouping) -> Result<String, JokerError> {
         self.parenthesize("group", &[&expr.expr])
     }
@@ -63,6 +59,8 @@ impl ExprVisitor<String> for AstPrinter {
 
 #[cfg(test)]
 mod test {
+
+    use crate::joker::object::literal_null;
 
     use super::{
         super::{
@@ -78,12 +76,12 @@ mod test {
 
         let binary: Expr = Expr::Binary(Binary::new(
             Box::new(Expr::Unary(Unary::new(
-                Token::new(TokenType::Minus, String::from("-"), None, 0),
-                Box::new(Expr::Literal(Literal::new(Some(literal_f64(123.0))))),
+                Token::new(TokenType::Minus, String::from("-"), literal_null(), 0),
+                Box::new(Expr::Literal(Literal::new(literal_f64(123.0)))),
             ))),
-            Token::new(TokenType::Slash, String::from("/"), None, 0),
+            Token::new(TokenType::Slash, String::from("/"), literal_null(), 0),
             Box::new(Expr::Grouping(Grouping::new(Box::new(Expr::Literal(
-                Literal::new(Some(literal_f64(123.0))),
+                Literal::new(literal_f64(123.0)),
             ))))),
         ));
         println!("binary: {binary}");
@@ -95,22 +93,22 @@ mod test {
                 l_opera: Token {
                     ttype: TokenType::Minus,
                     lexeme: String::from("-"),
-                    literal: None,
+                    literal: literal_null(),
                     line: 0,
                 },
                 r_expr: Box::new(Expr::Literal(Literal {
-                    value: Some(literal_i32(123)),
+                    value: literal_i32(123),
                 })),
             })),
             m_opera: Token {
                 ttype: TokenType::Star,
                 lexeme: String::from("*"),
-                literal: None,
+                literal: literal_null(),
                 line: 0,
             },
             r_expr: Box::new(Expr::Grouping(Grouping {
                 expr: Box::new(Expr::Literal(Literal {
-                    value: Some(literal_f64(45.67)),
+                    value: literal_f64(45.67),
                 })),
             })),
         });

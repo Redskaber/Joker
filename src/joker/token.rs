@@ -3,7 +3,7 @@
 //!
 use std::fmt::{Debug, Display};
 
-use super::object::Object;
+use super::object::{literal_null, Object};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
@@ -132,12 +132,12 @@ impl Display for TokenType {
 pub struct Token {
     pub ttype: TokenType,
     pub lexeme: String,
-    pub literal: Option<Object>,
+    pub literal: Object,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(ttype: TokenType, lexeme: String, literal: Option<Object>, line: usize) -> Token {
+    pub fn new(ttype: TokenType, lexeme: String, literal: Object, line: usize) -> Token {
         Token {
             ttype,
             lexeme,
@@ -146,7 +146,7 @@ impl Token {
         }
     }
     pub fn eof(line: usize) -> Token {
-        Token::new(TokenType::Eof, String::new(), None, line)
+        Token::new(TokenType::Eof, String::new(), literal_null(), line)
     }
 }
 
@@ -164,14 +164,10 @@ impl Display for Token {
 
 impl Debug for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let literal: String = match &self.literal {
-            Some(literal) => format!("Some({})", literal),
-            None => String::from("None"),
-        };
         write!(
             f,
             "Token(ttype: {}, lexeme: {}, literal: {}, line: {})",
-            self.ttype, self.lexeme, literal, self.line,
+            self.ttype, self.lexeme, self.literal, self.line,
         )
     }
 }

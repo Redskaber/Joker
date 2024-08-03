@@ -10,6 +10,7 @@ use std::result;
 use super::{
     ast_print::AstPrinter,
     error::{JokerError, ReportError},
+    interpreter::Interpreter,
     scanner::Scanner,
     parse::Parser,
     token::Token,
@@ -67,6 +68,9 @@ fn run(source: String) -> result::Result<(), JokerError> {
     if let Some(expr) = parser.parse() {
         let printer: AstPrinter = AstPrinter::new();
         printer.println(&expr);
+        let interpreter = Interpreter::new();
+        let value = interpreter.evaluate(&expr)?;
+        println!("{}",value);
     }
 
     Ok(())

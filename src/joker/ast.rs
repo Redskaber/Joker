@@ -125,22 +125,6 @@ macro_rules! define_ast {
     };
 
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
-        define_ast!{@impl_display_inner $struct_name, $($field : $field_type),*}
-    };
-
-    (@impl_display_inner Literal, $field:ident : $field_type:ty) => {
-        impl Display for Literal {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                let format_args = match &self.$field {
-                    Some(value) => value.to_string(),
-                    None => "None".to_string(),
-                };
-                write!(f, "Literal(value: {})", format_args)
-            }
-        }
-    };
-
-    (@impl_display_inner $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut fields = Vec::new();
@@ -154,12 +138,11 @@ macro_rules! define_ast {
 
 define_ast! {
     Expr {
-        Literal     { value: Option<Object> },
+        Literal     { value: Object },
         Unary       { l_opera: Token, r_expr: Box<Expr> },
         Binary      { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
-        Trinomial   { l_expr: Box<Expr>, m_expr: Box<Expr>, r_expr: Box<Expr> },
         Grouping    { expr: Box<Expr> },
     },
-    ExprVisitor     { visit_literal, visit_unary, visit_binary, visit_trinomial, visit_grouping },
-    ExprAccept,
+    ExprVisitor     { visit_literal, visit_unary, visit_binary, visit_grouping },
+    ExprAcceptor,
 }

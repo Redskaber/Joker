@@ -3,7 +3,7 @@
 //!
 use super::{
     error::JokerError,
-    object::{literal_f64, literal_i32, literal_str, Object},
+    object::{literal_bool, literal_f64, literal_i32, literal_null, literal_str, Object},
     token::{Token, TokenType},
 };
 
@@ -134,10 +134,10 @@ impl Scanner {
     }
 
     fn add_token(&mut self, ttype: TokenType) {
-        self.add_token_object(ttype, None)
+        self.add_token_object(ttype, literal_null())
     }
 
-    fn add_token_object(&mut self, ttype: TokenType, literal: Option<Object>) {
+    fn add_token_object(&mut self, ttype: TokenType, literal: Object) {
         let lexeme: String = self.source[self.start..self.current].iter().collect();
         match self.tokens {
             Some(ref mut tokens) => tokens.push(Token::new(ttype, lexeme, literal, self.line)),
@@ -193,7 +193,7 @@ impl Scanner {
         let text: String = self.source[self.start + 1..self.current - 1]
             .iter()
             .collect();
-        self.add_token_object(TokenType::Str, Some(literal_str(text)));
+        self.add_token_object(TokenType::Str, literal_str(text));
         Ok(())
     }
 
@@ -217,7 +217,7 @@ impl Scanner {
                 }
                 let f64_text: String = self.source[self.start..self.current].iter().collect();
                 let f64_: f64 = f64_text.parse::<f64>().unwrap();
-                self.add_token_object(TokenType::F64, Some(literal_f64(f64_)));
+                self.add_token_object(TokenType::F64, literal_f64(f64_));
                 return Ok(());
             } else {
                 return Err(JokerError::error(
@@ -229,7 +229,7 @@ impl Scanner {
 
         let i32_text: String = self.source[self.start..self.current].iter().collect();
         let i32_: i32 = i32_text.parse::<i32>().unwrap();
-        self.add_token_object(TokenType::I32, Some(literal_i32(i32_)));
+        self.add_token_object(TokenType::I32, literal_i32(i32_));
         Ok(())
     }
 
@@ -247,7 +247,13 @@ impl Scanner {
 
         let text: String = self.source[self.start..self.current].iter().collect();
         match Scanner::keywords(&text) {
-            Some(keyword) => self.add_token(keyword),
+            Some(keyword) => {
+                match keyword {
+                    TokenType::True => self.add_token_object(keyword, literal_bool(true)),
+                    TokenType::False => self.add_token_object(keyword, literal_bool(false)),
+                    _ => self.add_token(keyword),
+                }
+            },
             None => self.add_token(TokenType::Identifier),
         }
         Ok(())

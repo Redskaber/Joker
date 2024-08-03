@@ -50,3 +50,11 @@ pub fn literal_f64(f64_: f64) -> Object {
 pub fn literal_i32(i32_: i32) -> Object {
     Object::Literal(Literal::I32(i32_))
 }
+
+pub fn literal_bool(bool_: bool) -> Object {
+    Object::Literal(Literal::Bool(bool_))
+}
+
+pub fn literal_null() -> Object {
+    Object::Literal(Literal::Null)
+}
