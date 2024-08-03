@@ -3,9 +3,9 @@
 //!
 use std::fmt::{Debug, Display};
 
-use super::super::r#type::Object;
+use super::object::Object;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
     // ()
     LeftParen,
@@ -36,6 +36,8 @@ pub enum TokenType {
     // < <=
     Less,
     LessEqual,
+    // :  ?
+    Colon, Question,
     // id string I32 F64
     Identifier,
     Str,
@@ -91,6 +93,9 @@ impl Display for TokenType {
             // < <=
             TokenType::Less => write!(f, "<"),
             TokenType::LessEqual => write!(f, "<="),
+            // : ? 
+            TokenType::Colon => write!(f, ":"),
+            TokenType::Question => write!(f, "?"),
             // id Str i32 f64
             TokenType::Identifier => write!(f, "ident"),
             TokenType::Str => write!(f, "str"),
@@ -123,6 +128,7 @@ impl Display for TokenType {
 }
 
 // 词素和标记（词法单元）
+#[derive(Clone)]
 pub struct Token {
     pub ttype: TokenType,
     pub lexeme: String,
@@ -147,63 +153,11 @@ impl Token {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.ttype {
-            TokenType::LeftParen => write!(f, "("),
-            TokenType::RightParen => write!(f, ")"),
-            TokenType::LeftBracket => write!(f, "["),
-            TokenType::RightBracket => write!(f, "]"),
-            TokenType::LeftBrace => write!(f, "{{"), // 转义
-            TokenType::RightBrace => write!(f, "}}"),
-            TokenType::Comma => write!(f, ","),
-            TokenType::Dot => write!(f, "."),
-            // -  +   ;  / *
-            TokenType::Minus => write!(f, "-"),
-            TokenType::Plus => write!(f, "+"),
-            TokenType::Semicolon => write!(f, ";"),
-            TokenType::Slash => write!(f, "/"),
-            TokenType::Star => write!(f, "*"),
-
-            // One or two character tokens
-            // ! != = ==
-            TokenType::Bang => write!(f, "!"),
-            TokenType::BangEqual => write!(f, "!="),
-            TokenType::Equal => write!(f, "="),
-            TokenType::EqualEqual => write!(f, "=="),
-            // > >=
-            TokenType::Greater => write!(f, ">"),
-            TokenType::GreaterEqual => write!(f, ">="),
-            // < <=
-            TokenType::Less => write!(f, "<"),
-            TokenType::LessEqual => write!(f, "<="),
-
-            // Literals
-            // id string number
             TokenType::Identifier => write!(f, "{}", self.lexeme),
             TokenType::Str => write!(f, "{}", self.lexeme),
             TokenType::I32 => write!(f, "{}", self.lexeme),
             TokenType::F64 => write!(f, "{}", self.lexeme),
-
-            // Keyword Nil -> Null
-            TokenType::And => write!(f, "and"),
-            TokenType::Class => write!(f, "class"),
-            TokenType::Else => write!(f, "else"),
-            TokenType::False => write!(f, "false"),
-            TokenType::Fun => write!(f, "fun"),
-            TokenType::For => write!(f, "for"),
-            TokenType::If => write!(f, "if"),
-            TokenType::Null => write!(f, "null"),
-            TokenType::Or => write!(f, "or"),
-            TokenType::Print => write!(f, "print"),
-            TokenType::Return => write!(f, "return"),
-            TokenType::Super => write!(f, "super"),
-            TokenType::This => write!(f, "this"),
-            TokenType::True => write!(f, "true"),
-            TokenType::Var => write!(f, "var"),
-            TokenType::While => write!(f, "while"),
-            TokenType::Break => write!(f, "break"),
-            TokenType::Match => write!(f, "match"),
-            TokenType::Struct => write!(f, "struct"),
-
-            TokenType::Eof => write!(f, "eof"),
+            _ => Display::fmt(&self.ttype, f),
         }
     }
 }

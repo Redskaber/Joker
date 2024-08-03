@@ -1,16 +1,16 @@
 //! This file is joker scanner.
 //!
 //!
-use super::super::{
+use super::{
     error::JokerError,
-    r#type::{literal_f64, literal_i32, literal_str, Object},
+    object::{literal_f64, literal_i32, literal_str, Object},
     token::{Token, TokenType},
 };
 
 #[derive(Debug)]
 pub struct Scanner {
     source: Vec<char>,
-    tokens: Vec<Token>,
+    tokens: Option<Vec<Token>>,
     start: usize,
     current: usize,
     line: usize,
@@ -20,7 +20,7 @@ impl Scanner {
     pub fn new(source: String) -> Scanner {
         Scanner {
             source: source.chars().collect::<Vec<char>>(),
-            tokens: Vec::new(),
+            tokens: Some(Vec::new()),
             start: 0,
             current: 0,
             line: 1,
@@ -36,14 +36,22 @@ impl Scanner {
         current_char
     }
 
-    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, JokerError> {
+    pub fn scan_tokens(&mut self) -> Result<Vec<Token>, JokerError> {
         while !self.is_at_end() {
             self.start = self.current;
             self.scan_token()?;
         }
 
-        self.tokens.push(Token::eof(self.line));
-        Ok(&self.tokens)
+        match self.tokens {
+            Some(ref mut tokens) => tokens.push(Token::eof(self.line)),
+            None => {
+                return Err(JokerError::error(
+                    self.line,
+                    String::from("Scanner tokens is None"),
+                ))
+            }
+        };
+        Ok(self.tokens.take().unwrap())
     }
 
     fn scan_token(&mut self) -> Result<(), JokerError> {
@@ -62,6 +70,8 @@ impl Scanner {
             '+' => self.add_token(TokenType::Plus),
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
+            '?' => self.add_token(TokenType::Question),
+            ':' => self.add_token(TokenType::Colon),
             '!' => {
                 let t_type = if self.is_match('=') {
                     TokenType::BangEqual
@@ -129,8 +139,10 @@ impl Scanner {
 
     fn add_token_object(&mut self, ttype: TokenType, literal: Option<Object>) {
         let lexeme: String = self.source[self.start..self.current].iter().collect();
-        self.tokens
-            .push(Token::new(ttype, lexeme, literal, self.line));
+        match self.tokens {
+            Some(ref mut tokens) => tokens.push(Token::new(ttype, lexeme, literal, self.line)),
+            None => self.tokens = Some(vec![Token::new(ttype, lexeme, literal, self.line)]),
+        }
     }
 
     fn scan_comment(&mut self) -> Result<(), JokerError> {
@@ -174,7 +186,7 @@ impl Scanner {
                 self.line,
                 String::from("Unterminated string."),
             ));
-        } 
+        }
         self.advance();
 
         // TODO: handle escape sequence
@@ -283,7 +295,3 @@ impl Scanner {
         self.source.get(self.current + 1)
     }
 }
-
-
-
-

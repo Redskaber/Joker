@@ -66,12 +66,19 @@ fn define_ast(output_dir: &String, base_name: &String, types: &[String]) -> io::
 
     // visitor
     writeln!(file, "impl<T> {base_name}Visitor<T> for {base_name} {{")?;
-    writeln!(file, "    fn accept(&self, visitor: &dyn {base_name}Visitor<T>) -> Result<T, JokerError> {{")?;
+    writeln!(
+        file,
+        "    fn accept(&self, visitor: &dyn {base_name}Visitor<T>) -> Result<T, JokerError> {{"
+    )?;
     writeln!(file, "        match self {{")?;
     for tree in &tree_types {
         let sub_name = &tree.struct_name;
         let sub_arg_name = sub_name.to_lowercase();
-        writeln!(file, "            {}::{}({}) => {}.accept(visitor),", base_name, sub_name, sub_arg_name, sub_arg_name)?;
+        writeln!(
+            file,
+            "            {}::{}({}) => {}.accept(visitor),",
+            base_name, sub_name, sub_arg_name, sub_arg_name
+        )?;
     }
     writeln!(file, "        }}")?;
     writeln!(file, "    }}")?;
@@ -117,13 +124,27 @@ fn define_accept(
     tree_types: &Vec<TreeType>,
 ) -> io::Result<()> {
     writeln!(file, "pub trait {base_name}Accept<T> {{")?;
-    writeln!(file, "    fn accept(&self, visitor: &dyn {base_name}Visitor<T>) -> Result<T, JokerError>;")?;
+    writeln!(
+        file,
+        "    fn accept(&self, visitor: &dyn {base_name}Visitor<T>) -> Result<T, JokerError>;"
+    )?;
     writeln!(file, "}}\n")?;
 
     for tree in tree_types {
-        writeln!(file, "impl<T> {base_name}Accept<T> for {} {{", tree.struct_name)?;
-        writeln!(file, "    fn accept(&self, visitor: &dyn {base_name}Visitor<T>) -> Result<T, JokerError> {{")?;
-        writeln!(file, "        visitor.visit_{}(self)", tree.struct_name.to_lowercase())?;
+        writeln!(
+            file,
+            "impl<T> {base_name}Accept<T> for {} {{",
+            tree.struct_name
+        )?;
+        writeln!(
+            file,
+            "    fn accept(&self, visitor: &dyn {base_name}Visitor<T>) -> Result<T, JokerError> {{"
+        )?;
+        writeln!(
+            file,
+            "        visitor.visit_{}(self)",
+            tree.struct_name.to_lowercase()
+        )?;
         writeln!(file, "    }}")?;
         writeln!(file, "}}\n")?;
     }

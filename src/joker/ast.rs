@@ -4,6 +4,7 @@
 //!     expression     → literal
 //!                    | unary
 //!                    | binary
+//!                    | Trinomial
 //!                    | grouping ;
 //!
 //!     literal        → NUMBER | STRING | "true" | "false" | "nil" ;
@@ -46,12 +47,7 @@
 //!
 //!
 //!
-use super::super::{
-    r#type::Object,
-    error::JokerError,
-    token::Token,
-};
-
+use super::{error::JokerError, object::Object, token::Token};
 
 macro_rules! define_ast {
     (
@@ -68,14 +64,14 @@ macro_rules! define_ast {
         use std::fmt::Display;
 
         // abstract tree enum
-        #[derive(Debug)] 
+        #[derive(Debug)]
         pub enum $ast_name {
             $($struct_name($struct_name),)*
         }
 
         // subtree struct
         $(
-        #[derive(Debug)]    
+        #[derive(Debug)]
         pub struct $struct_name {
             $(pub $field: $field_type),*
         }
@@ -83,6 +79,9 @@ macro_rules! define_ast {
         impl $struct_name {
             pub fn new($($field: $field_type),*) -> $struct_name {
                 $struct_name { $($field),* }
+            }
+            pub fn into_expr($($field: $field_type),*) -> $ast_name {
+                $ast_name::$struct_name($struct_name::new($($field),*))
             }
         }
         )*
@@ -112,7 +111,7 @@ macro_rules! define_ast {
             }
         }
         )*
-        
+
         impl Display for $ast_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
@@ -120,14 +119,14 @@ macro_rules! define_ast {
                 }
             }
         }
-
+        // sub display
         $(define_ast!{@impl_display $struct_name, $($field: $field_type),*})*
     };
 
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         define_ast!{@impl_display_inner $struct_name, $($field : $field_type),*}
     };
-    
+
     (@impl_display_inner Literal, $field:ident : $field_type:ty) => {
         impl Display for Literal {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -137,9 +136,9 @@ macro_rules! define_ast {
                 };
                 write!(f, "Literal(value: {})", format_args)
             }
-        }    
+        }
     };
-    
+
     (@impl_display_inner $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -148,19 +147,18 @@ macro_rules! define_ast {
                 let format_args = fields.join(", ").trim_end_matches(", ").to_string();
                 write!(f, "{}({})", stringify!($struct_name), format_args)
             }
-        } 
-    }
+        }
+    };
 }
-
 
 define_ast! {
     Expr {
         Literal     { value: Option<Object> },
         Unary       { l_opera: Token, r_expr: Box<Expr> },
         Binary      { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
+        Trinomial   { l_expr: Box<Expr>, m_expr: Box<Expr>, r_expr: Box<Expr> },
         Grouping    { expr: Box<Expr> },
     },
-    ExprVisitor     { visit_literal, visit_unary, visit_binary, visit_grouping },
+    ExprVisitor     { visit_literal, visit_unary, visit_binary, visit_trinomial, visit_grouping },
     ExprAccept,
 }
-

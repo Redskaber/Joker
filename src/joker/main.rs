@@ -7,7 +7,13 @@ use std::fs;
 use std::io::{self, stdout, Write};
 use std::result;
 
-use super::{error::JokerError, scanner::Scanner, token::Token};
+use super::{
+    ast_print::AstPrinter,
+    error::{JokerError, ReportError},
+    scanner::Scanner,
+    parse::Parser,
+    token::Token,
+};
 
 pub fn joker_main() {
     let args: Vec<String> = env::args().collect();
@@ -24,7 +30,7 @@ pub fn joker_main() {
 fn run_file(path: &str) -> io::Result<()> {
     let contents: String = fs::read_to_string(path)?;
     if let Err(err) = run(contents) {
-        err.report("".to_string());
+        err.report();
         std::process::exit(65)
     }
     Ok(())
@@ -45,7 +51,7 @@ fn run_prompt() {
                     print!("> ");
                     let _ = stdout().flush();
                 }
-                Err(err) => err.report("".to_string()),
+                Err(err) => err.report(),
             }
         } else {
             break;
@@ -55,12 +61,13 @@ fn run_prompt() {
 
 fn run(source: String) -> result::Result<(), JokerError> {
     let mut scanner: Scanner = Scanner::new(source);
-    let tokens: &Vec<Token> = scanner.scan_tokens()?;
-
-    for token in tokens {
-        println!("{token:#?}");
-    }
+    let tokens: Vec<Token> = scanner.scan_tokens()?;
     
-    tools::tools_main();
+    let mut parser: Parser = Parser::new(tokens);
+    if let Some(expr) = parser.parse() {
+        let printer: AstPrinter = AstPrinter::new();
+        printer.println(&expr);
+    }
+
     Ok(())
 }

@@ -1,6 +1,11 @@
+//! This file is type.rs
+//!
+//!
+//!
+
 use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Object {
     Literal(Literal),
 }
@@ -13,7 +18,7 @@ impl Display for Object {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     I32(i32),
     F64(f64),

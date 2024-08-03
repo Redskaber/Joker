@@ -6,5 +6,3 @@ pub fn tools_main() {
         eprintln!("err: {err}");
     }
 }
-
-
