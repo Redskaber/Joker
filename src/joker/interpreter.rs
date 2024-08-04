@@ -138,9 +138,7 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 + r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 + r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => {
-                        let mut str_: String = String::from(l_str);
-                        str_.push_str(r_str);
-                        Ok(Object::Literal(ObL::Str(str_)))
+                        Ok(Object::Literal(ObL::Str(format!("{l_str}{r_str}"))))
                     },
                     _ => Err(JokerError::new(
                         &expr.m_opera, 
@@ -192,8 +190,8 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 * r_f64))),
                     (ObL::Str(str_), ObL::I32(i32_))
                     | (ObL::I32(i32_), ObL::Str(str_)) => {
-                        let mut r_str: String = String::from(str_);
-                        let mut count = *i32_ - 1;
+                        let mut count = *i32_;
+                        let mut r_str: String = String::with_capacity(size_of_val(str_)* count as usize);
                         while count > 0 {
                             r_str.push_str(str_);
                             count -= 1;
@@ -212,5 +210,132 @@ impl ExprVisitor<Object> for Interpreter {
     fn visit_grouping(&self,expr: &Grouping) -> Result<Object,JokerError> {
         self.evaluate(&expr.expr)
     }
+}
+
+
+
+#[cfg(test)]
+mod tests{
+
+    use super::*;
+    use super::super::{
+        error::ReportError, object::literal_null, token::Token
+    };
+    
+    fn maker_literal_i32_expr(v: i32) -> Box<Expr> {
+        Box::new(Expr::Literal(Literal { 
+            value: Object::Literal(ObL::I32(v)) 
+        }))
+    }
+    fn maker_literal_f64_expr(v: f64) -> Box<Expr> {
+        Box::new(Expr::Literal(Literal { 
+            value: Object::Literal(ObL::F64(v)) 
+        }))
+    }
+    fn maker_literal_str_expr(v: String) -> Box<Expr> {
+        Box::new(Expr::Literal(Literal { 
+            value: Object::Literal(ObL::Str(v)) 
+        }))
+    }    
+    fn maker_literal_bool_expr(v: bool) -> Box<Expr> {
+        Box::new(Expr::Literal(Literal { 
+            value: Object::Literal(ObL::Bool(v)) 
+        }))
+    }
+    fn maker_literal_null_expr() -> Box<Expr> {
+        Box::new(Expr::Literal(Literal { 
+            value: Object::Literal(ObL::Null) 
+        }))
+    }
+    fn maker_token(ttype: TokenType) -> Token {
+        let lexeme = ttype.to_string();
+        Token { ttype, lexeme, literal: literal_null(), line: 0 }
+    }
+    fn maker_unary_expr(ttype: TokenType, v: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Unary(Unary { 
+            l_opera: maker_token(ttype), 
+            r_expr: v 
+        }))
+    }
+    fn maker_grouping_expr(expr: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Grouping(Grouping { expr }))
+    }
+    fn maker_binary_expr(l_expr:Box<Expr>, m_opera:Token , r_expr:Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Binary(Binary { l_expr,m_opera, r_expr }))
+    }    
+
+    #[test]
+    fn test_simple_expr(){
+        // (-123)*(200/2)
+        let expr: Expr = Expr::Binary(Binary { 
+            l_expr: maker_unary_expr(
+                TokenType::Minus, 
+                maker_literal_i32_expr(123)),
+            m_opera: maker_token(TokenType::Star), 
+            r_expr: maker_grouping_expr(
+                maker_binary_expr(
+                    maker_literal_i32_expr(200),
+                    maker_token(TokenType::Slash), 
+                    maker_literal_i32_expr(2)
+                )
+            )
+        });
+        
+        let interpreter: Interpreter = Interpreter::new();
+        match interpreter.evaluate(&expr) {
+            Ok(value) => assert_eq!(value, Object::Literal(ObL::I32(-12300))),
+            Err(err) => err.report(),
+        };
+    }
+
+    #[test]
+    fn test_literal_i32_expr() {
+        let expr = maker_literal_i32_expr(32);
+        let interpreter: Interpreter = Interpreter::new();
+        match interpreter.evaluate(&expr) {
+            Ok(value) => assert_eq!(value, Object::Literal(ObL::I32(32))),
+            Err(err) => err.report(),
+        };
+    }
+
+    #[test]
+    fn test_literal_f64_expr() {
+        let expr = maker_literal_f64_expr(320.0);
+        let interpreter: Interpreter = Interpreter::new();
+        match interpreter.evaluate(&expr) {
+            Ok(value) => assert_eq!(value, Object::Literal(ObL::F64(320.0))),
+            Err(err) => err.report(),
+        };
+    }
+
+    #[test]
+    fn test_literal_str_expr() {
+        let expr = maker_literal_str_expr(String::from("string"));
+        let interpreter: Interpreter = Interpreter::new();
+        match interpreter.evaluate(&expr) {
+            Ok(value) => assert_eq!(value, Object::Literal(ObL::Str(String::from("string")))),
+            Err(err) => err.report(),
+        };
+    }
+
+    #[test]
+    fn test_literal_bool_expr() {
+        let expr = maker_literal_bool_expr(true);
+        let interpreter: Interpreter = Interpreter::new();
+        match interpreter.evaluate(&expr) {
+            Ok(value) => assert_eq!(value, Object::Literal(ObL::Bool(true))),
+            Err(err) => err.report(),
+        };
+    }
+
+    #[test]
+    fn test_literal_null_expr() {
+        let expr = maker_literal_null_expr();
+        let interpreter: Interpreter = Interpreter::new();
+        match interpreter.evaluate(&expr) {
+            Ok(value) => assert_eq!(value, Object::Literal(ObL::Null)),
+            Err(err) => err.report(),
+        };
+    }            
 }
 

@@ -16,11 +16,13 @@ use super::{
     token::Token,
 };
 
+
 pub fn joker_main() {
     let args: Vec<String> = env::args().collect();
+    let joker = Joker::new();
     match args.len() {
-        1 => run_prompt(),
-        2 => run_file(&args[1]).expect("Could not run file."),
+        1 => joker.run_prompt(),
+        2 => joker.run_file(&args[1]).expect("Could not run file."),
         _ => {
             println!("Usage: joker-ast [script]");
             std::process::exit(64);
@@ -28,50 +30,59 @@ pub fn joker_main() {
     }
 }
 
-fn run_file(path: &str) -> io::Result<()> {
-    let contents: String = fs::read_to_string(path)?;
-    if let Err(err) = run(contents) {
-        err.report();
-        std::process::exit(65)
-    }
-    Ok(())
+pub struct Joker {
+    interpreter: Interpreter,
 }
 
-fn run_prompt() {
-    print!("> ");
-    let _ = stdout().flush();
+impl Joker {
+    pub fn new() -> Joker {
+        Joker {interpreter: Interpreter {}}
+    }
 
-    let stdin: io::Stdin = io::stdin();
-    for r_line in stdin.lines() {
-        if let Ok(line) = r_line {
-            if line.is_empty() {
+    fn run_file(&self, path: &str) -> io::Result<()> {
+        let contents: String = fs::read_to_string(path)?;
+        if let Err(err) = self.run(contents) {
+            err.report();
+            std::process::exit(65)
+        }
+        Ok(())
+    }
+
+    fn run_prompt(&self) {
+        print!("> ");
+        let _ = stdout().flush();
+
+        let stdin: io::Stdin = io::stdin();
+        for r_line in stdin.lines() {
+            if let Ok(line) = r_line {
+                if line.is_empty() {
+                    break;
+                }
+                match self.run(line) {
+                    Ok(_) => {
+                        print!("> ");
+                        let _ = stdout().flush();
+                    }
+                    Err(err) => err.report(),
+                }
+            } else {
                 break;
             }
-            match run(line) {
-                Ok(_) => {
-                    print!("> ");
-                    let _ = stdout().flush();
-                }
-                Err(err) => err.report(),
-            }
-        } else {
-            break;
         }
     }
-}
 
-fn run(source: String) -> result::Result<(), JokerError> {
-    let mut scanner: Scanner = Scanner::new(source);
-    let tokens: Vec<Token> = scanner.scan_tokens()?;
-    
-    let mut parser: Parser = Parser::new(tokens);
-    if let Some(expr) = parser.parse() {
-        let printer: AstPrinter = AstPrinter::new();
-        printer.println(&expr);
-        let interpreter = Interpreter::new();
-        let value = interpreter.evaluate(&expr)?;
-        println!("{}",value);
+    fn run(&self, source: String) -> result::Result<(), JokerError> {
+        let mut scanner: Scanner = Scanner::new(source);
+        let tokens: Vec<Token> = scanner.scan_tokens()?;
+        
+        let mut parser: Parser = Parser::new(tokens);
+        if let Some(expr) = parser.parse() {
+            let printer: AstPrinter = AstPrinter::new();
+            printer.println(&expr);
+            let value = self.interpreter.evaluate(&expr)?;
+            println!("{}",value);
+        }
+
+        Ok(())
     }
-
-    Ok(())
 }

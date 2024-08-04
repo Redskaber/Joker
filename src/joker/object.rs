@@ -2,10 +2,10 @@
 //!
 //!
 //!
-
 use std::fmt::Display;
 
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Object {
     Literal(Literal),
 }
@@ -18,7 +18,7 @@ impl Display for Object {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     I32(i32),
     F64(f64),

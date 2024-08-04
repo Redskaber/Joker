@@ -11,9 +11,9 @@ pub trait ReportError {
 
 #[derive(Debug)]
 pub struct JokerError {
-    line: usize,
-    where_: String,
-    msg: String,
+    pub line: usize,
+    pub where_: String,
+    pub msg: String,
 }
 
 impl JokerError {
