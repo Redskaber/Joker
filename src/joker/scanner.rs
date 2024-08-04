@@ -249,8 +249,12 @@ impl Scanner {
         match Scanner::keywords(&text) {
             Some(keyword) => {
                 match keyword {
-                    TokenType::True => self.add_token_object(keyword, literal_bool(true)),
-                    TokenType::False => self.add_token_object(keyword, literal_bool(false)),
+                    TokenType::True => self.add_token_object(
+                        keyword, 
+                        literal_bool(true)),
+                    TokenType::False => self.add_token_object(
+                        keyword, 
+                        literal_bool(false)),
                     _ => self.add_token(keyword),
                 }
             },

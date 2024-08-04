@@ -78,7 +78,7 @@ impl Parser {
     // equality -> comparison ( ( "!=" | "==")  comparison )*
     fn equality(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.comparison()?;
-        while self.is_match(&[TokenType::BangEqual, TokenType::Equal]) {
+        while self.is_match(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let m_opera: Token = self.previous();
             let r_expr: Expr = self.comparison()?;
             expr = Binary::into_expr(Box::new(expr), m_opera, Box::new(r_expr));
