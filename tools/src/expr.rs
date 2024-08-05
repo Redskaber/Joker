@@ -1,8 +1,6 @@
-use super::{
-    r#type::Object,
-    error::JokerError,
-    token::Token,
-};
+use super::object::Object;
+use super::token::Token;
+use super::error::JokerError;
 
 
 pub enum Expr {
@@ -13,7 +11,7 @@ pub enum Expr {
 }
 
 pub struct Literal {
-    pub value: Object,
+    pub value: Option<Object>,
 }
 
 pub struct Unary {
@@ -31,6 +29,17 @@ pub struct Grouping {
     pub expr: Box<Expr>,
 }
 
+impl<T> ExprVisitor<T> for Expr {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        match self {
+            Expr::Literal(literal) => literal.accept(visitor),
+            Expr::Unary(unary) => unary.accept(visitor),
+            Expr::Binary(binary) => binary.accept(visitor),
+            Expr::Grouping(grouping) => grouping.accept(visitor),
+        }
+    }
+}
+
 pub trait ExprVisitor<T> {
     fn visit_literal(&self, expr: &Literal) -> Result<T, JokerError>;
     fn visit_unary(&self, expr: &Unary) -> Result<T, JokerError>;
@@ -38,29 +47,29 @@ pub trait ExprVisitor<T> {
     fn visit_grouping(&self, expr: &Grouping) -> Result<T, JokerError>;
 }
 
-pub trait ExprAccept<T> {
+pub trait ExprAcceptor<T> {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError>;
 }
 
-impl<T> ExprAccept<T> for Literal {
+impl<T> ExprAcceptor<T> for Literal {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_literal(self)
     }
 }
 
-impl<T> ExprAccept<T> for Unary {
+impl<T> ExprAcceptor<T> for Unary {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_unary(self)
     }
 }
 
-impl<T> ExprAccept<T> for Binary {
+impl<T> ExprAcceptor<T> for Binary {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_binary(self)
     }
 }
 
-impl<T> ExprAccept<T> for Grouping {
+impl<T> ExprAcceptor<T> for Grouping {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_grouping(self)
     }

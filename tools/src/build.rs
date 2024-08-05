@@ -22,21 +22,37 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("Binary     : l_expr Box<Expr>, m_opera Token, r_expr Box<Expr>"),
             String::from("Grouping   : expr Box<Expr>"),
         ],
+        &[
+            String::from("use super::object::Object;"),
+            String::from("use super::token::Token;"),
+            String::from("use super::error::JokerError;"),
+        ],
+    );
+    let _ = define_ast(
+        output_dir, 
+        &String::from("Stmt"), 
+        &[
+            String::from("ExprStmt  : expr Expr"),
+            String::from("PrintStmt : expr Expr"),
+        ],
+        &[
+            String::from("use super::ast::Expr;"),            
+            String::from("use super::error::JokerError;"),            
+        ]
     );
     Ok(())
 }
 
-fn define_ast(output_dir: &String, base_name: &String, types: &[String]) -> io::Result<()> {
+fn define_ast(output_dir: &String, base_name: &String, types: &[String], depended: &[String]) -> io::Result<()> {
     let path: String = format!("{output_dir}/{}.rs", base_name.to_lowercase());
     let mut file: File = File::create(path)?;
     let mut tree_types: Vec<TreeType> = Vec::new();
 
     // header
-    writeln!(file, "use super::{{")?;
-    writeln!(file, "    object::Object,")?;
-    writeln!(file, "    error::JokerError,")?;
-    writeln!(file, "    token::Token,")?;
-    writeln!(file, "}};\n\n")?;
+    for depend in depended {
+        writeln!(file, "{depend}")?;
+    }
+    writeln!(file, "\n")?;
 
     // enum
     writeln!(file, "pub enum {base_name} {{")?;
@@ -85,8 +101,8 @@ fn define_ast(output_dir: &String, base_name: &String, types: &[String]) -> io::
     writeln!(file, "}}\n")?;
     define_visitor(&mut file, base_name, &tree_types)?;
 
-    // accept
-    define_accept(&mut file, base_name, &tree_types)?;
+    // acceptor
+    define_acceptor(&mut file, base_name, &tree_types)?;
     Ok(())
 }
 
@@ -118,12 +134,12 @@ fn define_visitor(
     Ok(())
 }
 
-fn define_accept(
+fn define_acceptor(
     file: &mut File,
     base_name: &String,
     tree_types: &Vec<TreeType>,
 ) -> io::Result<()> {
-    writeln!(file, "pub trait {base_name}Accept<T> {{")?;
+    writeln!(file, "pub trait {base_name}Acceptor<T> {{")?;
     writeln!(
         file,
         "    fn accept(&self, visitor: &dyn {base_name}Visitor<T>) -> Result<T, JokerError>;"
@@ -133,7 +149,7 @@ fn define_accept(
     for tree in tree_types {
         writeln!(
             file,
-            "impl<T> {base_name}Accept<T> for {} {{",
+            "impl<T> {base_name}Acceptor<T> for {} {{",
             tree.struct_name
         )?;
         writeln!(

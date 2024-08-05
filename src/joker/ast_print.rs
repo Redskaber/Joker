@@ -3,7 +3,7 @@
 //!
 
 use super::{
-    ast::{Binary, Expr, ExprAcceptor, ExprVisitor, Grouping, Literal, Unary},
+    ast::{Binary, Expr, ExprAcceptor, ExprVisitor, Grouping, Literal, Stmt, Unary},
     error::{JokerError, ReportError}, object::Object,
 };
 
@@ -13,13 +13,19 @@ impl AstPrinter {
     pub fn new() -> AstPrinter {
         AstPrinter
     }
-    pub fn println(&self, expr: &Expr) {
-        match self.ast_expr(expr) {
+    pub fn println(&self, stmt: &Stmt) {
+        match self.ast_stmt(stmt) {
             Ok(expr) => println!("{expr}"),
             Err(err) => err.report(),
         }
     } 
-    pub fn ast_expr(&self, expr: &Expr) -> Result<String, JokerError> {
+    fn ast_stmt(&self, stmt: &Stmt) -> Result<String, JokerError> {
+        match stmt {
+            Stmt::ExprStmt(stmt) => self.ast_expr(&stmt.expr),
+            Stmt::PrintStmt(stmt) => self.ast_expr(&stmt.expr),
+        }
+    }
+    fn ast_expr(&self, expr: &Expr) -> Result<String, JokerError> {
         expr.accept(self)
     }
     fn parenthesize(&self, label: &str, exprs: &[&Expr]) -> Result<String, JokerError> {

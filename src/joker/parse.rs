@@ -4,7 +4,7 @@
 //!
 
 use super::{
-    ast::{Binary, Expr, Grouping, Literal, Unary},
+    ast::{Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary},
     error::{JokerError, ReportError},
     token::{Token, TokenType},
 };
@@ -49,28 +49,36 @@ impl Parser {
         }
         false
     }
-    pub fn parse(&mut self) -> Option<Expr> {
-        match self.expression() {
-            Ok(expr) => Some(expr),
-            Err(err) => {
-                err.report();
-                None
+    pub fn parse(&mut self) -> Option<Vec<Stmt>> {
+        let mut stmts: Vec<Stmt> = Vec::new();
+        while !self.is_at_end() {
+            match self.statement() {
+                Ok(stmt) => stmts.push(stmt),
+                Err(err) => err.report(),
             }
         }
+        if stmts.is_empty() {
+            return None;
+        }
+        Some(stmts)
     }
-    // stmt -> stmt ? stmt : stmt;
-    //        | exprStmt;
-    // let stmt = self.stmt()?;
-    // if self.is_match(&[TokenType::Question]) {
-    //     let m_stmt: Stmt = self.stmt()?;
-    //     if self.is_match(&[TokenType::Colon]) {
-    //         let r_stmt: Stmt = self.stmt()?;
-    //         return Ok(Trinomial::into_expr(Box::new(stmt), Box::new(m_stmt), Box::new(r_stmt)));
-    //     }
-    //     return Err(ParseError::new(self.previous(), String::from("Expected ':' after '?'")));
-    // }
-    // Ok(expr)
-    //
+    
+    fn statement(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::Print]) {
+            return self.print_statement();
+        }
+        self.expr_statement()
+    }
+    fn print_statement(&mut self) -> Result<Stmt, JokerError> {
+        let expr: Expr = self.expression()?;
+        self.consume(&TokenType::Semicolon, String::from("Expect ';' after value."))?;
+        Ok(PrintStmt::upcast(expr))
+    }
+    fn expr_statement(&mut self) -> Result<Stmt, JokerError> {
+        let expr: Expr = self.expression()?;
+        self.consume(&TokenType::Semicolon, String::from("Expect ';' after value."))?;
+        Ok(ExprStmt::upcast(expr))
+    }
     // exprStmt -> equality
     fn expression(&mut self) -> Result<Expr, JokerError> {
         self.equality()
@@ -81,7 +89,7 @@ impl Parser {
         while self.is_match(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let m_opera: Token = self.previous();
             let r_expr: Expr = self.comparison()?;
-            expr = Binary::into_expr(Box::new(expr), m_opera, Box::new(r_expr));
+            expr = Binary::upcast(Box::new(expr), m_opera, Box::new(r_expr));
         }
         Ok(expr)
     }
@@ -96,7 +104,7 @@ impl Parser {
         ]) {
             let m_opera: Token = self.previous();
             let r_expr: Expr = self.term()?;
-            expr = Binary::into_expr(Box::new(expr), m_opera, Box::new(r_expr));
+            expr = Binary::upcast(Box::new(expr), m_opera, Box::new(r_expr));
         }
         Ok(expr)
     }
@@ -106,7 +114,7 @@ impl Parser {
         while self.is_match(&[TokenType::Minus, TokenType::Plus]) {
             let m_opera: Token = self.previous();
             let r_expr: Expr = self.factor()?;
-            expr = Binary::into_expr(Box::new(expr), m_opera, Box::new(r_expr));
+            expr = Binary::upcast(Box::new(expr), m_opera, Box::new(r_expr));
         }
         Ok(expr)
     }
@@ -116,7 +124,7 @@ impl Parser {
         while self.is_match(&[TokenType::Slash, TokenType::Star]) {
             let m_opera: Token = self.previous();
             let r_expr: Expr = self.unary()?;
-            expr = Binary::into_expr(Box::new(expr), m_opera, Box::new(r_expr));
+            expr = Binary::upcast(Box::new(expr), m_opera, Box::new(r_expr));
         }
         Ok(expr)
     }
@@ -126,7 +134,7 @@ impl Parser {
         if self.is_match(&[TokenType::Bang, TokenType::Minus]) {
             let l_opera: Token = self.previous();
             let r_expr: Expr = self.unary()?;
-            return Ok(Unary::into_expr(l_opera, Box::new(r_expr)));
+            return Ok(Unary::upcast(l_opera, Box::new(r_expr)));
         }
         self.grouping()
     }
@@ -139,7 +147,7 @@ impl Parser {
                 &TokenType::RightParen,
                 String::from("Expect ')' after expression."),
             )?;
-            return Ok(Grouping::into_expr(Box::new(expr)));
+            return Ok(Grouping::upcast(Box::new(expr)));
         }
         self.primary()
     }
@@ -147,20 +155,20 @@ impl Parser {
     //          | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, JokerError> {
         match self.peek().ttype {
-            TokenType::False => Ok(Literal::into_expr(self.advance().literal)),
-            TokenType::True => Ok(Literal::into_expr(self.advance().literal)),
-            TokenType::Null => Ok(Literal::into_expr(self.advance().literal)),
-            TokenType::I32 => Ok(Literal::into_expr(self.advance().literal)),
-            TokenType::F64 => Ok(Literal::into_expr(self.advance().literal)),
-            TokenType::Str => Ok(Literal::into_expr(self.advance().literal)),
-            _ => Err(JokerError::new(&self.peek(), String::from("not impl!"))),
+            TokenType::False => Ok(Literal::upcast(self.advance().literal)),
+            TokenType::True => Ok(Literal::upcast(self.advance().literal)),
+            TokenType::Null => Ok(Literal::upcast(self.advance().literal)),
+            TokenType::I32 => Ok(Literal::upcast(self.advance().literal)),
+            TokenType::F64 => Ok(Literal::upcast(self.advance().literal)),
+            TokenType::Str => Ok(Literal::upcast(self.advance().literal)),
+            _ => Err(JokerError::parse(&self.advance(), String::from("parse not impl!"))), // jump 
         }
     }
     fn consume(&mut self, expected: &TokenType, msg: String) -> Result<Token, JokerError> {
         if self.check(expected) {
             Ok(self.advance())
         } else {
-            Err(JokerError::new(&self.peek(), msg))
+            Err(JokerError::parse(&self.peek(), msg))
         }
     }
     fn synchronize(&mut self) {

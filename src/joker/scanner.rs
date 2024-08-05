@@ -45,7 +45,7 @@ impl Scanner {
         match self.tokens {
             Some(ref mut tokens) => tokens.push(Token::eof(self.line)),
             None => {
-                return Err(JokerError::error(
+                return Err(JokerError::scan_error(
                     self.line,
                     String::from("Scanner tokens is None"),
                 ))
@@ -120,11 +120,12 @@ impl Scanner {
             }
             ' ' | '\r' | '\t' => {}
             '\n' => self.line += 1,
+            '\\' => self.scan_escape()?,
             '"' => self.scan_string()?,
             '0'..='9' => self.scan_number()?,
             'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier()?,
             _ => {
-                return Err(JokerError::error(
+                return Err(JokerError::scan_error(
                     self.line,
                     String::from("Unexpected character"),
                 ))
@@ -145,6 +146,11 @@ impl Scanner {
         }
     }
 
+    // TODO: scanner escape  
+    fn scan_escape(&mut self) -> Result<(), JokerError> {
+        Ok(())
+    }
+
     fn scan_comment(&mut self) -> Result<(), JokerError> {
         while let Some(ch) = self.peek() {
             match ch {
@@ -158,7 +164,7 @@ impl Scanner {
                         }
                     }
                     None => {
-                        return Err(JokerError::error(
+                        return Err(JokerError::scan_error(
                             self.line,
                             String::from("Unterminated comment."),
                         ))
@@ -182,7 +188,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            return Err(JokerError::error(
+            return Err(JokerError::scan_error(
                 self.line,
                 String::from("Unterminated string."),
             ));
@@ -220,7 +226,7 @@ impl Scanner {
                 self.add_token_object(TokenType::F64, literal_f64(f64_));
                 return Ok(());
             } else {
-                return Err(JokerError::error(
+                return Err(JokerError::scan_error(
                     self.line,
                     String::from("floating-point numbers require fractional parts."),
                 ));

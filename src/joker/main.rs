@@ -8,7 +8,6 @@ use std::io::{self, stdout, Write};
 use std::result;
 
 use super::{
-    ast_print::AstPrinter,
     error::{JokerError, ReportError},
     interpreter::Interpreter,
     scanner::Scanner,
@@ -43,7 +42,7 @@ impl Joker {
         let contents: String = fs::read_to_string(path)?;
         if let Err(err) = self.run(contents) {
             err.report();
-            std::process::exit(65)
+            std::process::exit(err.code.into());
         }
         Ok(())
     }
@@ -74,13 +73,12 @@ impl Joker {
     fn run(&self, source: String) -> result::Result<(), JokerError> {
         let mut scanner: Scanner = Scanner::new(source);
         let tokens: Vec<Token> = scanner.scan_tokens()?;
-        
+        for t in &tokens {
+            println!("{t:#?}")
+        }
         let mut parser: Parser = Parser::new(tokens);
-        if let Some(expr) = parser.parse() {
-            let printer: AstPrinter = AstPrinter::new();
-            printer.println(&expr);
-            let value = self.interpreter.evaluate(&expr)?;
-            println!("{}",value);
+        if let Some(stmts) = parser.parse() {
+            self.interpreter.interpreter(&stmts)?
         }
 
         Ok(())

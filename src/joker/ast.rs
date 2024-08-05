@@ -28,7 +28,7 @@
 //!     printStmt      → "print" expression ";" ;
 //!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
 //!     TrinomialStmt  → expression "?" expression ":" expression ";" ;  
-//! 
+//!
 //!     expression     → assignment ;
 //!     assignment     → IDENTIFIER "=" assignment
 //!                     | equality ;
@@ -48,6 +48,8 @@
 //!
 //!
 //!
+use std::fmt::Display;
+
 use super::{error::JokerError, object::Object, token::Token};
 
 macro_rules! define_ast {
@@ -57,13 +59,11 @@ macro_rules! define_ast {
                 $($field:ident : $field_type:ty),* $(,)?
             }),* $(,)?
         },
-        $visitor_name:ident {
+        $visitor_name:ident, $param_name:ident, {
             $($visit_name:ident),* $(,)?
         },
         $acceptor_name:ident,
     ) => {
-        use std::fmt::Display;
-
         // abstract tree enum
         #[derive(Debug)]
         pub enum $ast_name {
@@ -81,7 +81,7 @@ macro_rules! define_ast {
             pub fn new($($field: $field_type),*) -> $struct_name {
                 $struct_name { $($field),* }
             }
-            pub fn into_expr($($field: $field_type),*) -> $ast_name {
+            pub fn upcast($($field: $field_type),*) -> $ast_name {
                 $ast_name::$struct_name($struct_name::new($($field),*))
             }
         }
@@ -89,7 +89,7 @@ macro_rules! define_ast {
 
         // visitor trait
         pub trait $visitor_name<T> {
-            $(fn $visit_name(&self, expr: &$struct_name) -> Result<T, JokerError>;)*
+            $(fn $visit_name(&self, $param_name: &$struct_name) -> Result<T, JokerError>;)*
         }
 
         // accept trait
@@ -143,6 +143,15 @@ define_ast! {
         Binary      { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Grouping    { expr: Box<Expr> },
     },
-    ExprVisitor     { visit_literal, visit_unary, visit_binary, visit_grouping },
+    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping },
     ExprAcceptor,
+}
+
+define_ast! {
+    Stmt {
+        ExprStmt    { expr: Expr },
+        PrintStmt   { expr: Expr },
+    },
+    StmtVisitor,    stmt, {visit_expr, visit_print },
+    StmtAcceptor,
 }
