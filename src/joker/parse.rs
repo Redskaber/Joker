@@ -4,8 +4,13 @@
 //!
 
 use super::{
-    ast::{Assign, Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary, VarStmt, Variable}, error::{JokerError, ReportError}, 
-    object::literal_null, token::{Token, TokenType}
+    ast::{
+        Assign, Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary, VarStmt,
+        Variable,
+    },
+    error::{JokerError, ReportError},
+    object::literal_null,
+    token::{Token, TokenType},
 };
 
 pub struct Parser {
@@ -55,9 +60,11 @@ impl Parser {
                 Ok(stmt) => stmts.push(stmt),
                 Err(err) => {
                     err.report();
-                    if self.is_at_end() {break;} // input: cc -> cc + Eof(now pos) 
-                    self.synchronize();     // upcast: declaration -> this
-                },
+                    if self.is_at_end() {
+                        break;
+                    } // input: cc -> cc + Eof(now pos)
+                    self.synchronize(); // upcast: declaration -> this
+                }
             }
         }
         if stmts.is_empty() {
@@ -65,7 +72,7 @@ impl Parser {
         }
         Some(stmts)
     }
-    
+
     // declaration -> stmt              （语句）
     //               | var_declaration  (声明)
     fn declaration(&mut self) -> Result<Stmt, JokerError> {
@@ -75,13 +82,19 @@ impl Parser {
         self.statement()
     }
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
-        let name: Token = self.consume(&TokenType::Identifier, String::from("Expect variable name."))?;
+        let name: Token = self.consume(
+            &TokenType::Identifier,
+            String::from("Expect variable name."),
+        )?;
         let value: Expr = if self.is_match(&[TokenType::Equal]) {
             self.expression()?
         } else {
             Expr::Literal(Literal::new(literal_null()))
         };
-        self.consume(&TokenType::Semicolon, String::from("Expect ';' after variable declaration."))?;
+        self.consume(
+            &TokenType::Semicolon,
+            String::from("Expect ';' after variable declaration."),
+        )?;
         Ok(VarStmt::upcast(name, value))
     }
     // stmt -> print_stmt
@@ -94,17 +107,23 @@ impl Parser {
     }
     fn print_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;
-        self.consume(&TokenType::Semicolon, String::from("Expect ';' after value."))?;
+        self.consume(
+            &TokenType::Semicolon,
+            String::from("Expect ';' after value."),
+        )?;
         Ok(PrintStmt::upcast(expr))
     }
     fn expr_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;
-        self.consume(&TokenType::Semicolon, String::from("Expect ';' after value."))?;
+        self.consume(
+            &TokenType::Semicolon,
+            String::from("Expect ';' after value."),
+        )?;
         Ok(ExprStmt::upcast(expr))
     }
     // exprStmt     → assignment ;
     // assignment   → IDENTIFIER "=" assignment
-    //               | equality ;    
+    //               | equality ;
     fn expression(&mut self) -> Result<Expr, JokerError> {
         self.assignment()
     }
@@ -114,12 +133,15 @@ impl Parser {
             let equal: Token = self.previous();
             let value: Expr = self.assignment()?;
             match expr {
-                Expr::Variable(variable) => 
-                    return Ok(Assign::upcast(variable.name, Box::new(value))),
-                _ => return Err(JokerError::parse(
-                    &equal, 
-                    String::from("Invalid assignment target.")
-                ))
+                Expr::Variable(variable) => {
+                    return Ok(Assign::upcast(variable.name, Box::new(value)))
+                }
+                _ => {
+                    return Err(JokerError::parse(
+                        &equal,
+                        String::from("Invalid assignment target."),
+                    ))
+                }
             }
         }
         Ok(expr)
@@ -203,7 +225,10 @@ impl Parser {
             TokenType::F64 => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Str => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Identifier => Ok(Variable::upcast(self.advance())),
-            _ => Err(JokerError::parse(&self.advance(), String::from("parse not impl!"))), // jump 
+            _ => Err(JokerError::parse(
+                &self.advance(),
+                String::from("parse not impl!"),
+            )), // jump
         }
     }
     fn consume(&mut self, expected: &TokenType, msg: String) -> Result<Token, JokerError> {

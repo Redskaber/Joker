@@ -1,6 +1,6 @@
 //! This file is env rs
 
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 
 use super::{error::JokerError, object::Object, token::Token};
 
@@ -10,7 +10,9 @@ pub struct Env {
 
 impl Env {
     pub fn new() -> Env {
-        Env { symbol: HashMap::new() }
+        Env {
+            symbol: HashMap::new(),
+        }
     }
 
     pub fn define(&mut self, name: &String, value: Object) {
@@ -19,42 +21,48 @@ impl Env {
     pub fn get(&self, name: &Token) -> Result<Object, JokerError> {
         match self.symbol.get(&name.lexeme) {
             Some(value) => Ok(value.clone()),
-            None => Err(JokerError::env(name, format!("Undefined variable '{}'.", name.lexeme))) 
+            None => Err(JokerError::env(
+                name,
+                format!("Undefined variable '{}'.", name.lexeme),
+            )),
         }
     }
-    pub fn assign(&mut self, name: &Token, value: &Object) -> Result<(), JokerError>{
-        if self.symbol.contains_key(&name.lexeme) {
-            self.symbol.insert(name.lexeme.to_string(), value.clone());
+    pub fn assign(&mut self, name: &Token, value: &Object) -> Result<(), JokerError> {
+        if let Entry::Occupied(mut entry) = self.symbol.entry(name.lexeme.to_string()) {
+            entry.insert(value.clone());
             Ok(())
         } else {
-            Err(JokerError::env(name, format!("Undefined variable '{}'.", name.lexeme)))
+            Err(JokerError::env(
+                name,
+                format!("Undefined variable '{}'.", name.lexeme),
+            ))
         }
     }
 }
 
 #[cfg(test)]
-mod tests{
-    use crate::joker::{object::{literal_null, literal_str}, token::TokenType};
+mod tests {
+    use crate::joker::{
+        object::{literal_null, literal_str},
+        token::TokenType,
+    };
 
     use super::*;
 
-    #[test] 
+    #[test]
     fn test_define_a_variable() {
         let mut env = Env::new();
         env.define(&String::from("name"), literal_str(String::from("reds")));
         assert!(env.symbol.contains_key("name"));
         assert_eq!(
-            env.get(&Token::new(TokenType::Identifier, String::from("name"), literal_null(), 0)).unwrap(), 
-            literal_str(String::from("reds")));
+            env.get(&Token::new(
+                TokenType::Identifier,
+                String::from("name"),
+                literal_null(),
+                0
+            ))
+            .unwrap(),
+            literal_str(String::from("reds"))
+        );
     }
 }
-
-
-
-
-
-
-
-
-
-

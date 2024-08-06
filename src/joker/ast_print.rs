@@ -4,8 +4,11 @@
 
 use super::{
     ast::{
-        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable},
-    error::{JokerError, ReportError}, object::Object,
+        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt,
+        Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+    },
+    error::{JokerError, ReportError},
+    object::Object,
 };
 
 pub struct AstPrinter;
@@ -19,7 +22,7 @@ impl AstPrinter {
             Ok(expr) => println!("{expr}"),
             Err(err) => err.report(),
         }
-    } 
+    }
     fn ast_stmt(&self, stmt: &Stmt) -> Result<String, JokerError> {
         stmt.accept(self)
     }
@@ -42,13 +45,13 @@ impl AstPrinter {
 }
 
 impl StmtVisitor<String> for AstPrinter {
-    fn visit_expr(&self, stmt: &ExprStmt) -> Result<String,JokerError> {
+    fn visit_expr(&self, stmt: &ExprStmt) -> Result<String, JokerError> {
         stmt.expr.accept(self)
     }
-    fn visit_print(&self, stmt: &PrintStmt) -> Result<String,JokerError> {
+    fn visit_print(&self, stmt: &PrintStmt) -> Result<String, JokerError> {
         stmt.expr.accept(self)
     }
-    fn visit_var(&self, stmt: &VarStmt) -> Result<String,JokerError> {
+    fn visit_var(&self, stmt: &VarStmt) -> Result<String, JokerError> {
         match stmt.value.accept(self) {
             Ok(value) => Ok(format!("var {} = {};", stmt.name.lexeme, value)),
             Err(err) => Err(err),
@@ -59,7 +62,7 @@ impl StmtVisitor<String> for AstPrinter {
 impl ExprVisitor<String> for AstPrinter {
     fn visit_literal(&self, expr: &Literal) -> Result<String, JokerError> {
         match &expr.value {
-            Object::Literal(literal) => Ok(literal.to_string())
+            Object::Literal(literal) => Ok(literal.to_string()),
         }
     }
     fn visit_unary(&self, expr: &Unary) -> Result<String, JokerError> {
@@ -71,10 +74,10 @@ impl ExprVisitor<String> for AstPrinter {
     fn visit_grouping(&self, expr: &Grouping) -> Result<String, JokerError> {
         self.parenthesize("group", &[&expr.expr])
     }
-    fn visit_variable(&self,expr: &Variable) -> Result<String,JokerError> {
+    fn visit_variable(&self, expr: &Variable) -> Result<String, JokerError> {
         Ok(format!("variable({})", expr.name.lexeme))
     }
-    fn visit_assign(&self,expr: &Assign) -> Result<String,JokerError> {
+    fn visit_assign(&self, expr: &Assign) -> Result<String, JokerError> {
         match expr.value.accept(self) {
             Ok(value) => Ok(format!("{} = {};", expr.name.lexeme, value)),
             Err(err) => Err(err),

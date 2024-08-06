@@ -6,15 +6,15 @@ use std::cell::RefCell;
 
 use super::{
     ast::{
-        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable
+        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt,
+        Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
     },
     ast_print::AstPrinter,
-    env::Env, 
-    error::{JokerError, ReportError}, 
-    object::{Literal as ObL, Object}, 
+    env::Env,
+    error::{JokerError, ReportError},
+    object::{Literal as ObL, Object},
     token::TokenType,
 };
-
 
 pub struct Interpreter {
     env: RefCell<Env>,
@@ -22,7 +22,9 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Interpreter {
-        Interpreter { env: RefCell::new(Env::new()) }
+        Interpreter {
+            env: RefCell::new(Env::new()),
+        }
     }
 
     fn execute(&self, stmt: &Stmt) -> Result<(), JokerError> {
@@ -32,13 +34,13 @@ impl Interpreter {
     fn evaluate(&self, expr: &Expr) -> Result<Object, JokerError> {
         expr.accept(self)
     }
-    
+
     pub fn interpreter(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
         let mut is_success: bool = true;
         let printer: AstPrinter = AstPrinter::new();
         for stmt in stmts {
             printer.println(stmt);
-            if let Err(err) = self.execute(stmt){
+            if let Err(err) = self.execute(stmt) {
                 is_success = false;
                 err.report();
             }
@@ -46,26 +48,28 @@ impl Interpreter {
         if is_success {
             Ok(())
         } else {
-            Err(JokerError::interpreter_error(String::from("Interpreter Error!")))
+            Err(JokerError::interpreter_error(String::from(
+                "Interpreter Error!",
+            )))
         }
     }
 }
 
 impl StmtVisitor<()> for Interpreter {
-    fn visit_expr(&self, stmt: &ExprStmt) -> Result<(),JokerError> {
+    fn visit_expr(&self, stmt: &ExprStmt) -> Result<(), JokerError> {
         self.evaluate(&stmt.expr)?;
         Ok(())
     }
-    fn visit_print(&self, stmt: &PrintStmt) -> Result<(),JokerError> {
+    fn visit_print(&self, stmt: &PrintStmt) -> Result<(), JokerError> {
         match self.evaluate(&stmt.expr) {
             Ok(value) => {
                 println!("{value}");
                 Ok(())
-            },
+            }
             Err(err) => Err(err),
         }
     }
-    fn visit_var(&self, stmt: &VarStmt) -> Result<(),JokerError> {
+    fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         let value = if stmt.value != Expr::Literal(Literal::new(Object::Literal(ObL::Null))) {
             self.evaluate(&stmt.value)?
         } else {
@@ -76,12 +80,11 @@ impl StmtVisitor<()> for Interpreter {
     }
 }
 
-
 impl ExprVisitor<Object> for Interpreter {
-    fn visit_literal(&self, expr: &Literal) -> Result<Object,JokerError> {
+    fn visit_literal(&self, expr: &Literal) -> Result<Object, JokerError> {
         Ok(expr.value.clone())
     }
-    fn visit_unary(&self, expr: &Unary) -> Result<Object,JokerError> {
+    fn visit_unary(&self, expr: &Unary) -> Result<Object, JokerError> {
         let r_expr: Object = self.evaluate(&expr.r_expr)?;
         match expr.l_opera.ttype {
             TokenType::Minus => match r_expr {
@@ -89,24 +92,33 @@ impl ExprVisitor<Object> for Interpreter {
                     ObL::I32(i32_) => Ok(Object::Literal(ObL::I32(-i32_))),
                     ObL::F64(f64_) => Ok(Object::Literal(ObL::F64(-f64_))),
                     _ => Err(JokerError::eval(
-                        &expr.l_opera, 
-                        format!("[[Minus]] The literal cannot take negative values. {} !=> -{}", literal, literal)
-                    ))
+                        &expr.l_opera,
+                        format!(
+                            "[[Minus]] The literal cannot take negative values. {} !=> -{}",
+                            literal, literal
+                        ),
+                    )),
                 },
             },
             TokenType::Bang => match r_expr {
                 Object::Literal(ref literal) => match literal {
                     ObL::Bool(bool_) => Ok(Object::Literal(ObL::Bool(!bool_))),
                     _ => Err(JokerError::eval(
-                        &expr.l_opera, 
-                        format!("[[Bang]] The literal cannot take reversed values. {} !=> !{}", literal, literal)
-                    ))
-                }
-            }
-            _ => Err(JokerError::eval(&expr.l_opera, String::from("Unreachable according to Literal Num!")))
+                        &expr.l_opera,
+                        format!(
+                            "[[Bang]] The literal cannot take reversed values. {} !=> !{}",
+                            literal, literal
+                        ),
+                    )),
+                },
+            },
+            _ => Err(JokerError::eval(
+                &expr.l_opera,
+                String::from("Unreachable according to Literal Num!"),
+            )),
         }
     }
-    fn visit_binary(&self, expr: &Binary) -> Result<Object,JokerError> {
+    fn visit_binary(&self, expr: &Binary) -> Result<Object, JokerError> {
         let l_expr: Object = self.evaluate(&expr.l_expr)?;
         let r_expr: Object = self.evaluate(&expr.r_expr)?;
         match expr.m_opera.ttype {
@@ -262,88 +274,89 @@ impl ExprVisitor<Object> for Interpreter {
             _ => Err(JokerError::eval(&expr.m_opera, String::from("Unreachable according other type!")))
         }
     }
-    fn visit_grouping(&self, expr: &Grouping) -> Result<Object,JokerError> {
+    fn visit_grouping(&self, expr: &Grouping) -> Result<Object, JokerError> {
         self.evaluate(&expr.expr)
     }
-    fn visit_variable(&self,expr: &Variable) -> Result<Object,JokerError> {
+    fn visit_variable(&self, expr: &Variable) -> Result<Object, JokerError> {
         self.env.borrow().get(&expr.name)
     }
-    fn visit_assign(&self,expr: &Assign) -> Result<Object,JokerError> {
+    fn visit_assign(&self, expr: &Assign) -> Result<Object, JokerError> {
         let value: Object = self.evaluate(&expr.value)?;
         self.env.borrow_mut().assign(&expr.name, &value)?;
         Ok(value)
     }
 }
 
-
-
 #[cfg(test)]
-mod tests{
+mod tests {
 
+    use super::super::{error::ReportError, object::literal_null, token::Token};
     use super::*;
-    use super::super::{
-        error::ReportError, object::literal_null, token::Token
-    };
-    
+
     fn maker_literal_i32_expr(v: i32) -> Box<Expr> {
-        Box::new(Expr::Literal(Literal { 
-            value: Object::Literal(ObL::I32(v)) 
+        Box::new(Expr::Literal(Literal {
+            value: Object::Literal(ObL::I32(v)),
         }))
     }
     fn maker_literal_f64_expr(v: f64) -> Box<Expr> {
-        Box::new(Expr::Literal(Literal { 
-            value: Object::Literal(ObL::F64(v)) 
+        Box::new(Expr::Literal(Literal {
+            value: Object::Literal(ObL::F64(v)),
         }))
     }
     fn maker_literal_str_expr(v: String) -> Box<Expr> {
-        Box::new(Expr::Literal(Literal { 
-            value: Object::Literal(ObL::Str(v)) 
+        Box::new(Expr::Literal(Literal {
+            value: Object::Literal(ObL::Str(v)),
         }))
-    }    
+    }
     fn maker_literal_bool_expr(v: bool) -> Box<Expr> {
-        Box::new(Expr::Literal(Literal { 
-            value: Object::Literal(ObL::Bool(v)) 
+        Box::new(Expr::Literal(Literal {
+            value: Object::Literal(ObL::Bool(v)),
         }))
     }
     fn maker_literal_null_expr() -> Box<Expr> {
-        Box::new(Expr::Literal(Literal { 
-            value: Object::Literal(ObL::Null) 
+        Box::new(Expr::Literal(Literal {
+            value: Object::Literal(ObL::Null),
         }))
     }
     fn maker_token(ttype: TokenType) -> Token {
         let lexeme = ttype.to_string();
-        Token { ttype, lexeme, literal: literal_null(), line: 0 }
+        Token {
+            ttype,
+            lexeme,
+            literal: literal_null(),
+            line: 0,
+        }
     }
     fn maker_unary_expr(ttype: TokenType, v: Box<Expr>) -> Box<Expr> {
-        Box::new(Expr::Unary(Unary { 
-            l_opera: maker_token(ttype), 
-            r_expr: v 
+        Box::new(Expr::Unary(Unary {
+            l_opera: maker_token(ttype),
+            r_expr: v,
         }))
     }
     fn maker_grouping_expr(expr: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::Grouping(Grouping { expr }))
     }
-    fn maker_binary_expr(l_expr:Box<Expr>, m_opera:Token , r_expr:Box<Expr>) -> Box<Expr> {
-        Box::new(Expr::Binary(Binary { l_expr,m_opera, r_expr }))
-    }    
+    fn maker_binary_expr(l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Binary(Binary {
+            l_expr,
+            m_opera,
+            r_expr,
+        }))
+    }
 
     #[test]
-    fn test_simple_expr(){
+    fn test_simple_expr() {
         // (-123)*(200/2)
-        let expr: Expr = Expr::Binary(Binary { 
-            l_expr: maker_unary_expr(
-                TokenType::Minus, 
-                maker_literal_i32_expr(123)),
-            m_opera: maker_token(TokenType::Star), 
-            r_expr: maker_grouping_expr(
-                maker_binary_expr(
-                    maker_literal_i32_expr(200),
-                    maker_token(TokenType::Slash), 
-                    maker_literal_i32_expr(2)
-                )
-            )
+        let expr: Expr = Expr::Binary(Binary {
+            l_expr: maker_unary_expr(TokenType::Minus, maker_literal_i32_expr(123)),
+            m_opera: maker_token(TokenType::Star),
+            r_expr: maker_grouping_expr(maker_binary_expr(
+                maker_literal_i32_expr(200),
+                maker_token(TokenType::Slash),
+                maker_literal_i32_expr(2),
+            )),
         });
-        
+
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
             Ok(value) => assert_eq!(value, Object::Literal(ObL::I32(-12300))),
@@ -399,6 +412,5 @@ mod tests{
             Ok(value) => assert_eq!(value, Object::Literal(ObL::Null)),
             Err(err) => err.report(),
         };
-    }            
+    }
 }
-

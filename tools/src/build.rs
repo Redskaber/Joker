@@ -21,7 +21,7 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("Unary     : l_opera Token, r_expr Box<Expr>"),
             String::from("Binary    : l_expr Box<Expr>, m_opera Token, r_expr Box<Expr>"),
             String::from("Grouping  : expr Box<Expr>"),
-            String::from("Variable  : name Token"),         // right value
+            String::from("Variable  : name Token"), // right value
         ],
         &[
             String::from("use super::object::Object;"),
@@ -30,23 +30,28 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
         ],
     );
     let _ = define_ast(
-        output_dir, 
-        &String::from("Stmt"), 
+        output_dir,
+        &String::from("Stmt"),
         &[
             String::from("ExprStmt  : expr Expr"),
             String::from("PrintStmt : expr Expr"),
-            String::from("VarStmt   : name Token, value Expr"),   // left value
+            String::from("VarStmt   : name Token, value Expr"), // left value
         ],
         &[
             String::from("use super::ast::Expr;"),
             String::from("use super::token::Token;"),
-            String::from("use super::error::JokerError;"),            
-        ]
+            String::from("use super::error::JokerError;"),
+        ],
     );
     Ok(())
 }
 
-fn define_ast(output_dir: &String, base_name: &String, types: &[String], depended: &[String]) -> io::Result<()> {
+fn define_ast(
+    output_dir: &String,
+    base_name: &String,
+    types: &[String],
+    depended: &[String],
+) -> io::Result<()> {
     let path: String = format!("{output_dir}/{}.rs", base_name.to_lowercase());
     let mut file: File = File::create(path)?;
     let mut tree_types: Vec<TreeType> = Vec::new();

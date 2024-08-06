@@ -10,11 +10,10 @@ use std::result;
 use super::{
     error::{JokerError, ReportError},
     interpreter::Interpreter,
-    scanner::Scanner,
     parse::Parser,
+    scanner::Scanner,
     token::Token,
 };
-
 
 pub fn joker_main() {
     let args: Vec<String> = env::args().collect();
@@ -35,7 +34,9 @@ pub struct Joker {
 
 impl Joker {
     pub fn new() -> Joker {
-        Joker {interpreter: Interpreter::new() }
+        Joker {
+            interpreter: Interpreter::new(),
+        }
     }
 
     fn run_file(&self, path: &str) -> io::Result<()> {
@@ -58,7 +59,7 @@ impl Joker {
                     break;
                 }
                 if let Err(err) = self.run(line) {
-                    err.report();                    
+                    err.report();
                 }
                 print!("> ");
                 let _ = stdout().flush();

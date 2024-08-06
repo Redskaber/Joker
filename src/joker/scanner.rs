@@ -146,7 +146,7 @@ impl Scanner {
         }
     }
 
-    // TODO: scanner escape  
+    // TODO: scanner escape
     fn scan_escape(&mut self) -> Result<(), JokerError> {
         Ok(())
     }
@@ -253,16 +253,10 @@ impl Scanner {
 
         let text: String = self.source[self.start..self.current].iter().collect();
         match Scanner::keywords(&text) {
-            Some(keyword) => {
-                match keyword {
-                    TokenType::True => self.add_token_object(
-                        keyword, 
-                        literal_bool(true)),
-                    TokenType::False => self.add_token_object(
-                        keyword, 
-                        literal_bool(false)),
-                    _ => self.add_token(keyword),
-                }
+            Some(keyword) => match keyword {
+                TokenType::True => self.add_token_object(keyword, literal_bool(true)),
+                TokenType::False => self.add_token_object(keyword, literal_bool(false)),
+                _ => self.add_token(keyword),
             },
             None => self.add_token(TokenType::Identifier),
         }

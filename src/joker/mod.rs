@@ -2,11 +2,11 @@ mod ast;
 mod ast_print;
 mod env;
 mod error;
+mod interpreter;
 mod main;
+mod object;
 mod parse;
 mod scanner;
 mod token;
-mod object;
-mod interpreter;
 
 pub use main::joker_main;
