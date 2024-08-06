@@ -17,10 +17,11 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
         output_dir,
         &String::from("Expr"),
         &[
-            String::from("Literal    : value Option<Object>"),
-            String::from("Unary      : l_opera Token, r_expr Box<Expr>"),
-            String::from("Binary     : l_expr Box<Expr>, m_opera Token, r_expr Box<Expr>"),
-            String::from("Grouping   : expr Box<Expr>"),
+            String::from("Literal   : value Object"),
+            String::from("Unary     : l_opera Token, r_expr Box<Expr>"),
+            String::from("Binary    : l_expr Box<Expr>, m_opera Token, r_expr Box<Expr>"),
+            String::from("Grouping  : expr Box<Expr>"),
+            String::from("Variable  : name Token"),         // right value
         ],
         &[
             String::from("use super::object::Object;"),
@@ -34,9 +35,11 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
         &[
             String::from("ExprStmt  : expr Expr"),
             String::from("PrintStmt : expr Expr"),
+            String::from("VarStmt   : name Token, value Expr"),   // left value
         ],
         &[
-            String::from("use super::ast::Expr;"),            
+            String::from("use super::ast::Expr;"),
+            String::from("use super::token::Token;"),
             String::from("use super::error::JokerError;"),            
         ]
     );

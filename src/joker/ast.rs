@@ -142,8 +142,9 @@ define_ast! {
         Unary       { l_opera: Token, r_expr: Box<Expr> },
         Binary      { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Grouping    { expr: Box<Expr> },
+        Variable    { name: Token },                // right value
     },
-    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping },
+    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable },
     ExprAcceptor,
 }
 
@@ -151,7 +152,8 @@ define_ast! {
     Stmt {
         ExprStmt    { expr: Expr },
         PrintStmt   { expr: Expr },
+        VarStmt     { name: Token, value: Expr },  // left value
     },
-    StmtVisitor,    stmt, {visit_expr, visit_print },
+    StmtVisitor,    stmt, {visit_expr, visit_print, visit_var },
     StmtAcceptor,
 }

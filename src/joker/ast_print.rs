@@ -3,7 +3,9 @@
 //!
 
 use super::{
-    ast::{Binary, Expr, ExprAcceptor, ExprVisitor, Grouping, Literal, Stmt, Unary},
+    ast::{
+        Binary, Expr, ExprAcceptor, ExprVisitor, Grouping, Literal, Variable,
+        Stmt, StmtAcceptor, StmtVisitor, Unary, ExprStmt, PrintStmt, VarStmt},
     error::{JokerError, ReportError}, object::Object,
 };
 
@@ -20,13 +22,7 @@ impl AstPrinter {
         }
     } 
     fn ast_stmt(&self, stmt: &Stmt) -> Result<String, JokerError> {
-        match stmt {
-            Stmt::ExprStmt(stmt) => self.ast_expr(&stmt.expr),
-            Stmt::PrintStmt(stmt) => self.ast_expr(&stmt.expr),
-        }
-    }
-    fn ast_expr(&self, expr: &Expr) -> Result<String, JokerError> {
-        expr.accept(self)
+        stmt.accept(self)
     }
     fn parenthesize(&self, label: &str, exprs: &[&Expr]) -> Result<String, JokerError> {
         let mut result = String::new();
@@ -46,6 +42,21 @@ impl AstPrinter {
     }
 }
 
+impl StmtVisitor<String> for AstPrinter {
+    fn visit_expr(&self, stmt: &ExprStmt) -> Result<String,JokerError> {
+        stmt.expr.accept(self)
+    }
+    fn visit_print(&self, stmt: &PrintStmt) -> Result<String,JokerError> {
+        stmt.expr.accept(self)
+    }
+    fn visit_var(&self, stmt: &VarStmt) -> Result<String,JokerError> {
+        match stmt.value.accept(self) {
+            Ok(value) => Ok(format!("var {} = {};", stmt.name.lexeme, value)),
+            Err(err) => Err(err),
+        }
+    }
+}
+
 impl ExprVisitor<String> for AstPrinter {
     fn visit_literal(&self, expr: &Literal) -> Result<String, JokerError> {
         match &expr.value {
@@ -60,6 +71,9 @@ impl ExprVisitor<String> for AstPrinter {
     }
     fn visit_grouping(&self, expr: &Grouping) -> Result<String, JokerError> {
         self.parenthesize("group", &[&expr.expr])
+    }
+    fn visit_variable(&self,expr: &Variable) -> Result<String,JokerError> {
+        self.parenthesize(&format!("variable({})", expr.name.lexeme), &[])
     }
 }
 
@@ -90,9 +104,10 @@ mod test {
                 Literal::new(literal_f64(123.0)),
             ))))),
         ));
-        println!("binary: {binary}");
-        println!("ast: {}", ast_printer.ast_expr(&binary)?);
-        assert_eq!("(/ (- 123) (group 123))", ast_printer.ast_expr(&binary)?);
+        let stmt = Stmt::ExprStmt(ExprStmt::new(binary));
+        println!("stmt: {stmt}");
+        println!("ast: {}", ast_printer.ast_stmt(&stmt)?);
+        assert_eq!("(/ (- 123) (group 123))", ast_printer.ast_stmt(&stmt)?);
 
         let other: Expr = Expr::Binary(Binary {
             l_expr: Box::new(Expr::Unary(Unary {
@@ -118,9 +133,10 @@ mod test {
                 })),
             })),
         });
-        println!("other: {other}");
-        println!("ast: {}", ast_printer.ast_expr(&other)?);
-        assert_eq!("(* (- 123) (group 45.67))", ast_printer.ast_expr(&other)?);
+        let o_stmt = Stmt::ExprStmt(ExprStmt::new(other));
+        println!("o_stmt: {o_stmt}");
+        println!("ast: {}", ast_printer.ast_stmt(&o_stmt)?);
+        assert_eq!("(* (- 123) (group 45.67))", ast_printer.ast_stmt(&o_stmt)?);
 
         Ok(())
     }

@@ -4,9 +4,7 @@
 //!
 
 use super::{
-    ast::{Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary},
-    error::{JokerError, ReportError},
-    token::{Token, TokenType},
+    ast::{Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary, VarStmt, Variable}, error::{JokerError, ReportError}, object::literal_null, token::{Token, TokenType}
 };
 
 pub struct Parser {
@@ -52,9 +50,12 @@ impl Parser {
     pub fn parse(&mut self) -> Option<Vec<Stmt>> {
         let mut stmts: Vec<Stmt> = Vec::new();
         while !self.is_at_end() {
-            match self.statement() {
+            match self.declaration() {
                 Ok(stmt) => stmts.push(stmt),
-                Err(err) => err.report(),
+                Err(err) => {
+                    err.report();
+                    self.synchronize();     // upcast: declaration -> this
+                },
             }
         }
         if stmts.is_empty() {
@@ -63,6 +64,26 @@ impl Parser {
         Some(stmts)
     }
     
+    // declaration -> stmt              （语句）
+    //               | var_declaration  (声明)
+    fn declaration(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::Var]) {
+            return self.var_declaration();
+        }
+        self.statement()
+    }
+    fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
+        let name: Token = self.consume(&TokenType::Identifier, String::from("Expect variable name."))?;
+        let value = if self.is_match(&[TokenType::Equal]) {
+            self.expression()?
+        } else {
+            Expr::Literal(Literal::new(literal_null()))
+        };
+        self.consume(&TokenType::Semicolon, String::from("Expect ';' after variable declaration."))?;
+        Ok(VarStmt::upcast(name, value))
+    }
+    // stmt -> print_stmt
+    //        | expr_stmt
     fn statement(&mut self) -> Result<Stmt, JokerError> {
         if self.is_match(&[TokenType::Print]) {
             return self.print_statement();
@@ -161,6 +182,7 @@ impl Parser {
             TokenType::I32 => Ok(Literal::upcast(self.advance().literal)),
             TokenType::F64 => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Str => Ok(Literal::upcast(self.advance().literal)),
+            TokenType::Identifier => Ok(Variable::upcast(self.advance())),
             _ => Err(JokerError::parse(&self.advance(), String::from("parse not impl!"))), // jump 
         }
     }

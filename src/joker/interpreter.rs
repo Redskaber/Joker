@@ -4,8 +4,8 @@
 
 use super::{
     ast::{
-        Expr, Unary, Literal, Binary, Grouping, ExprAcceptor, ExprVisitor,   
-        Stmt, ExprStmt, PrintStmt, StmtAcceptor, StmtVisitor
+        Expr, Unary, Literal, Binary, Grouping, Variable, ExprAcceptor, ExprVisitor,   
+        Stmt, ExprStmt, PrintStmt, VarStmt, StmtAcceptor, StmtVisitor
     },
     ast_print::AstPrinter, 
     error::JokerError, 
@@ -54,6 +54,11 @@ impl StmtVisitor<()> for Interpreter {
             },
             Err(err) => Err(err),
         }
+    }
+    fn visit_var(&self,stmt: &VarStmt) -> Result<(),JokerError> {
+        self.evaluate(&stmt.value)?;
+        todo!();
+        Ok(())
     }
 }
 
@@ -243,6 +248,9 @@ impl ExprVisitor<Object> for Interpreter {
     }
     fn visit_grouping(&self, expr: &Grouping) -> Result<Object,JokerError> {
         self.evaluate(&expr.expr)
+    }
+    fn visit_variable(&self,expr: &Variable) -> Result<Object,JokerError> {
+        todo!()
     }
 }
 
