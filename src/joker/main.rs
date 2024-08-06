@@ -57,13 +57,11 @@ impl Joker {
                 if line.is_empty() {
                     break;
                 }
-                match self.run(line) {
-                    Ok(_) => {
-                        print!("> ");
-                        let _ = stdout().flush();
-                    }
-                    Err(err) => err.report(),
+                if let Err(err) = self.run(line) {
+                    err.report();                    
                 }
+                print!("> ");
+                let _ = stdout().flush();
             } else {
                 break;
             }

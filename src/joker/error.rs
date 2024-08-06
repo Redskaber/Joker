@@ -67,7 +67,10 @@ impl JokerError {
     }
     pub fn scan_error(line: usize, msg: String) -> JokerError {
         JokerError { line, where_: String::from(""), msg , code: ErrorCode::Scanner}
-    }           
+    }
+    pub fn interpreter_error(msg: String) -> JokerError {
+        JokerError { line: 0, where_: String::from(""), msg, code: ErrorCode::Interpreter }
+    }          
 }
 
 impl ReportError for JokerError {

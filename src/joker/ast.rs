@@ -143,8 +143,9 @@ define_ast! {
         Binary      { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Grouping    { expr: Box<Expr> },
         Variable    { name: Token },                // right value
+        Assign      { name: Token, value: Box<Expr>},
     },
-    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable },
+    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable, visit_assign },
     ExprAcceptor,
 }
 

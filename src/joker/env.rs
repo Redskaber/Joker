@@ -22,6 +22,14 @@ impl Env {
             None => Err(JokerError::env(name, format!("Undefined variable '{}'.", name.lexeme))) 
         }
     }
+    pub fn assign(&mut self, name: &Token, value: &Object) -> Result<(), JokerError>{
+        if self.symbol.contains_key(&name.lexeme) {
+            self.symbol.insert(name.lexeme.to_string(), value.clone());
+            Ok(())
+        } else {
+            Err(JokerError::env(name, format!("Undefined variable '{}'.", name.lexeme)))
+        }
+    }
 }
 
 #[cfg(test)]

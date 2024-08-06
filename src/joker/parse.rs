@@ -4,7 +4,8 @@
 //!
 
 use super::{
-    ast::{Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary, VarStmt, Variable}, error::{JokerError, ReportError}, object::literal_null, token::{Token, TokenType}
+    ast::{Assign, Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary, VarStmt, Variable}, error::{JokerError, ReportError}, 
+    object::literal_null, token::{Token, TokenType}
 };
 
 pub struct Parser {
@@ -54,6 +55,7 @@ impl Parser {
                 Ok(stmt) => stmts.push(stmt),
                 Err(err) => {
                     err.report();
+                    if self.is_at_end() {break;} // input: cc -> cc + Eof(now pos) 
                     self.synchronize();     // upcast: declaration -> this
                 },
             }
@@ -100,9 +102,27 @@ impl Parser {
         self.consume(&TokenType::Semicolon, String::from("Expect ';' after value."))?;
         Ok(ExprStmt::upcast(expr))
     }
-    // exprStmt -> equality
+    // exprStmt     → assignment ;
+    // assignment   → IDENTIFIER "=" assignment
+    //               | equality ;    
     fn expression(&mut self) -> Result<Expr, JokerError> {
-        self.equality()
+        self.assignment()
+    }
+    fn assignment(&mut self) -> Result<Expr, JokerError> {
+        let expr: Expr = self.equality()?;
+        if self.is_match(&[TokenType::Equal]) {
+            let equal: Token = self.previous();
+            let value: Expr = self.assignment()?;
+            match expr {
+                Expr::Variable(variable) => 
+                    return Ok(Assign::upcast(variable.name, Box::new(value))),
+                _ => return Err(JokerError::parse(
+                    &equal, 
+                    String::from("Invalid assignment target.")
+                ))
+            }
+        }
+        Ok(expr)
     }
     // equality -> comparison ( ( "!=" | "==")  comparison )*
     fn equality(&mut self) -> Result<Expr, JokerError> {

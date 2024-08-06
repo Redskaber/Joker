@@ -6,12 +6,11 @@ use std::cell::RefCell;
 
 use super::{
     ast::{
-        Expr, Unary, Literal, Binary, Grouping, Variable, ExprAcceptor, ExprVisitor,   
-        Stmt, ExprStmt, PrintStmt, VarStmt, StmtAcceptor, StmtVisitor
+        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable
     },
     ast_print::AstPrinter,
     env::Env, 
-    error::JokerError, 
+    error::{JokerError, ReportError}, 
     object::{Literal as ObL, Object}, 
     token::TokenType,
 };
@@ -35,12 +34,20 @@ impl Interpreter {
     }
     
     pub fn interpreter(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
+        let mut is_success: bool = true;
         let printer: AstPrinter = AstPrinter::new();
         for stmt in stmts {
             printer.println(stmt);
-            self.execute(stmt)?
+            if let Err(err) = self.execute(stmt){
+                is_success = false;
+                err.report();
+            }
         }
-        Ok(())
+        if is_success {
+            Ok(())
+        } else {
+            Err(JokerError::interpreter_error(String::from("Interpreter Error!")))
+        }
     }
 }
 
@@ -59,7 +66,7 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(),JokerError> {
-        let value = if stmt.value != Expr::Literal(Literal { value: Object::Literal(ObL::Null) }) {
+        let value = if stmt.value != Expr::Literal(Literal::new(Object::Literal(ObL::Null))) {
             self.evaluate(&stmt.value)?
         } else {
             Object::Literal(ObL::Null)
@@ -110,6 +117,7 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::Literal(ObL::Bool(l_bool != r_bool))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str != r_str))),
                     (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(false))),
+                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(true))),
                     _ => Err(JokerError::eval(
                         &expr.m_opera, 
                         format!("[[BangEqual]] The literal cannot take bang equal values. !({l_literal} != {r_literal})")
@@ -124,6 +132,7 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::Literal(ObL::Bool(l_bool == r_bool))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str == r_str))),
                     (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(true))),
+                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(false))),
                     _ => Err(JokerError::eval(
                         &expr.m_opera, 
                         format!("[[EqualEqual]] The literal cannot take equal values. !({l_literal} == {r_literal})")
@@ -258,6 +267,11 @@ impl ExprVisitor<Object> for Interpreter {
     }
     fn visit_variable(&self,expr: &Variable) -> Result<Object,JokerError> {
         self.env.borrow().get(&expr.name)
+    }
+    fn visit_assign(&self,expr: &Assign) -> Result<Object,JokerError> {
+        let value: Object = self.evaluate(&expr.value)?;
+        self.env.borrow_mut().assign(&expr.name, &value)?;
+        Ok(value)
     }
 }
 

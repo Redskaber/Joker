@@ -4,8 +4,7 @@
 
 use super::{
     ast::{
-        Binary, Expr, ExprAcceptor, ExprVisitor, Grouping, Literal, Variable,
-        Stmt, StmtAcceptor, StmtVisitor, Unary, ExprStmt, PrintStmt, VarStmt},
+        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable},
     error::{JokerError, ReportError}, object::Object,
 };
 
@@ -74,6 +73,12 @@ impl ExprVisitor<String> for AstPrinter {
     }
     fn visit_variable(&self,expr: &Variable) -> Result<String,JokerError> {
         Ok(format!("variable({})", expr.name.lexeme))
+    }
+    fn visit_assign(&self,expr: &Assign) -> Result<String,JokerError> {
+        match expr.value.accept(self) {
+            Ok(value) => Ok(format!("{} = {};", expr.name.lexeme, value)),
+            Err(err) => Err(err),
+        }
     }
 }
 
