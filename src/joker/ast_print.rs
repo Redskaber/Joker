@@ -73,7 +73,7 @@ impl ExprVisitor<String> for AstPrinter {
         self.parenthesize("group", &[&expr.expr])
     }
     fn visit_variable(&self,expr: &Variable) -> Result<String,JokerError> {
-        self.parenthesize(&format!("variable({})", expr.name.lexeme), &[])
+        Ok(format!("variable({})", expr.name.lexeme))
     }
 }
 

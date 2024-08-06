@@ -128,7 +128,7 @@ impl Display for TokenType {
 }
 
 // 词素和标记（词法单元）
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Token {
     pub ttype: TokenType,
     pub lexeme: String,

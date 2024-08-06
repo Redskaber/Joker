@@ -11,19 +11,21 @@ pub trait ReportError {
 
 #[derive(Debug)]
 pub enum ErrorCode {
-    ScannerError        = 66,
-    ParserError         = 67,
-    EvalError           = 68,
-    InterpreterError    = 69,
+    Scanner        = 66,
+    Parser         = 67,
+    Eval           = 68,
+    Interpreter    = 69,
+    Env            = 70,
 }
 
-impl Into<i32> for ErrorCode {
-    fn into(self) -> i32 {
-        match self {
-            Self::ScannerError      => 66,
-            Self::ParserError       => 67,
-            Self::EvalError         => 68,
-            Self::InterpreterError  => 69,
+impl From<ErrorCode> for i32 {
+    fn from(value: ErrorCode) -> Self {
+        match value {
+            ErrorCode::Scanner      => 66,
+            ErrorCode::Parser       => 67,
+            ErrorCode::Eval         => 68,
+            ErrorCode::Interpreter  => 69,
+            ErrorCode::Env          => 70,
         }
     }
 }
@@ -49,19 +51,22 @@ impl JokerError {
         JokerError { line, where_: String::from(""), msg , code}
     }
     pub fn scanner(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::ScannerError)
+        JokerError::new(token, msg, ErrorCode::Scanner)
     } 
     pub fn parse(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::ParserError)
+        JokerError::new(token, msg, ErrorCode::Parser)
     }    
     pub fn eval(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::EvalError)
+        JokerError::new(token, msg, ErrorCode::Eval)
     }
     pub fn interpreter(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::InterpreterError)
+        JokerError::new(token, msg, ErrorCode::Interpreter)
+    }
+    pub fn env(token: &Token, msg: String) -> JokerError {
+        JokerError::new(token, msg, ErrorCode::Env)
     }
     pub fn scan_error(line: usize, msg: String) -> JokerError {
-        JokerError { line, where_: String::from(""), msg , code: ErrorCode::ScannerError}
+        JokerError { line, where_: String::from(""), msg , code: ErrorCode::Scanner}
     }           
 }
 

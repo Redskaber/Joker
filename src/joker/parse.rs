@@ -74,7 +74,7 @@ impl Parser {
     }
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(&TokenType::Identifier, String::from("Expect variable name."))?;
-        let value = if self.is_match(&[TokenType::Equal]) {
+        let value: Expr = if self.is_match(&[TokenType::Equal]) {
             self.expression()?
         } else {
             Expr::Literal(Literal::new(literal_null()))

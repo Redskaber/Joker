@@ -35,7 +35,7 @@ pub struct Joker {
 
 impl Joker {
     pub fn new() -> Joker {
-        Joker {interpreter: Interpreter {}}
+        Joker {interpreter: Interpreter::new() }
     }
 
     fn run_file(&self, path: &str) -> io::Result<()> {

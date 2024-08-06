@@ -2,23 +2,28 @@
 //!
 //!
 
+use std::cell::RefCell;
+
 use super::{
     ast::{
         Expr, Unary, Literal, Binary, Grouping, Variable, ExprAcceptor, ExprVisitor,   
         Stmt, ExprStmt, PrintStmt, VarStmt, StmtAcceptor, StmtVisitor
     },
-    ast_print::AstPrinter, 
+    ast_print::AstPrinter,
+    env::Env, 
     error::JokerError, 
     object::{Literal as ObL, Object}, 
     token::TokenType,
 };
 
 
-pub struct Interpreter;
+pub struct Interpreter {
+    env: RefCell<Env>,
+}
 
 impl Interpreter {
     pub fn new() -> Interpreter {
-        Interpreter {}
+        Interpreter { env: RefCell::new(Env::new()) }
     }
 
     fn execute(&self, stmt: &Stmt) -> Result<(), JokerError> {
@@ -33,9 +38,7 @@ impl Interpreter {
         let printer: AstPrinter = AstPrinter::new();
         for stmt in stmts {
             printer.println(stmt);
-            if let Err(err) = self.execute(stmt) {
-                return Err(err);
-            }
+            self.execute(stmt)?
         }
         Ok(())
     }
@@ -55,9 +58,13 @@ impl StmtVisitor<()> for Interpreter {
             Err(err) => Err(err),
         }
     }
-    fn visit_var(&self,stmt: &VarStmt) -> Result<(),JokerError> {
-        self.evaluate(&stmt.value)?;
-        todo!();
+    fn visit_var(&self, stmt: &VarStmt) -> Result<(),JokerError> {
+        let value = if stmt.value != Expr::Literal(Literal { value: Object::Literal(ObL::Null) }) {
+            self.evaluate(&stmt.value)?
+        } else {
+            Object::Literal(ObL::Null)
+        };
+        self.env.borrow_mut().define(&stmt.name.lexeme, value);
         Ok(())
     }
 }
@@ -250,7 +257,7 @@ impl ExprVisitor<Object> for Interpreter {
         self.evaluate(&expr.expr)
     }
     fn visit_variable(&self,expr: &Variable) -> Result<Object,JokerError> {
-        todo!()
+        self.env.borrow().get(&expr.name)
     }
 }
 

@@ -1,5 +1,6 @@
 mod ast;
 mod ast_print;
+mod env;
 mod error;
 mod main;
 mod parse;
