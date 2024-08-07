@@ -5,8 +5,8 @@
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary,
-        VarStmt, Variable,
+        Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, IfStmt, Literal, PrintStmt, Stmt,
+        Unary, VarStmt, Variable,
     },
     error::{JokerError, ReportError},
     object::literal_null,
@@ -99,8 +99,12 @@ impl Parser {
     }
     // stmt -> print_stmt
     //        | expr_stmt
-    //        | block_stmt;
+    //        | block_stmt
+    //        | if_stmt;
     fn statement(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::If]) {
+            return self.if_statement();
+        }
         if self.is_match(&[TokenType::Print]) {
             return self.print_statement();
         }
@@ -108,6 +112,29 @@ impl Parser {
             return self.block_statement();
         }
         self.expr_statement()
+    }
+    //
+    fn if_statement(&mut self) -> Result<Stmt, JokerError> {
+        self.consume(
+            &TokenType::LeftParen,
+            String::from("Expect '(' after 'if'."),
+        )?;
+        let condition: Expr = self.expression()?;
+        self.consume(
+            &TokenType::RightParen,
+            String::from("Expect ')' after if condition."),
+        )?;
+        let then_branch: Stmt = self.statement()?;
+        let else_branch: Stmt = if self.is_match(&[TokenType::Else]) {
+            self.statement()?
+        } else {
+            ExprStmt::upcast(Expr::Literal(Literal::new(literal_null())))
+        };
+        Ok(IfStmt::upcast(
+            condition,
+            Box::new(then_branch),
+            Box::new(else_branch),
+        ))
     }
     fn print_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;

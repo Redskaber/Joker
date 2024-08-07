@@ -4,8 +4,8 @@
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal,
-        PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, IfStmt,
+        Literal, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -68,6 +68,14 @@ impl StmtVisitor<String> for AstPrinter {
         }
         result.push_str(" }");
         Ok(result)
+    }
+    fn visit_if(&self, stmt: &IfStmt) -> Result<String, JokerError> {
+        Ok(format!(
+            "IfStmt(cond: {}, then: {}, else: {})",
+            stmt.condition.accept(self)?,
+            stmt.then_branch.accept(self)?,
+            stmt.else_branch.accept(self)?
+        ))
     }
 }
 

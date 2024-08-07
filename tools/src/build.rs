@@ -38,6 +38,9 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("PrintStmt : expr Expr"),
             String::from("VarStmt   : name Token, value Expr"), // left value
             String::from("BlockStmt : stmts Vec<Stmt>"),
+            String::from(
+                "IfStmt    : condition Expr, then_branch Box<Stmt>, else_branch Box<Stmt>",
+            ),
         ],
         &[
             String::from("use super::ast::Expr;"),

@@ -26,7 +26,19 @@ impl Interpreter {
             env: RefCell::new(Rc::new(RefCell::new(Env::new()))),
         }
     }
-
+    fn is_true(&self, object: &Object) -> bool {
+        matches!(object, Object::Literal(ObL::Bool(true)))
+    }
+    fn is_null(&self, stmt: &Stmt) -> bool {
+        matches!(
+            stmt,
+            Stmt::ExprStmt(ExprStmt {
+                expr: Expr::Literal(Literal {
+                    value: Object::Literal(ObL::Null)
+                })
+            })
+        )
+    }
     fn execute(&self, stmt: &Stmt) -> Result<(), JokerError> {
         stmt.accept(self)
     }
@@ -92,6 +104,14 @@ impl StmtVisitor<()> for Interpreter {
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
         let block_env = Env::new_with_enclosing(Rc::clone(&self.env.borrow()));
         self.execute_block(&stmt.stmts, block_env)
+    }
+    fn visit_if(&self, stmt: &super::ast::IfStmt) -> Result<(), JokerError> {
+        if self.is_true(&self.evaluate(&stmt.condition)?) {
+            self.execute(&stmt.then_branch)?;
+        } else if !self.is_null(&stmt.else_branch) {
+            self.execute(&stmt.else_branch)?;
+        }
+        Ok(())
     }
 }
 
