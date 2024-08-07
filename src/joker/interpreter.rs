@@ -2,14 +2,14 @@
 //!
 //!
 
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use super::{
     ast::{
-        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt,
-        Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal,
+        PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
     },
-    ast_print::AstPrinter,
+    // ast_print::AstPrinter,
     env::Env,
     error::{JokerError, ReportError},
     object::{Literal as ObL, Object},
@@ -17,29 +17,34 @@ use super::{
 };
 
 pub struct Interpreter {
-    env: RefCell<Env>,
+    env: RefCell<Rc<RefCell<Env>>>,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
-            env: RefCell::new(Env::new()),
+            env: RefCell::new(Rc::new(RefCell::new(Env::new()))),
         }
     }
 
     fn execute(&self, stmt: &Stmt) -> Result<(), JokerError> {
         stmt.accept(self)
     }
-
+    fn execute_block(&self, stmts: &[Stmt], block_env: Env) -> Result<(), JokerError> {
+        let previous = self.env.replace(Rc::new(RefCell::new(block_env)));
+        let result = stmts.iter().try_for_each(|stmt| self.execute(stmt));
+        self.env.replace(previous);
+        result
+    }
     fn evaluate(&self, expr: &Expr) -> Result<Object, JokerError> {
         expr.accept(self)
     }
 
     pub fn interpreter(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
         let mut is_success: bool = true;
-        let printer: AstPrinter = AstPrinter::new();
+        // let printer: AstPrinter = AstPrinter::new();
         for stmt in stmts {
-            printer.println(stmt);
+            // printer.println(stmt);
             if let Err(err) = self.execute(stmt) {
                 is_success = false;
                 err.report();
@@ -78,8 +83,15 @@ impl StmtVisitor<()> for Interpreter {
         } else {
             Object::Literal(ObL::Null)
         };
-        self.env.borrow_mut().define(&stmt.name.lexeme, value);
+        self.env
+            .borrow()
+            .borrow_mut()
+            .define(&stmt.name.lexeme, value);
         Ok(())
+    }
+    fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
+        let block_env = Env::new_with_enclosing(Rc::clone(&self.env.borrow()));
+        self.execute_block(&stmt.stmts, block_env)
     }
 }
 
@@ -275,11 +287,11 @@ impl ExprVisitor<Object> for Interpreter {
         self.evaluate(&expr.expr)
     }
     fn visit_variable(&self, expr: &Variable) -> Result<Object, JokerError> {
-        self.env.borrow().get(&expr.name)
+        self.env.borrow().borrow().get(&expr.name)
     }
     fn visit_assign(&self, expr: &Assign) -> Result<Object, JokerError> {
         let value: Object = self.evaluate(&expr.value)?;
-        self.env.borrow_mut().assign(&expr.name, &value)?;
+        self.env.borrow().borrow_mut().assign(&expr.name, &value)?;
         Ok(value)
     }
 }

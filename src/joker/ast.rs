@@ -124,6 +124,14 @@ macro_rules! define_ast {
         $(define_ast!{@impl_display $struct_name, $($field: $field_type),*})*
     };
 
+    (@impl_display BlockStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for BlockStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "BlockStmt({:?})", $(self.$field)*)
+            }
+        }
+    };
+
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -153,8 +161,9 @@ define_ast! {
     Stmt {
         ExprStmt    { expr: Expr },
         PrintStmt   { expr: Expr },
-        VarStmt     { name: Token, value: Expr },  // left value
+        VarStmt     { name: Token, value: Expr },   // left value
+        BlockStmt   { stmts: Vec<Stmt> },           // space
     },
-    StmtVisitor,    stmt, {visit_expr, visit_print, visit_var },
+    StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block },
     StmtAcceptor,
 }

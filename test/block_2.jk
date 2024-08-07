@@ -1,0 +1,19 @@
+var a = 10;
+var b = 20;
+var c = a + b;
+print c;             // 30
+{
+    var a = 30;     
+    var b= a + c;    // 30 + (10 + 20) = 60
+    print b;         // 60
+
+    c = c + 100;     // 100 + (10 + 20) = 130
+}
+print c;             // 30                      // 130(v)
+{
+    var a = 300; 
+    var b= a + c;    // 300 + (10 + 20) = 320   // 300 + 130 = 430(v)
+    print b;         // 320                     // 430(v)
+}
+
+// env: block -> up block -> ... -> global

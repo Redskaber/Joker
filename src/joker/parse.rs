@@ -5,8 +5,8 @@
 
 use super::{
     ast::{
-        Assign, Binary, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary, VarStmt,
-        Variable,
+        Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, Literal, PrintStmt, Stmt, Unary,
+        VarStmt, Variable,
     },
     error::{JokerError, ReportError},
     object::literal_null,
@@ -99,9 +99,13 @@ impl Parser {
     }
     // stmt -> print_stmt
     //        | expr_stmt
+    //        | block_stmt;
     fn statement(&mut self) -> Result<Stmt, JokerError> {
         if self.is_match(&[TokenType::Print]) {
             return self.print_statement();
+        }
+        if self.is_match(&[TokenType::LeftBrace]) {
+            return self.block_statement();
         }
         self.expr_statement()
     }
@@ -112,6 +116,18 @@ impl Parser {
             String::from("Expect ';' after value."),
         )?;
         Ok(PrintStmt::upcast(expr))
+    }
+    // block_stmt          → "{" declaration* "}" ;
+    fn block_statement(&mut self) -> Result<Stmt, JokerError> {
+        let mut stmts: Vec<Stmt> = Vec::new();
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            stmts.push(self.declaration()?);
+        }
+        self.consume(
+            &TokenType::RightBrace,
+            String::from("Expect '}' after block."),
+        )?;
+        Ok(BlockStmt::upcast(stmts))
     }
     fn expr_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;

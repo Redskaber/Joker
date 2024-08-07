@@ -4,8 +4,8 @@
 
 use super::{
     ast::{
-        Assign, Binary, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal, PrintStmt,
-        Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal,
+        PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -53,9 +53,21 @@ impl StmtVisitor<String> for AstPrinter {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<String, JokerError> {
         match stmt.value.accept(self) {
-            Ok(value) => Ok(format!("var {} = {};", stmt.name.lexeme, value)),
+            Ok(value) => Ok(format!("VarStmt({} = {})", stmt.name.lexeme, value)),
             Err(err) => Err(err),
         }
+    }
+    fn visit_block(&self, stmt: &BlockStmt) -> Result<String, JokerError> {
+        let mut result: String = String::from("BlockStmt{ ");
+        for st in &stmt.stmts {
+            match st.accept(self) {
+                Ok(value) => result.push_str(&value),
+                Err(err) => return Err(err),
+            }
+            result.push(' ');
+        }
+        result.push_str(" }");
+        Ok(result)
     }
 }
 
