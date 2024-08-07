@@ -4,14 +4,17 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::{error::JokerError, object::Object, token::Token};
 
+#[derive(Debug)]
 pub struct Env {
     symbol: HashMap<String, Object>,
+    enclosing: Option<Box<Env>>,
 }
 
 impl Env {
     pub fn new() -> Env {
         Env {
             symbol: HashMap::new(),
+            enclosing: None,
         }
     }
 

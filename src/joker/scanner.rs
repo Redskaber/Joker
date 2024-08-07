@@ -181,6 +181,9 @@ impl Scanner {
         while let Some(ch) = self.peek() {
             match ch {
                 '"' => break,
+                '\\' if self.next_peek() == Some(&'"') => {
+                    self.advance();
+                }
                 '\n' => self.line += 1,
                 _ => {}
             }

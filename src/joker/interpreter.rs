@@ -53,6 +53,9 @@ impl Interpreter {
             )))
         }
     }
+    pub fn println_env(&self) {
+        println!("{:?}", self.env);
+    }
 }
 
 impl StmtVisitor<()> for Interpreter {
@@ -131,10 +134,9 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(false))),
                     (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(true))),
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[BangEqual]] The literal cannot take bang equal values. !({l_literal} != {r_literal})")
                     ))
-                    
                 }
             },
             TokenType::EqualEqual => match (l_expr, r_expr) {
@@ -146,22 +148,20 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(true))),
                     (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(false))),
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[EqualEqual]] The literal cannot take equal values. !({l_literal} == {r_literal})")
                     ))
-                    
                 }
-            },     
+            },
             TokenType::Greater => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 > r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 > r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str > r_str))),
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[Greater]] The literal cannot take greater values. !({l_literal} > {r_literal})")
                     ))
-                    
                 }
             },
             TokenType::GreaterEqual => match (l_expr, r_expr) {
@@ -170,22 +170,20 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 >= r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str >= r_str))),
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[GreaterEqual]] The literal cannot take greater equal values. !({l_literal} >= {r_literal})")
                     ))
-                    
                 }
-            }, 
+            },
             TokenType::Less => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 < r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 < r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str < r_str))),
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[Less]] The literal cannot take less values. !({l_literal} < {r_literal})")
                     ))
-                    
                 }
             },
             TokenType::LessEqual => match (l_expr, r_expr) {
@@ -194,12 +192,11 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 <= r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str <= r_str))),
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[LessEqual]] The literal cannot take less equal values. !({l_literal} <= {r_literal})")
                     ))
-                    
                 }
-            }, 
+            },
             TokenType::Plus => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 + r_i32))),
@@ -208,7 +205,7 @@ impl ExprVisitor<Object> for Interpreter {
                         Ok(Object::Literal(ObL::Str(format!("{l_str}{r_str}"))))
                     },
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[Plus]] The literal cannot take plus values. !({l_literal} + {r_literal})")
                     ))
                 }
@@ -218,7 +215,7 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 - r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 - r_f64))),
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[Minus]] The literal cannot take minus values. !({l_literal} - {r_literal})")
                     ))
                 }
@@ -230,7 +227,7 @@ impl ExprVisitor<Object> for Interpreter {
                             Ok(Object::Literal(ObL::I32(l_i32 / r_i32)))
                         } else {
                             Err(JokerError::eval(
-                                &expr.m_opera, 
+                                &expr.m_opera,
                                 format!("[[Slash::ZeroSlashError]]. !({l_literal} / {r_literal})")
                             ))
                         }
@@ -240,17 +237,17 @@ impl ExprVisitor<Object> for Interpreter {
                             Ok(Object::Literal(ObL::F64(l_f64 / r_f64)))
                         } else {
                             Err(JokerError::eval(
-                                &expr.m_opera, 
+                                &expr.m_opera,
                                 format!("[[Slash::ZeroSlashError]] . !({l_literal} / {r_literal})")
                             ))
                         }
                     },
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[Slash]] The literal cannot take slash values. !({l_literal} /{r_literal})")
                     ))
                 }
-            }      
+            }
             TokenType::Star => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 * r_i32))),
@@ -266,11 +263,11 @@ impl ExprVisitor<Object> for Interpreter {
                         Ok(Object::Literal(ObL::Str(r_str)))
                     },
                     _ => Err(JokerError::eval(
-                        &expr.m_opera, 
+                        &expr.m_opera,
                         format!("[[Star]] The literal cannot take star values. !({l_literal} * {r_literal})")
                     ))
                 }
-            }                  
+            }
             _ => Err(JokerError::eval(&expr.m_opera, String::from("Unreachable according other type!")))
         }
     }

@@ -58,9 +58,10 @@ impl Joker {
                 if line.is_empty() {
                     break;
                 }
-                if let Err(err) = self.run(line) {
-                    err.report();
-                }
+                if line == "@" {
+                    self.interpreter.println_env()
+                };
+                let _ = self.run(line);
                 print!("> ");
                 let _ = stdout().flush();
             } else {
@@ -72,9 +73,6 @@ impl Joker {
     fn run(&self, source: String) -> result::Result<(), JokerError> {
         let mut scanner: Scanner = Scanner::new(source);
         let tokens: Vec<Token> = scanner.scan_tokens()?;
-        for t in &tokens {
-            println!("{t:#?}")
-        }
         let mut parser: Parser = Parser::new(tokens);
         if let Some(stmts) = parser.parse() {
             self.interpreter.interpreter(&stmts)?

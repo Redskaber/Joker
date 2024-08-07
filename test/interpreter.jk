@@ -3,10 +3,13 @@ print true;
 print false;
 print 123;
 print 3.1415926;
-print "Hello,world!";
+print "Hello,\"world!";
 print 1 + 1;
 print 2 - 1;
 print 2 * 3;
 print 6 / 3;
 print 10 / 3;
 print 3 / 10;
+print clear
+// print clear;
+// ;
