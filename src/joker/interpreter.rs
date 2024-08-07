@@ -103,7 +103,7 @@ impl StmtVisitor<()> for Interpreter {
         }
         Ok(())
     }
-    fn visit_while(&self,stmt: &WhileStmt) -> Result<(),JokerError> {
+    fn visit_while(&self, stmt: &WhileStmt) -> Result<(), JokerError> {
         while self.is_true(&self.evaluate(&stmt.condition)?) {
             self.execute(&stmt.body)?
         }
@@ -320,7 +320,7 @@ impl ExprVisitor<Object> for Interpreter {
                     let r_object: Object = self.evaluate(&expr.r_expr)?;
                     if self.is_true(&r_object) {
                         Ok(Object::Literal(ObL::Bool(true)))
-                    } else { 
+                    } else {
                         Ok(Object::Literal(ObL::Bool(false)))
                     }
                 }
@@ -332,7 +332,7 @@ impl ExprVisitor<Object> for Interpreter {
                     let r_object: Object = self.evaluate(&expr.r_expr)?;
                     if self.is_true(&r_object) {
                         Ok(Object::Literal(ObL::Bool(true)))
-                    } else { 
+                    } else {
                         Ok(Object::Literal(ObL::Bool(false)))
                     }
                 }

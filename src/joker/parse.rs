@@ -9,7 +9,7 @@ use super::{
         Stmt, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
-    object::literal_null,
+    object::{literal_bool, literal_null},
     token::{Token, TokenType},
 };
 
@@ -102,6 +102,9 @@ impl Parser {
     //        | block_stmt
     //        | if_stmt;
     fn statement(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::For]) {
+            return self.for_statement();
+        }
         if self.is_match(&[TokenType::If]) {
             return self.if_statement();
         }
@@ -115,6 +118,66 @@ impl Parser {
             return self.block_statement();
         }
         self.expr_statement()
+    }
+    // forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
+    //                  expression? ";"
+    //                  expression? ")" statement ;
+    // {
+    //   var i = 0;
+    //   while (i < 10) {
+    //     print i;
+    //     i = i + 1;
+    //   }
+    // }
+    fn for_statement(&mut self) -> Result<Stmt, JokerError> {
+        self.consume(
+            &TokenType::LeftParen,
+            String::from("Expect '(' after 'for'."),
+        )?;
+
+        let initializer: Option<Box<Stmt>> = if self.is_match(&[TokenType::Semicolon]) {
+            None
+        } else if self.is_match(&[TokenType::Var]) {
+            Some(Box::new(self.var_declaration()?))
+        } else {
+            Some(Box::new(self.expr_statement()?))
+        };
+
+        let mut condition: Option<Expr> = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(
+            &TokenType::Semicolon,
+            String::from("Expect ';' after loop condition."),
+        )?;
+
+        let increment: Option<Expr> = if !self.check(&TokenType::RightParen) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(
+            &TokenType::RightParen,
+            String::from("Expect ')' after for clauses."),
+        )?;
+
+        let mut body: Stmt = self.statement()?;
+        if let Some(increment) = increment {
+            body = BlockStmt::upcast(vec![body, ExprStmt::upcast(increment)])
+        }
+
+        if condition.is_none() {
+            condition = Some(Literal::upcast(literal_bool(true)));
+        }
+        body = WhileStmt::upcast(condition.unwrap(), Box::new(body));
+
+        if let Some(initializer) = initializer {
+            body = BlockStmt::upcast(vec![*initializer, body])
+        }
+
+        Ok(body)
     }
     // whileStmt      → "while" "(" expression ")" statement ;
     fn while_statement(&mut self) -> Result<Stmt, JokerError> {

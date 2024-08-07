@@ -10,6 +10,7 @@ pub enum Stmt {
     BlockStmt(BlockStmt),
     IfStmt(IfStmt),
     WhileStmt(WhileStmt),
+    ForStmt(ForStmt),
 }
 
 pub struct ExprStmt {
@@ -40,6 +41,12 @@ pub struct WhileStmt {
     pub body: Box<Stmt>,
 }
 
+pub struct ForStmt {
+    pub initializer: Box<Stmt>,
+    pub condition: Expr,
+    pub increment: Expr,
+}
+
 impl<T> StmtVisitor<T> for Stmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -49,6 +56,7 @@ impl<T> StmtVisitor<T> for Stmt {
             Stmt::BlockStmt(blockstmt) => blockstmt.accept(visitor),
             Stmt::IfStmt(ifstmt) => ifstmt.accept(visitor),
             Stmt::WhileStmt(whilestmt) => whilestmt.accept(visitor),
+            Stmt::ForStmt(forstmt) => forstmt.accept(visitor),
         }
     }
 }
@@ -60,6 +68,7 @@ pub trait StmtVisitor<T> {
     fn visit_blockstmt(&self, expr: &BlockStmt) -> Result<T, JokerError>;
     fn visit_ifstmt(&self, expr: &IfStmt) -> Result<T, JokerError>;
     fn visit_whilestmt(&self, expr: &WhileStmt) -> Result<T, JokerError>;
+    fn visit_forstmt(&self, expr: &ForStmt) -> Result<T, JokerError>;
 }
 
 pub trait StmtAcceptor<T> {
@@ -99,6 +108,12 @@ impl<T> StmtAcceptor<T> for IfStmt {
 impl<T> StmtAcceptor<T> for WhileStmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_whilestmt(self)
+    }
+}
+
+impl<T> StmtAcceptor<T> for ForStmt {
+    fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_forstmt(self)
     }
 }
 

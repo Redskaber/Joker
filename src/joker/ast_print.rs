@@ -5,7 +5,8 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, IfStmt,
-        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable, WhileStmt,
+        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -80,7 +81,7 @@ impl StmtVisitor<String> for AstPrinter {
             }
         ))
     }
-    fn visit_while(&self,stmt: &WhileStmt) -> Result<String,JokerError> {
+    fn visit_while(&self, stmt: &WhileStmt) -> Result<String, JokerError> {
         Ok(format!(
             "WhileStmt(cond: {}, body: {})",
             stmt.condition.accept(self)?,

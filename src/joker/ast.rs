@@ -20,6 +20,7 @@
 //!     program        → statement* EOF ;
 //!     
 //!     statement      → exprStmt
+//!                     | forStmt
 //!                     | ifStmt
 //!                     | TrinomialStmt               
 //!                     | printStmt
@@ -32,6 +33,9 @@
 //!     TrinomialStmt  → expression "?" expression ":" expression ";" ;  
 //!     ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 //!     whileStmt      → "while" "(" expression ")" statement ;          
+//!     forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
+//!                      expression? ";"
+//!                      expression? ")" statement ;
 //!
 //!     expression     → assignment ;
 //!     assignment     → IDENTIFIER "=" assignment
@@ -183,7 +187,7 @@ define_ast! {
         VarStmt     { name: Token, value: Expr },   // left value
         BlockStmt   { stmts: Vec<Stmt> },           // space
         IfStmt      { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
-        WhileStmt   { condition: Expr, body: Box<Stmt>},
+        WhileStmt   { condition: Expr, body: Box<Stmt>},  // for candy
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while },
     StmtAcceptor,
