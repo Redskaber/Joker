@@ -10,6 +10,7 @@ pub enum Expr {
     Grouping(Grouping),
     Variable(Variable),
     Assign(Assign),
+    Logical(Logical),
 }
 
 pub struct Literal {
@@ -40,6 +41,12 @@ pub struct Assign {
     pub value: Box<Expr>,
 }
 
+pub struct Logical {
+    pub l_expr: Box<Expr>,
+    pub m_opera: Token,
+    pub r_expr: Box<Expr>,
+}
+
 impl<T> ExprVisitor<T> for Expr {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -49,6 +56,7 @@ impl<T> ExprVisitor<T> for Expr {
             Expr::Grouping(grouping) => grouping.accept(visitor),
             Expr::Variable(variable) => variable.accept(visitor),
             Expr::Assign(assign) => assign.accept(visitor),
+            Expr::Logical(logical) => logical.accept(visitor),
         }
     }
 }
@@ -60,6 +68,7 @@ pub trait ExprVisitor<T> {
     fn visit_grouping(&self, expr: &Grouping) -> Result<T, JokerError>;
     fn visit_variable(&self, expr: &Variable) -> Result<T, JokerError>;
     fn visit_assign(&self, expr: &Assign) -> Result<T, JokerError>;
+    fn visit_logical(&self, expr: &Logical) -> Result<T, JokerError>;
 }
 
 pub trait ExprAcceptor<T> {
@@ -99,6 +108,12 @@ impl<T> ExprAcceptor<T> for Variable {
 impl<T> ExprAcceptor<T> for Assign {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_assign(self)
+    }
+}
+
+impl<T> ExprAcceptor<T> for Logical {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_logical(self)
     }
 }
 

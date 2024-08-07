@@ -5,7 +5,7 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, IfStmt,
-        Literal, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -64,7 +64,7 @@ impl StmtVisitor<String> for AstPrinter {
                 Ok(value) => result.push_str(&value),
                 Err(err) => return Err(err),
             }
-            result.push(' ');
+            result.push(';');
         }
         result.push_str(" }");
         Ok(result)
@@ -92,16 +92,25 @@ impl ExprVisitor<String> for AstPrinter {
         self.parenthesize(&expr.m_opera.lexeme, &[&expr.l_expr, &expr.r_expr])
     }
     fn visit_grouping(&self, expr: &Grouping) -> Result<String, JokerError> {
-        self.parenthesize("group", &[&expr.expr])
+        self.parenthesize("Group", &[&expr.expr])
     }
     fn visit_variable(&self, expr: &Variable) -> Result<String, JokerError> {
-        Ok(format!("variable({})", expr.name.lexeme))
+        Ok(format!("Variable({})", expr.name.lexeme))
     }
     fn visit_assign(&self, expr: &Assign) -> Result<String, JokerError> {
-        match expr.value.accept(self) {
-            Ok(value) => Ok(format!("{} = {};", expr.name.lexeme, value)),
-            Err(err) => Err(err),
-        }
+        Ok(format!(
+            "Assign({} = {})",
+            expr.name.lexeme,
+            expr.value.accept(self)?,
+        ))
+    }
+    fn visit_logical(&self, expr: &Logical) -> Result<String, JokerError> {
+        Ok(format!(
+            "Logical({} {} {})",
+            expr.l_expr.accept(self)?,
+            expr.m_opera.lexeme,
+            expr.r_expr.accept(self)?,
+        ))
     }
 }
 

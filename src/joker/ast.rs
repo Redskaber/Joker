@@ -33,7 +33,10 @@
 //!
 //!     expression     → assignment ;
 //!     assignment     → IDENTIFIER "=" assignment
-//!                     | equality ;
+//!                     | logic_or ;
+//!
+//!     logic_or       → logic_and ( "or" logic_and )* ;
+//!     logic_and      → equality ( "and" equality )* ;
 //!
 //!     equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 //!     comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
@@ -154,8 +157,9 @@ define_ast! {
         Grouping    { expr: Box<Expr> },
         Variable    { name: Token },                // right value
         Assign      { name: Token, value: Box<Expr>},
+        Logical     { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
     },
-    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable, visit_assign },
+    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable, visit_assign, visit_logical },
     ExprAcceptor,
 }
 

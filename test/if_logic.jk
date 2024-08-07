@@ -1,0 +1,38 @@
+// This is a test file for if logic in joker language.
+if (true) {
+    print "true";
+} else {
+    print "false";
+}
+
+if (1 == 1) {
+    print "1 equals 1";
+} else {
+    print "1 does not equal 1";
+}
+
+var a = 1;
+var b = 2;
+if (a < b) {
+    print "a is less than b";
+} else {
+    print "a is not less than b";
+}
+
+var c1 = 1;
+var c2 = 2;
+var c3 = 3;
+if (c1 < c2 and c2 < c3) {
+    print "c1 < c2 < c3";
+} else {
+    print "c1 >= c2 or c2 >= c3";
+}
+
+var d1 = 1;
+var d2 = 2;
+var d3 = 3;
+if (d1 < d2 or d2 < d3) {
+    print "d1 < d2 or d2 < d3";
+} else {
+    print "d1 >= d2 and d2 >= d3";
+}

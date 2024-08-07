@@ -7,7 +7,7 @@ use std::{cell::RefCell, rc::Rc};
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal,
-        PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
     },
     // ast_print::AstPrinter,
     env::Env,
@@ -313,6 +313,39 @@ impl ExprVisitor<Object> for Interpreter {
         let value: Object = self.evaluate(&expr.value)?;
         self.env.borrow().borrow_mut().assign(&expr.name, &value)?;
         Ok(value)
+    }
+    fn visit_logical(&self, expr: &Logical) -> Result<Object, JokerError> {
+        let l_object: Object = self.evaluate(&expr.l_expr)?;
+        match expr.m_opera.ttype {
+            TokenType::Or => {
+                if self.is_true(&l_object) {
+                    Ok(Object::Literal(ObL::Bool(true)))
+                } else {
+                    let r_object: Object = self.evaluate(&expr.r_expr)?;
+                    if self.is_true(&r_object) {
+                        Ok(Object::Literal(ObL::Bool(true)))
+                    } else {
+                        Ok(Object::Literal(ObL::Bool(false)))
+                    }
+                }
+            }
+            TokenType::And => {
+                if !self.is_true(&l_object) {
+                    Ok(Object::Literal(ObL::Bool(false)))
+                } else {
+                    let r_object: Object = self.evaluate(&expr.r_expr)?;
+                    if self.is_true(&r_object) {
+                        Ok(Object::Literal(ObL::Bool(true)))
+                    } else {
+                        Ok(Object::Literal(ObL::Bool(false)))
+                    }
+                }
+            }
+            _ => Err(JokerError::interpreter(
+                &expr.m_opera,
+                String::from("Not impl Logic logical!"),
+            )),
+        }
     }
 }
 

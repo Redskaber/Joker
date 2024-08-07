@@ -5,8 +5,8 @@
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, IfStmt, Literal, PrintStmt, Stmt,
-        Unary, VarStmt, Variable,
+        Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, IfStmt, Literal, Logical, PrintStmt,
+        Stmt, Unary, VarStmt, Variable,
     },
     error::{JokerError, ReportError},
     object::literal_null,
@@ -113,7 +113,7 @@ impl Parser {
         }
         self.expr_statement()
     }
-    //
+    // if stmt  -> "if" "(" expression ")" statement ( "else" statement )?
     fn if_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
             &TokenType::LeftParen,
@@ -166,12 +166,12 @@ impl Parser {
     }
     // exprStmt     → assignment ;
     // assignment   → IDENTIFIER "=" assignment
-    //               | equality ;
+    //               | logic_or ;
     fn expression(&mut self) -> Result<Expr, JokerError> {
         self.assignment()
     }
     fn assignment(&mut self) -> Result<Expr, JokerError> {
-        let expr: Expr = self.equality()?;
+        let expr: Expr = self.logic_or()?;
         if self.is_match(&[TokenType::Equal]) {
             let equal: Token = self.previous();
             let value: Expr = self.assignment()?;
@@ -186,6 +186,26 @@ impl Parser {
                     ))
                 }
             }
+        }
+        Ok(expr)
+    }
+    // logic_or   → logic_and ( "or" logic_and )*
+    fn logic_or(&mut self) -> Result<Expr, JokerError> {
+        let mut expr: Expr = self.logic_and()?;
+        if self.is_match(&[TokenType::Or]) {
+            let m_opera: Token = self.previous();
+            let r_expr: Expr = self.logic_and()?;
+            expr = Logical::upcast(Box::new(expr), m_opera, Box::new(r_expr));
+        }
+        Ok(expr)
+    }
+    // logic_and  → equality ( "and" equality )*
+    fn logic_and(&mut self) -> Result<Expr, JokerError> {
+        let mut expr: Expr = self.equality()?;
+        if self.is_match(&[TokenType::And]) {
+            let m_opera: Token = self.previous();
+            let r_expr: Expr = self.equality()?;
+            expr = Logical::upcast(Box::new(expr), m_opera, Box::new(r_expr));
         }
         Ok(expr)
     }
