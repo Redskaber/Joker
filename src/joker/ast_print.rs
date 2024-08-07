@@ -5,7 +5,7 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, IfStmt,
-        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -74,7 +74,17 @@ impl StmtVisitor<String> for AstPrinter {
             "IfStmt(cond: {}, then: {}, else: {})",
             stmt.condition.accept(self)?,
             stmt.then_branch.accept(self)?,
-            stmt.else_branch.accept(self)?
+            match &stmt.else_branch {
+                Some(value) => format!("Some({})", value.accept(self)?),
+                None => String::from("None"),
+            }
+        ))
+    }
+    fn visit_while(&self,stmt: &WhileStmt) -> Result<String,JokerError> {
+        Ok(format!(
+            "WhileStmt(cond: {}, body: {})",
+            stmt.condition.accept(self)?,
+            stmt.body.accept(self)?,
         ))
     }
 }

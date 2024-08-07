@@ -42,6 +42,7 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from(
                 "IfStmt    : condition Expr, then_branch Box<Stmt>, else_branch Box<Stmt>",
             ),
+            String::from("WhileStmt : condition Expr, body Box<Stmt>"),
         ],
         &[
             String::from("use super::ast::Expr;"),

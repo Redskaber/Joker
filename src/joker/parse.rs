@@ -6,7 +6,7 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, IfStmt, Literal, Logical, PrintStmt,
-        Stmt, Unary, VarStmt, Variable,
+        Stmt, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::literal_null,
@@ -108,10 +108,27 @@ impl Parser {
         if self.is_match(&[TokenType::Print]) {
             return self.print_statement();
         }
+        if self.is_match(&[TokenType::While]) {
+            return self.while_statement();
+        }
         if self.is_match(&[TokenType::LeftBrace]) {
             return self.block_statement();
         }
         self.expr_statement()
+    }
+    // whileStmt      → "while" "(" expression ")" statement ;
+    fn while_statement(&mut self) -> Result<Stmt, JokerError> {
+        self.consume(
+            &TokenType::LeftParen,
+            String::from("Expect '(' after 'while'."),
+        )?;
+        let condition: Expr = self.expression()?;
+        self.consume(
+            &TokenType::RightParen,
+            String::from("Expect ')' after while condition."),
+        )?;
+        let body: Stmt = self.statement()?;
+        Ok(WhileStmt::upcast(condition, Box::new(body)))
     }
     // if stmt  -> "if" "(" expression ")" statement ( "else" statement )?
     fn if_statement(&mut self) -> Result<Stmt, JokerError> {
@@ -125,15 +142,15 @@ impl Parser {
             String::from("Expect ')' after if condition."),
         )?;
         let then_branch: Stmt = self.statement()?;
-        let else_branch: Stmt = if self.is_match(&[TokenType::Else]) {
-            self.statement()?
+        let else_branch: Option<Box<Stmt>> = if self.is_match(&[TokenType::Else]) {
+            Some(Box::new(self.statement()?))
         } else {
-            ExprStmt::upcast(Expr::Literal(Literal::new(literal_null())))
+            None
         };
         Ok(IfStmt::upcast(
             condition,
             Box::new(then_branch),
-            Box::new(else_branch),
+            else_branch,
         ))
     }
     fn print_statement(&mut self) -> Result<Stmt, JokerError> {

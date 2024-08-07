@@ -22,7 +22,8 @@
 //!     statement      → exprStmt
 //!                     | ifStmt
 //!                     | TrinomialStmt               
-//!                     | printStmt             
+//!                     | printStmt
+//!                     | whileStmt             
 //!                     | varStmt ;             
 //!
 //!     exprStmt       → expression ";" ;
@@ -30,6 +31,7 @@
 //!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
 //!     TrinomialStmt  → expression "?" expression ":" expression ";" ;  
 //!     ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
+//!     whileStmt      → "while" "(" expression ")" statement ;          
 //!
 //!     expression     → assignment ;
 //!     assignment     → IDENTIFIER "=" assignment
@@ -136,6 +138,17 @@ macro_rules! define_ast {
             }
         }
     };
+    (@impl_display IfStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for IfStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let else_branch = match &self.else_branch {
+                    Some(value) => format!("Some({})", value),
+                    None => String::from("None"),
+                };
+                write!(f, "IfStmt(condition: {}, then_branch: {}, else_branch: {})", self.condition, self.then_branch, else_branch)
+            }
+        }
+    };
 
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
@@ -169,8 +182,9 @@ define_ast! {
         PrintStmt   { expr: Expr },
         VarStmt     { name: Token, value: Expr },   // left value
         BlockStmt   { stmts: Vec<Stmt> },           // space
-        IfStmt      { condition: Expr, then_branch: Box<Stmt>, else_branch: Box<Stmt> },
+        IfStmt      { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
+        WhileStmt   { condition: Expr, body: Box<Stmt>},
     },
-    StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if },
+    StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while },
     StmtAcceptor,
 }

@@ -7,7 +7,7 @@ use std::{cell::RefCell, rc::Rc};
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal,
-        Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
+        Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable, WhileStmt,
     },
     // ast_print::AstPrinter,
     env::Env,
@@ -28,16 +28,6 @@ impl Interpreter {
     }
     fn is_true(&self, object: &Object) -> bool {
         matches!(object, Object::Literal(ObL::Bool(true)))
-    }
-    fn is_null(&self, stmt: &Stmt) -> bool {
-        matches!(
-            stmt,
-            Stmt::ExprStmt(ExprStmt {
-                expr: Expr::Literal(Literal {
-                    value: Object::Literal(ObL::Null)
-                })
-            })
-        )
     }
     fn execute(&self, stmt: &Stmt) -> Result<(), JokerError> {
         stmt.accept(self)
@@ -108,8 +98,14 @@ impl StmtVisitor<()> for Interpreter {
     fn visit_if(&self, stmt: &super::ast::IfStmt) -> Result<(), JokerError> {
         if self.is_true(&self.evaluate(&stmt.condition)?) {
             self.execute(&stmt.then_branch)?;
-        } else if !self.is_null(&stmt.else_branch) {
-            self.execute(&stmt.else_branch)?;
+        } else if let Some(box_stmt) = &stmt.else_branch {
+            self.execute(box_stmt)?;
+        }
+        Ok(())
+    }
+    fn visit_while(&self,stmt: &WhileStmt) -> Result<(),JokerError> {
+        while self.is_true(&self.evaluate(&stmt.condition)?) {
+            self.execute(&stmt.body)?
         }
         Ok(())
     }
@@ -324,7 +320,7 @@ impl ExprVisitor<Object> for Interpreter {
                     let r_object: Object = self.evaluate(&expr.r_expr)?;
                     if self.is_true(&r_object) {
                         Ok(Object::Literal(ObL::Bool(true)))
-                    } else {
+                    } else { 
                         Ok(Object::Literal(ObL::Bool(false)))
                     }
                 }
@@ -336,14 +332,14 @@ impl ExprVisitor<Object> for Interpreter {
                     let r_object: Object = self.evaluate(&expr.r_expr)?;
                     if self.is_true(&r_object) {
                         Ok(Object::Literal(ObL::Bool(true)))
-                    } else {
+                    } else { 
                         Ok(Object::Literal(ObL::Bool(false)))
                     }
                 }
             }
             _ => Err(JokerError::interpreter(
                 &expr.m_opera,
-                String::from("Not impl Logic logical!"),
+                format!("Unsupported logic operator: {:?}", expr.m_opera.ttype),
             )),
         }
     }
