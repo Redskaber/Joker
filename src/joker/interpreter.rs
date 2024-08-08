@@ -7,7 +7,8 @@ use std::{cell::RefCell, rc::Rc};
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, Literal,
-        Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable, WhileStmt,
+        Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
+        WhileStmt,
     },
     // ast_print::AstPrinter,
     env::Env,
@@ -341,6 +342,16 @@ impl ExprVisitor<Object> for Interpreter {
                 &expr.m_opera,
                 format!("Unsupported logic operator: {:?}", expr.m_opera.ttype),
             )),
+        }
+    }
+    fn visit_trinomial(&self, expr: &Trinomial) -> Result<Object, JokerError> {
+        let condition = expr.condition.accept(self)?;
+        if self.is_true(&condition) {
+            let l_object = expr.l_expr.accept(self)?;
+            Ok(l_object)
+        } else {
+            let r_object = expr.r_expr.accept(self)?;
+            Ok(r_object)
         }
     }
 }

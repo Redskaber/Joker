@@ -6,7 +6,7 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, IfStmt, Literal, Logical, PrintStmt,
-        Stmt, Unary, VarStmt, Variable, WhileStmt,
+        Stmt, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::{literal_bool, literal_null},
@@ -98,6 +98,8 @@ impl Parser {
         Ok(VarStmt::upcast(name, value))
     }
     // stmt -> print_stmt
+    //        | for_stmt
+    //        | while_stmt
     //        | expr_stmt
     //        | block_stmt
     //        | if_stmt;
@@ -135,18 +137,18 @@ impl Parser {
             String::from("Expect '(' after 'for'."),
         )?;
 
-        let initializer: Option<Box<Stmt>> = if self.is_match(&[TokenType::Semicolon]) {
+        let initializer: Option<Stmt> = if self.is_match(&[TokenType::Semicolon]) {
             None
         } else if self.is_match(&[TokenType::Var]) {
-            Some(Box::new(self.var_declaration()?))
+            Some(self.var_declaration()?)
         } else {
-            Some(Box::new(self.expr_statement()?))
+            Some(self.expr_statement()?)
         };
 
-        let mut condition: Option<Expr> = if !self.check(&TokenType::Semicolon) {
-            Some(self.expression()?)
+        let condition: Expr = if !self.check(&TokenType::Semicolon) {
+            self.expression()?
         } else {
-            None
+            Literal::upcast(literal_bool(true))
         };
         self.consume(
             &TokenType::Semicolon,
@@ -167,14 +169,9 @@ impl Parser {
         if let Some(increment) = increment {
             body = BlockStmt::upcast(vec![body, ExprStmt::upcast(increment)])
         }
-
-        if condition.is_none() {
-            condition = Some(Literal::upcast(literal_bool(true)));
-        }
-        body = WhileStmt::upcast(condition.unwrap(), Box::new(body));
-
+        body = WhileStmt::upcast(condition, Box::new(body));
         if let Some(initializer) = initializer {
-            body = BlockStmt::upcast(vec![*initializer, body])
+            body = BlockStmt::upcast(vec![initializer, body])
         }
 
         Ok(body)
@@ -236,6 +233,7 @@ impl Parser {
         )?;
         Ok(BlockStmt::upcast(stmts))
     }
+    // exprStmt     → expression ";"
     fn expr_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;
         self.consume(
@@ -244,14 +242,14 @@ impl Parser {
         )?;
         Ok(ExprStmt::upcast(expr))
     }
-    // exprStmt     → assignment ;
-    // assignment   → IDENTIFIER "=" assignment
-    //               | logic_or ;
+    // expression   → assignment 
     fn expression(&mut self) -> Result<Expr, JokerError> {
         self.assignment()
-    }
+    } 
+    // assignment  → IDENTIFIER "=" assignment
+    //              | trinomial ;
     fn assignment(&mut self) -> Result<Expr, JokerError> {
-        let expr: Expr = self.logic_or()?;
+        let expr: Expr = self.trinomial()?;
         if self.is_match(&[TokenType::Equal]) {
             let equal: Token = self.previous();
             let value: Expr = self.assignment()?;
@@ -269,6 +267,25 @@ impl Parser {
         }
         Ok(expr)
     }
+    // Trinomial    → expression "?" expression ":" expression ";" 
+    //              | logic_or ;
+    fn trinomial(&mut self) -> Result<Expr, JokerError> {
+        let mut expr: Expr = self.logic_or()?;
+        if self.is_match(&[TokenType::Question]) && !self.is_at_end() {
+            let question: Token = self.previous();
+            let l_expr: Expr = self.trinomial()?;
+            if self.is_match(&[TokenType::Colon]) && !self.is_at_end() {
+                let r_expr: Expr = self.trinomial()?;
+                expr = Trinomial::upcast(Box::new(expr), Box::new(l_expr), Box::new(r_expr));
+            } else {
+                return Err(JokerError::parse(
+                    &question,
+                    String::from("Expect ':' after expression."),
+                ));
+            }
+        }
+        Ok(expr)
+    }       
     // logic_or   → logic_and ( "or" logic_and )*
     fn logic_or(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.logic_and()?;
@@ -360,6 +377,9 @@ impl Parser {
     // primary -> I32| F64 | STRING | "true" | "false" | "null"
     //          | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, JokerError> {
+        if self.is_at_end() {
+            return Err(JokerError::parse(&self.peek(), String::from("parse at Eof!")));
+        }
         match self.peek().ttype {
             TokenType::False => Ok(Literal::upcast(self.advance().literal)),
             TokenType::True => Ok(Literal::upcast(self.advance().literal)),

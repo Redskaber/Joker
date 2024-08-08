@@ -1,0 +1,39 @@
+// This is a test file for trinomial.jk
+
+print "----------------- var -------------------";
+var a = 2 > 1? 3 : 4;
+print a;   // Output: 3
+
+var b = 2 > 3? 3 : 4;
+print b;   // Output: 4
+
+var c = 2 > 1? 3 : 4 > 2? 5 : 6;
+print c;   // Output: 3
+
+
+var d = 2 < 1? 3 : 4 > 2? 5 : 6 > 4? 7 : 8;
+print d;   // Output: 5
+
+var e = 2 < 1? 3 : 4 < 2? 5 : 6 < 4? 7 : 8 < 6? 9 : 10;
+print e;   // Output: 10
+
+// The following code is equivalent to the previous one
+// operator precedence is from left to right
+var f = (2 < 1)? (3) : 
+            ((4 < 2)? (5) : 
+            ((6 < 4)? (7) : 
+            ((8 < 6)? (9) : (10))));
+print f;   // Output: 10
+
+print e == f;   // Output: true
+
+
+print "---------------- assign ------------------";
+var n;
+print n;   // Output: null
+
+n = 3 < 2? 5 : 7;
+print n;   // Output: 7
+
+n = 3 > 2? 5 : 7;
+print n;   // Output: 5

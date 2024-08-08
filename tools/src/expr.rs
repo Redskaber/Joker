@@ -11,6 +11,7 @@ pub enum Expr {
     Variable(Variable),
     Assign(Assign),
     Logical(Logical),
+    Trinomial(Trinomial),
 }
 
 pub struct Literal {
@@ -47,6 +48,12 @@ pub struct Logical {
     pub r_expr: Box<Expr>,
 }
 
+pub struct Trinomial {
+    pub condition: Box<Expr>,
+    pub l_expr: Box<Expr>,
+    pub r_expr: Box<Expr>,
+}
+
 impl<T> ExprVisitor<T> for Expr {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -57,6 +64,7 @@ impl<T> ExprVisitor<T> for Expr {
             Expr::Variable(variable) => variable.accept(visitor),
             Expr::Assign(assign) => assign.accept(visitor),
             Expr::Logical(logical) => logical.accept(visitor),
+            Expr::Trinomial(trinomial) => trinomial.accept(visitor),
         }
     }
 }
@@ -69,6 +77,7 @@ pub trait ExprVisitor<T> {
     fn visit_variable(&self, expr: &Variable) -> Result<T, JokerError>;
     fn visit_assign(&self, expr: &Assign) -> Result<T, JokerError>;
     fn visit_logical(&self, expr: &Logical) -> Result<T, JokerError>;
+    fn visit_trinomial(&self, expr: &Trinomial) -> Result<T, JokerError>;
 }
 
 pub trait ExprAcceptor<T> {
@@ -114,6 +123,12 @@ impl<T> ExprAcceptor<T> for Assign {
 impl<T> ExprAcceptor<T> for Logical {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_logical(self)
+    }
+}
+
+impl<T> ExprAcceptor<T> for Trinomial {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_trinomial(self)
     }
 }
 

@@ -5,8 +5,8 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, IfStmt,
-        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Unary, VarStmt, Variable,
-        WhileStmt,
+        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt,
+        Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -78,7 +78,7 @@ impl StmtVisitor<String> for AstPrinter {
             match &stmt.else_branch {
                 Some(value) => format!("Some({})", value.accept(self)?),
                 None => String::from("None"),
-            }
+            },
         ))
     }
     fn visit_while(&self, stmt: &WhileStmt) -> Result<String, JokerError> {
@@ -121,6 +121,14 @@ impl ExprVisitor<String> for AstPrinter {
             expr.l_expr.accept(self)?,
             expr.m_opera.lexeme,
             expr.r_expr.accept(self)?,
+        ))
+    }
+    fn visit_trinomial(&self, stmt: &Trinomial) -> Result<String, JokerError> {
+        Ok(format!(
+            "TrinomialStmt(cond: {}, l_stmt: {}, r_stmt: {})",
+            stmt.condition.accept(self)?,
+            stmt.l_expr.accept(self)?,
+            stmt.r_expr.accept(self)?,
         ))
     }
 }

@@ -20,9 +20,9 @@
 //!     program        → statement* EOF ;
 //!     
 //!     statement      → exprStmt
+//!                     | breakStmt
 //!                     | forStmt
-//!                     | ifStmt
-//!                     | TrinomialStmt               
+//!                     | ifStmt               
 //!                     | printStmt
 //!                     | whileStmt             
 //!                     | varStmt ;             
@@ -30,15 +30,20 @@
 //!     exprStmt       → expression ";" ;
 //!     printStmt      → "print" expression ";" ;
 //!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
-//!     TrinomialStmt  → expression "?" expression ":" expression ";" ;  
 //!     ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 //!     whileStmt      → "while" "(" expression ")" statement ;          
 //!     forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
 //!                      expression? ";"
 //!                      expression? ")" statement ;
 //!
+//!     breakStmt      → whileStmt | forStmt
+//!
 //!     expression     → assignment ;
-//!     assignment     → IDENTIFIER "=" assignment
+//!
+//!      assignment     → IDENTIFIER "=" assignment
+//!                     | Trinomial ;
+//! 
+//!     Trinomial      → expression "?" Trinomial ":" Trinomial ";" ;    
 //!                     | logic_or ;
 //!
 //!     logic_or       → logic_and ( "or" logic_and )* ;
@@ -153,7 +158,6 @@ macro_rules! define_ast {
             }
         }
     };
-
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -175,8 +179,9 @@ define_ast! {
         Variable    { name: Token },                // right value
         Assign      { name: Token, value: Box<Expr>},
         Logical     { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
+        Trinomial   {condition: Box<Expr>, l_expr: Box<Expr>, r_expr: Box<Expr>},
     },
-    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable, visit_assign, visit_logical },
+    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable, visit_assign, visit_logical, visit_trinomial },
     ExprAcceptor,
 }
 
