@@ -62,6 +62,7 @@ pub enum TokenType {
     Var,
     While,
     Break,
+    Continue,
     Match,
     Struct,
     Eof,
@@ -120,6 +121,7 @@ impl Display for TokenType {
             TokenType::Var => write!(f, "Var"),
             TokenType::While => write!(f, "While"),
             TokenType::Break => write!(f, "Break"),
+            TokenType::Continue => write!(f, "Continue"),
             TokenType::Match => write!(f, "Match"),
             TokenType::Struct => write!(f, "Struct"),
 

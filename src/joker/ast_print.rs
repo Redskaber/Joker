@@ -4,9 +4,9 @@
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, Grouping, IfStmt,
-        Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt,
-        Variable, WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, ForStmt,
+        Grouping, IfStmt, Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial,
+        Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -86,6 +86,27 @@ impl StmtVisitor<String> for AstPrinter {
             "WhileStmt(cond: {}, body: {})",
             stmt.condition.accept(self)?,
             stmt.body.accept(self)?,
+        ))
+    }
+    fn visit_break(&self, _stmt: &BreakStmt) -> Result<String, JokerError> {
+        Ok(String::from("BreakStmt"))
+    }
+    fn visit_continue(&self, _stmt: &super::ast::ContinueStmt) -> Result<String, JokerError> {
+        Ok(String::from("ContinueStmt"))
+    }
+    fn visit_for(&self, stmt: &ForStmt) -> Result<String, JokerError> {
+        Ok(format!(
+            "ForStmt(initializer: {}, condition: {}, increment: {}, body: {})",
+            match &stmt.initializer {
+                Some(initializer) => format!("Some({})", initializer.accept(self)?),
+                None => String::from("None"),
+            },
+            stmt.condition.accept(self)?,
+            match &stmt.increment {
+                Some(increment) => format!("Some({})", increment.accept(self)?),
+                None => String::from("None"),
+            },
+            &stmt.body.accept(self)?,
         ))
     }
 }

@@ -5,8 +5,8 @@
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, Expr, ExprStmt, Grouping, IfStmt, Literal, Logical, PrintStmt,
-        Stmt, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, ContinueStmt, Expr, ExprStmt, ForStmt, Grouping,
+        IfStmt, Literal, Logical, PrintStmt, Stmt, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::{literal_bool, literal_null},
@@ -104,6 +104,12 @@ impl Parser {
     //        | block_stmt
     //        | if_stmt;
     fn statement(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::Continue]) {
+            return self.continue_statement();
+        }
+        if self.is_match(&[TokenType::Break]) {
+            return self.break_statement();
+        }
         if self.is_match(&[TokenType::For]) {
             return self.for_statement();
         }
@@ -121,6 +127,22 @@ impl Parser {
         }
         self.expr_statement()
     }
+    // continueStmt -> "continue" ";" ;
+    fn continue_statement(&mut self) -> Result<Stmt, JokerError> {
+        self.consume(
+            &TokenType::Semicolon,
+            String::from("Expect ';' after 'continue'."),
+        )?;
+        Ok(ContinueStmt::upcast())
+    }
+    // breakStmt -> "break" ";" ;
+    fn break_statement(&mut self) -> Result<Stmt, JokerError> {
+        self.consume(
+            &TokenType::Semicolon,
+            String::from("Expect ';' after 'break'."),
+        )?;
+        Ok(BreakStmt::upcast())
+    }
     // forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
     //                  expression? ";"
     //                  expression? ")" statement ;
@@ -137,12 +159,12 @@ impl Parser {
             String::from("Expect '(' after 'for'."),
         )?;
 
-        let initializer: Option<Stmt> = if self.is_match(&[TokenType::Semicolon]) {
+        let initializer: Option<Box<Stmt>> = if self.is_match(&[TokenType::Semicolon]) {
             None
         } else if self.is_match(&[TokenType::Var]) {
-            Some(self.var_declaration()?)
+            Some(Box::new(self.var_declaration()?))
         } else {
-            Some(self.expr_statement()?)
+            Some(Box::new(self.expr_statement()?))
         };
 
         let condition: Expr = if !self.check(&TokenType::Semicolon) {
@@ -165,16 +187,14 @@ impl Parser {
             String::from("Expect ')' after for clauses."),
         )?;
 
-        let mut body: Stmt = self.statement()?;
-        if let Some(increment) = increment {
-            body = BlockStmt::upcast(vec![body, ExprStmt::upcast(increment)])
-        }
-        body = WhileStmt::upcast(condition, Box::new(body));
-        if let Some(initializer) = initializer {
-            body = BlockStmt::upcast(vec![initializer, body])
-        }
+        let body: Stmt = self.statement()?;
 
-        Ok(body)
+        Ok(ForStmt::upcast(
+            initializer,
+            condition,
+            increment,
+            Box::new(body),
+        ))
     }
     // whileStmt      → "while" "(" expression ")" statement ;
     fn while_statement(&mut self) -> Result<Stmt, JokerError> {
@@ -242,10 +262,10 @@ impl Parser {
         )?;
         Ok(ExprStmt::upcast(expr))
     }
-    // expression   → assignment 
+    // expression   → assignment
     fn expression(&mut self) -> Result<Expr, JokerError> {
         self.assignment()
-    } 
+    }
     // assignment  → IDENTIFIER "=" assignment
     //              | trinomial ;
     fn assignment(&mut self) -> Result<Expr, JokerError> {
@@ -258,16 +278,16 @@ impl Parser {
                     return Ok(Assign::upcast(variable.name, Box::new(value)))
                 }
                 _ => {
-                    return Err(JokerError::parse(
+                    return Err(JokerError::Parser(ParserError::new(
                         &equal,
                         String::from("Invalid assignment target."),
-                    ))
+                    )))
                 }
             }
         }
         Ok(expr)
     }
-    // Trinomial    → expression "?" expression ":" expression ";" 
+    // Trinomial    → expression "?" expression ":" expression ";"
     //              | logic_or ;
     fn trinomial(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.logic_or()?;
@@ -278,14 +298,14 @@ impl Parser {
                 let r_expr: Expr = self.trinomial()?;
                 expr = Trinomial::upcast(Box::new(expr), Box::new(l_expr), Box::new(r_expr));
             } else {
-                return Err(JokerError::parse(
+                return Err(JokerError::Parser(ParserError::new(
                     &question,
                     String::from("Expect ':' after expression."),
-                ));
+                )));
             }
         }
         Ok(expr)
-    }       
+    }
     // logic_or   → logic_and ( "or" logic_and )*
     fn logic_or(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.logic_and()?;
@@ -378,7 +398,10 @@ impl Parser {
     //          | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, JokerError> {
         if self.is_at_end() {
-            return Err(JokerError::parse(&self.peek(), String::from("parse at Eof!")));
+            return Err(JokerError::Parser(ParserError::new(
+                &self.peek(),
+                String::from("parse at Eof!"),
+            )));
         }
         match self.peek().ttype {
             TokenType::False => Ok(Literal::upcast(self.advance().literal)),
@@ -388,17 +411,17 @@ impl Parser {
             TokenType::F64 => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Str => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Identifier => Ok(Variable::upcast(self.advance())),
-            _ => Err(JokerError::parse(
+            _ => Err(JokerError::Parser(ParserError::new(
                 &self.advance(),
                 String::from("parse not impl!"),
-            )), // jump
+            ))), // jump
         }
     }
     fn consume(&mut self, expected: &TokenType, msg: String) -> Result<Token, JokerError> {
         if self.check(expected) {
             Ok(self.advance())
         } else {
-            Err(JokerError::parse(&self.peek(), msg))
+            Err(JokerError::Parser(ParserError::new(&self.peek(), msg)))
         }
     }
     fn synchronize(&mut self) {
@@ -420,5 +443,41 @@ impl Parser {
             }
             self.advance();
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ParserError {
+    line: usize,
+    where_: String,
+    msg: String,
+}
+impl ParserError {
+    pub fn new(token: &Token, msg: String) -> ParserError {
+        let where_: String = if token.ttype == TokenType::Eof {
+            String::from(" at end")
+        } else {
+            format!(" at '{}'", token.lexeme)
+        };
+        ParserError {
+            line: token.line,
+            where_,
+            msg,
+        }
+    }
+    pub fn error(line: usize, msg: String) -> ParserError {
+        ParserError {
+            line,
+            where_: String::from(""),
+            msg,
+        }
+    }
+}
+impl ReportError for ParserError {
+    fn report(&self) {
+        eprintln!(
+            "[line {}] where: '{}', \n\tmsg: {}\n",
+            self.line, self.where_, self.msg
+        );
     }
 }

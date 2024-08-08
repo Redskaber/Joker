@@ -43,7 +43,7 @@ impl Joker {
         let contents: String = fs::read_to_string(path)?;
         if let Err(err) = self.run(contents) {
             err.report();
-            std::process::exit(err.code.into());
+            std::process::exit(64);
         }
         Ok(())
     }

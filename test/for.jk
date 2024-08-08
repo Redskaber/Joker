@@ -1,11 +1,22 @@
 // This is a test file for joker language.
 
-for(var i = 0; i < 10; i=i+1){
-    print(i);
+for(var i = 0; i < 3; i=i+1){
+    print i;
 }
 
-print("End of the program");
+print "End of the program";
 
+var j = 0;
+for(j; j < 3; j=j+1){
+    print j;
+}
+print "End of the program";
+
+var k = 0;
+for(; k < 3; k=k+1){
+    print k;
+}
+print "End of the program";
 
 // Fibonacci series using for loop in joker language.
 var a = 0;

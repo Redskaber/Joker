@@ -2,7 +2,7 @@
 //!
 //!
 use super::{
-    error::JokerError,
+    error::{JokerError, ReportError},
     object::{literal_bool, literal_f64, literal_i32, literal_null, literal_str, Object},
     token::{Token, TokenType},
 };
@@ -45,10 +45,10 @@ impl Scanner {
         match self.tokens {
             Some(ref mut tokens) => tokens.push(Token::eof(self.line)),
             None => {
-                return Err(JokerError::scan_error(
+                return Err(JokerError::Scanner(ScannerError::error(
                     self.line,
                     String::from("Scanner tokens is None"),
-                ))
+                )))
             }
         };
         Ok(self.tokens.take().unwrap())
@@ -125,10 +125,10 @@ impl Scanner {
             '0'..='9' => self.scan_number()?,
             'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier()?,
             _ => {
-                return Err(JokerError::scan_error(
+                return Err(JokerError::Scanner(ScannerError::error(
                     self.line,
                     String::from("Unexpected character"),
-                ))
+                )))
             }
         }
         Ok(())
@@ -164,10 +164,10 @@ impl Scanner {
                         }
                     }
                     None => {
-                        return Err(JokerError::scan_error(
+                        return Err(JokerError::Scanner(ScannerError::error(
                             self.line,
                             String::from("Unterminated comment."),
-                        ))
+                        )))
                     }
                 },
                 _ => {}
@@ -191,10 +191,10 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            return Err(JokerError::scan_error(
+            return Err(JokerError::Scanner(ScannerError::error(
                 self.line,
                 String::from("Unterminated string."),
-            ));
+            )));
         }
         self.advance();
 
@@ -229,10 +229,10 @@ impl Scanner {
                 self.add_token_object(TokenType::F64, literal_f64(f64_));
                 return Ok(());
             } else {
-                return Err(JokerError::scan_error(
+                return Err(JokerError::Scanner(ScannerError::error(
                     self.line,
                     String::from("floating-point numbers require fractional parts."),
-                ));
+                )));
             }
         }
 
@@ -306,5 +306,41 @@ impl Scanner {
     }
     fn next_peek(&self) -> Option<&char> {
         self.source.get(self.current + 1)
+    }
+}
+
+#[derive(Debug)]
+pub struct ScannerError {
+    line: usize,
+    where_: String,
+    msg: String,
+}
+impl ScannerError {
+    pub fn new(token: &Token, msg: String) -> ScannerError {
+        let where_: String = if token.ttype == TokenType::Eof {
+            String::from(" at end")
+        } else {
+            format!(" at '{}'", token.lexeme)
+        };
+        ScannerError {
+            line: token.line,
+            where_,
+            msg,
+        }
+    }
+    pub fn error(line: usize, msg: String) -> ScannerError {
+        ScannerError {
+            line,
+            where_: String::from(""),
+            msg,
+        }
+    }
+}
+impl ReportError for ScannerError {
+    fn report(&self) {
+        eprintln!(
+            "[line {}] where: '{}', \n\tmsg: {}\n",
+            self.line, self.where_, self.msg
+        );
     }
 }

@@ -1,0 +1,32 @@
+// This is a test file for break statement in joker language.
+
+while(true) {
+    print "Hello, world!";
+    break; // This is a break statement.
+}
+print "Goodbye, world!";
+
+var i = 0;
+while(i < 10) {
+    print i;
+    if(i == 5) {
+        break; // This is a break statement.
+    }
+    i = i + 1;
+}
+print "Done!";
+
+for(var i = 0; i < 10; i = i + 1) {
+    print i;
+    if(i == 5) {
+        break; // This is a break statement.
+    }
+}
+print "Done!";
+
+for(;;) {
+    print "Hello, world!";
+    break; // This is a break statement.
+}
+print "Goodbye, world!";
+

@@ -24,7 +24,7 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("Variable  : name Token"), // right value
             String::from("Assign    : name Token, value Box<Expr>"),
             String::from("Logical   : l_expr Box<Expr>, m_opera Token, r_expr Box<Expr>"),
-            String::from("Trinomial : condition Box<Expr>, l_expr Box<Expr>, r_expr Box<Expr>"),            
+            String::from("Trinomial : condition Box<Expr>, l_expr Box<Expr>, r_expr Box<Expr>"),
         ],
         &[
             String::from("use super::object::Object;"),

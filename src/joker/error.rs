@@ -3,101 +3,65 @@
 //!
 //!
 
-use super::token::{Token, TokenType};
+use std::fmt::Display;
+
+use super::{
+    env::EnvError, interpreter::IntoIteratorError, parse::ParserError, scanner::ScannerError,
+};
 
 pub trait ReportError {
     fn report(&self);
 }
 
 #[derive(Debug)]
-pub enum ErrorCode {
-    Scanner = 66,
-    Parser = 67,
-    Eval = 68,
-    Interpreter = 69,
-    Env = 70,
+pub enum JokerError {
+    Env(EnvError),
+    Scanner(ScannerError),
+    Parser(ParserError),
+    Interpreter(IntoIteratorError),
+    Abort(AbortError),
 }
 
-impl From<ErrorCode> for i32 {
-    fn from(value: ErrorCode) -> Self {
-        match value {
-            ErrorCode::Scanner => 66,
-            ErrorCode::Parser => 67,
-            ErrorCode::Eval => 68,
-            ErrorCode::Interpreter => 69,
-            ErrorCode::Env => 70,
+impl ReportError for JokerError {
+    fn report(&self) {
+        match self {
+            JokerError::Scanner(scanner) => ReportError::report(scanner),
+            JokerError::Parser(parser) => ReportError::report(parser),
+            JokerError::Interpreter(inter) => ReportError::report(inter),
+            JokerError::Env(env) => ReportError::report(env),
+            JokerError::Abort(abort) => ReportError::report(abort),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct JokerError {
-    pub line: usize,
-    pub where_: String,
-    pub msg: String,
-    pub code: ErrorCode,
+pub enum AbortError {
+    ControlFlow(ControlFlowAbort),
 }
 
-impl JokerError {
-    pub fn new(token: &Token, msg: String, code: ErrorCode) -> JokerError {
-        let where_: String = if token.ttype == TokenType::Eof {
-            String::from(" at end")
-        } else {
-            format!(" at '{}'", token.lexeme)
-        };
-        JokerError {
-            line: token.line,
-            where_,
-            msg,
-            code,
-        }
-    }
-    pub fn error(line: usize, msg: String, code: ErrorCode) -> JokerError {
-        JokerError {
-            line,
-            where_: String::from(""),
-            msg,
-            code,
-        }
-    }
-    pub fn scanner(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::Scanner)
-    }
-    pub fn parse(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::Parser)
-    }
-    pub fn eval(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::Eval)
-    }
-    pub fn interpreter(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::Interpreter)
-    }
-    pub fn env(token: &Token, msg: String) -> JokerError {
-        JokerError::new(token, msg, ErrorCode::Env)
-    }
-    pub fn scan_error(line: usize, msg: String) -> JokerError {
-        JokerError {
-            line,
-            where_: String::from(""),
-            msg,
-            code: ErrorCode::Scanner,
-        }
-    }
-    pub fn interpreter_error(msg: String) -> JokerError {
-        JokerError {
-            line: 0,
-            where_: String::from(""),
-            msg,
-            code: ErrorCode::Interpreter,
-        }
-    }
-}
-
-impl ReportError for JokerError {
+impl ReportError for AbortError {
     fn report(&self) {
-        eprintln!(
-            "[line {}] where: '{}', \n\tmsg: {}\n",
-            self.line, self.where_, self.msg
-        );
+        match &self {
+            AbortError::ControlFlow(control_flow) => ReportError::report(control_flow),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ControlFlowAbort {
+    Break,
+    Continue,
+}
+impl Display for ControlFlowAbort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ControlFlowAbort::Break => write!(f, "Break"),
+            ControlFlowAbort::Continue => write!(f, "Continue"),
+        }
+    }
+}
+impl ReportError for ControlFlowAbort {
+    fn report(&self) {
+        eprintln!("{self}");
     }
 }

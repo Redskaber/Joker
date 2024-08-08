@@ -21,6 +21,7 @@
 //!     
 //!     statement      → exprStmt
 //!                     | breakStmt
+//!                     | continueStmt
 //!                     | forStmt
 //!                     | ifStmt               
 //!                     | printStmt
@@ -36,13 +37,14 @@
 //!                      expression? ";"
 //!                      expression? ")" statement ;
 //!
-//!     breakStmt      → whileStmt | forStmt
+//!     breakStmt      → "break" ";"
+//!     continueStmt   → "continue" ";"
 //!
 //!     expression     → assignment ;
 //!
 //!      assignment     → IDENTIFIER "=" assignment
 //!                     | Trinomial ;
-//! 
+//!
 //!     Trinomial      → expression "?" Trinomial ":" Trinomial ";" ;    
 //!                     | logic_or ;
 //!
@@ -158,6 +160,38 @@ macro_rules! define_ast {
             }
         }
     };
+    (@impl_display ForStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for ForStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "ForStmt(initializer: {}, condition: {}, increment: {} , body: {})",
+                    match &self.initializer {
+                        Some(initializer) => format!("Some({})", initializer),
+                        None => String::from("None"),
+                    },
+                    self.condition,
+                    match &self.increment {
+                        Some(increment) => format!("Some({})", increment),
+                        None => String::from("None"),
+                    },
+                    self.body,
+                )
+            }
+        }
+    };
+    (@impl_display BreakStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for BreakStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "BreakStmt")
+            }
+        }
+    };
+    (@impl_display ContinueStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for ContinueStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "ContinueStmt")
+            }
+        }
+    };
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -181,7 +215,8 @@ define_ast! {
         Logical     { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Trinomial   {condition: Box<Expr>, l_expr: Box<Expr>, r_expr: Box<Expr>},
     },
-    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable, visit_assign, visit_logical, visit_trinomial },
+    ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable,
+                            visit_assign, visit_logical, visit_trinomial },
     ExprAcceptor,
 }
 
@@ -192,8 +227,12 @@ define_ast! {
         VarStmt     { name: Token, value: Expr },   // left value
         BlockStmt   { stmts: Vec<Stmt> },           // space
         IfStmt      { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
-        WhileStmt   { condition: Expr, body: Box<Stmt>},  // for candy
+        WhileStmt   { condition: Expr, body: Box<Stmt>},
+        ForStmt     { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Expr> , body: Box<Stmt> },
+        BreakStmt   {},
+        ContinueStmt{},
     },
-    StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while },
+    StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
+                            visit_for, visit_break, visit_continue },
     StmtAcceptor,
 }
