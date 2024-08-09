@@ -1,0 +1,28 @@
+// This is a comparison test file for joker language.
+
+var a = 10;
+var b = 20;
+var c = 30;
+
+print a < b; // true
+print a > b; // false
+print a == b; // false
+print a <= b; // true
+print a >= b; // false
+
+print a < c; // true
+print a > c; // false
+print a == c; // false
+print a <= c; // true
+print a >= c; // false
+
+print a + b < c; // false
+print a + b > c; // false
+print a + b == c; // true
+print a + b <= c; // true
+print a + b >= c; // true
+
+// print 1<2<3; // error: bool and i32 cannot be compared
+print 1<2 and 2<3; // true
+
+

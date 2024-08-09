@@ -1,0 +1,14 @@
+// This is a primary test file.
+// primary -> I32| F64 | STRING | "true" | "false" | "null"
+//          | IDENTIFIER ;
+
+
+print 123;
+print 3.14;
+print "Hello, world!";
+print true;
+print false;
+print null;
+print x;
+var x = 123;
+print x;

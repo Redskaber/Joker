@@ -1,0 +1,15 @@
+// This is a test file for factor.jk
+
+var a = 10;
+var b = 5;
+var c = -a * -b;
+var d = -a / -b;
+var e = -a * -b / -a;
+var f = 10 * 5 / 10 * 5 / 10 * 5;
+
+print a;    // 10
+print b;    // 5
+print c;    // 50
+print d;    // 2
+print e;    // -5
+print f;    // 10

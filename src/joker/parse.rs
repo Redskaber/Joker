@@ -311,7 +311,7 @@ impl Parser {
         let mut expr: Expr = self.logic_and()?;
         if self.is_match(&[TokenType::Or]) {
             let m_opera: Token = self.previous();
-            let r_expr: Expr = self.logic_and()?;
+            let r_expr: Expr = self.logic_or()?;
             expr = Logical::upcast(Box::new(expr), m_opera, Box::new(r_expr));
         }
         Ok(expr)
@@ -321,12 +321,12 @@ impl Parser {
         let mut expr: Expr = self.equality()?;
         if self.is_match(&[TokenType::And]) {
             let m_opera: Token = self.previous();
-            let r_expr: Expr = self.equality()?;
+            let r_expr: Expr = self.logic_and()?;
             expr = Logical::upcast(Box::new(expr), m_opera, Box::new(r_expr));
         }
         Ok(expr)
     }
-    // equality -> comparison ( ( "!=" | "==")  comparison )*
+    // equality -> comparison ( ( "!=" | "==")  comparison )?
     fn equality(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.comparison()?;
         while self.is_match(&[TokenType::BangEqual, TokenType::EqualEqual]) {
@@ -336,7 +336,7 @@ impl Parser {
         }
         Ok(expr)
     }
-    // comparison -> term ( ( ">" | ">=" | "<" | "<=") term )*;
+    // comparison -> term ( ( ">" | ">=" | "<" | "<=") term )?;
     fn comparison(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.term()?;
         while self.is_match(&[

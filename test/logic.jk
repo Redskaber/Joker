@@ -1,0 +1,15 @@
+// This is a test file for joker language.
+
+var is_true = true;
+var is_false = false;
+
+var r1 = is_true and is_false;
+var r2 = is_true or is_false;
+var r3 = ! is_true;
+
+print r1;   // false
+print r2;   // true
+print r3;   // false
+print r1 and r2;   // false
+print r1 or r2;    // true
+print !r3;     // true

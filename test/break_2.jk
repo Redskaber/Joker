@@ -1,0 +1,20 @@
+// This is a test file for break statement in joker language.
+// deep nested loop with break statement
+
+for(var i = 0; i < 3; i = i + 1){
+    for(var j = 0; j < 3; j = j + 1){
+        for(var k = 0; k < 3; k = k + 1){
+            if(i < 2 or j < 2 and k < 2){
+                break;
+            }
+            print i;
+            print j;
+            print k;
+        }
+        print "break inner loop";
+    }
+    print "break outer loop";
+}
+print "end of program";
+// Output:  
+

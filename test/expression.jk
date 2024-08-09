@@ -1,0 +1,12 @@
+// This file is used to test the expression syntax of joker language.
+
+var a = 10;
+var b = 20;
+var c = a + b;
+var d = a - b;
+var e = a * b;
+print a;
+print b;
+print c;
+print d;
+print e;

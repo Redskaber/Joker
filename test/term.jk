@@ -1,0 +1,11 @@
+// This is a test file for joker language.
+
+var a = 10;
+var b = 5;
+var c = -a * -b / -a + -b;  
+var d = -a - -a * -b / -a + -b;  
+
+print a;    // 10
+print b;    // 5
+print c;    // -10
+print d;    // -10

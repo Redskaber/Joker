@@ -1,0 +1,12 @@
+// This is a test file for assignment.jk in joker language.
+var x;
+print x;    // null
+x = 10; 
+print x;    // 10
+
+var y = 20;
+print y;    // 20
+
+x = y = 30;
+print x;    // 30
+print y;    // 30

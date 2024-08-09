@@ -44,23 +44,12 @@ impl Interpreter {
     }
 
     pub fn interpreter(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
-        let mut is_success: bool = true;
         // let printer: AstPrinter = AstPrinter::new();
         for stmt in stmts {
             // printer.println(stmt);
-            if let Err(err) = self.execute(stmt) {
-                is_success = false;
-                err.report();
-            }
+            self.execute(stmt)? // not jump
         }
-        if is_success {
-            Ok(())
-        } else {
-            Err(JokerError::Interpreter(IntoIteratorError::error(
-                0,
-                String::from("Interpreter Error!"),
-            )))
-        }
+        Ok(())
     }
     pub fn println_env(&self) {
         println!("{:?}", self.env);

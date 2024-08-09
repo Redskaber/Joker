@@ -1,0 +1,12 @@
+// This file is used to test grouping feature of joker language.
+
+var a = (1+2)*3;
+print a;
+    
+var b = 10;
+var c = 20;
+var d = 30;
+var e = b*(c/d);    //  0, because division c and d is default type i32, so it result is i32.  20/30 = 0.63 -> 0
+print e; 
+
+

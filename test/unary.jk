@@ -1,0 +1,17 @@
+// This is a test file for unary operator.
+
+var a = 10;
+var b = -a;
+// var c =!a;   //  in joker is error, because ! is need a bool value.
+var d = true;
+var e = !d; 
+var f = !(a > 5);
+
+
+print a;
+print b;
+// print c;
+print d;
+print e;
+print f;
+
