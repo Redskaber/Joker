@@ -71,11 +71,7 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
-        let value = if stmt.value != Expr::Literal(Literal::new(Object::Literal(ObL::Null))) {
-            self.evaluate(&stmt.value)?
-        } else {
-            Object::Literal(ObL::Null)
-        };
+        let value = self.evaluate(&stmt.value)?;
         self.env
             .borrow()
             .borrow_mut()
