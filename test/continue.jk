@@ -25,3 +25,9 @@ for(; j < 10; j = j + 1) {
 // Output: 5 6 7 8 9 
 print "End of program";
 
+
+if (true) {
+    print "This is a test";
+    continue;   // error: continue statement is not allowed inside if statement
+    print "This line will not be executed";
+}

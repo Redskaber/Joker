@@ -30,3 +30,12 @@ for(;;) {
 }
 print "Goodbye, world!";
 
+
+/*
+if(true) {
+    print "Hello, world!";
+    break;  // error: break statement is not inside a loop or switch statement.
+}
+
+print "Goodbye, world!";
+*/

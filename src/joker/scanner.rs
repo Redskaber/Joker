@@ -285,6 +285,7 @@ impl Scanner {
             "var" => Some(TokenType::Var),
             "while" => Some(TokenType::While),
             "break" => Some(TokenType::Break),
+            "continue" => Some(TokenType::Continue),
             "match" => Some(TokenType::Match),
             "struct" => Some(TokenType::Struct),
             _ => None,

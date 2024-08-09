@@ -98,6 +98,8 @@ impl Parser {
         Ok(VarStmt::upcast(name, value))
     }
     // stmt -> print_stmt
+    //        | break_stmt
+    //        | continue_stmt
     //        | for_stmt
     //        | while_stmt
     //        | expr_stmt
@@ -129,19 +131,21 @@ impl Parser {
     }
     // continueStmt -> "continue" ";" ;
     fn continue_statement(&mut self) -> Result<Stmt, JokerError> {
+        let name: Token = self.previous();
         self.consume(
             &TokenType::Semicolon,
-            String::from("Expect ';' after 'continue'."),
+            String::from("Expect ';' after 'continue' statement."),
         )?;
-        Ok(ContinueStmt::upcast())
+        Ok(ContinueStmt::upcast(name))
     }
     // breakStmt -> "break" ";" ;
     fn break_statement(&mut self) -> Result<Stmt, JokerError> {
+        let name: Token = self.previous();
         self.consume(
             &TokenType::Semicolon,
-            String::from("Expect ';' after 'break'."),
+            String::from("Expect ';' after 'break' statement."),
         )?;
-        Ok(BreakStmt::upcast())
+        Ok(BreakStmt::upcast(name))
     }
     // forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
     //                  expression? ";"
@@ -174,7 +178,7 @@ impl Parser {
         };
         self.consume(
             &TokenType::Semicolon,
-            String::from("Expect ';' after loop condition."),
+            String::from("Expect ';' after for loop condition."),
         )?;
 
         let increment: Option<Expr> = if !self.check(&TokenType::RightParen) {
@@ -184,7 +188,7 @@ impl Parser {
         };
         self.consume(
             &TokenType::RightParen,
-            String::from("Expect ')' after for clauses."),
+            String::from("Expect ')' after for loop clauses."),
         )?;
 
         let body: Stmt = self.statement()?;
@@ -214,7 +218,7 @@ impl Parser {
     fn if_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
             &TokenType::LeftParen,
-            String::from("Expect '(' after 'if'."),
+            String::from("Expect '(' after 'if' statement."),
         )?;
         let condition: Expr = self.expression()?;
         self.consume(
@@ -249,7 +253,7 @@ impl Parser {
         }
         self.consume(
             &TokenType::RightBrace,
-            String::from("Expect '}' after block."),
+            String::from("Expect '}' after block statement."),
         )?;
         Ok(BlockStmt::upcast(stmts))
     }

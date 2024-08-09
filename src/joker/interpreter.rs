@@ -17,14 +17,21 @@ use super::{
     token::{Token, TokenType},
 };
 
+#[derive(Debug)]
+pub enum ControlFlowContext {
+    Loop,
+}
+
 pub struct Interpreter {
     env: RefCell<Rc<RefCell<Env>>>,
+    control_flow_stack: RefCell<Vec<ControlFlowContext>>,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
             env: RefCell::new(Rc::new(RefCell::new(Env::new()))),
+            control_flow_stack: RefCell::new(Vec::new()),
         }
     }
     fn is_true(&self, object: &Object) -> bool {
@@ -91,51 +98,89 @@ impl StmtVisitor<()> for Interpreter {
         Ok(())
     }
     fn visit_while(&self, stmt: &WhileStmt) -> Result<(), JokerError> {
+        self.control_flow_stack
+            .borrow_mut()
+            .push(ControlFlowContext::Loop);
+
         while self.is_true(&self.evaluate(&stmt.condition)?) {
-            if let Err(JokerError::Abort(AbortError::ControlFlow(control_flow))) =
-                self.execute(&stmt.body)
-            {
-                match control_flow {
-                    ControlFlowAbort::Break => break,
-                    ControlFlowAbort::Continue => continue,
+            if let Err(err) = self.execute(&stmt.body) {
+                match err {
+                    JokerError::Abort(AbortError::ControlFlow(control_flow)) => {
+                        match control_flow {
+                            ControlFlowAbort::Break => break,
+                            ControlFlowAbort::Continue => continue,
+                        }
+                    }
+                    _ => return Err(err),
                 }
             }
         }
+
+        self.control_flow_stack.borrow_mut().pop();
         Ok(())
     }
     fn visit_for(&self, stmt: &ForStmt) -> Result<(), JokerError> {
+        self.control_flow_stack
+            .borrow_mut()
+            .push(ControlFlowContext::Loop);
+
         if let Some(initializer) = &stmt.initializer {
             self.execute(initializer)?
         }
         while self.is_true(&self.evaluate(&stmt.condition)?) {
-            if let Err(JokerError::Abort(AbortError::ControlFlow(control_flow))) =
-                self.execute(&stmt.body)
-            {
-                match control_flow {
-                    ControlFlowAbort::Break => break,
-                    ControlFlowAbort::Continue => {
-                        if let Some(increment) = &stmt.increment {
-                            self.evaluate(increment)?;
+            if let Err(err) = self.execute(&stmt.body) {
+                match err {
+                    JokerError::Abort(AbortError::ControlFlow(control_flow)) => {
+                        match control_flow {
+                            ControlFlowAbort::Break => break,
+                            ControlFlowAbort::Continue => {
+                                if let Some(increment) = &stmt.increment {
+                                    self.evaluate(increment)?;
+                                }
+                                continue;
+                            }
                         }
-                        continue;
                     }
+                    _ => return Err(err),
                 }
             }
             if let Some(increment) = &stmt.increment {
                 self.evaluate(increment)?;
             }
         }
+
+        self.control_flow_stack.borrow_mut().pop();
         Ok(())
     }
-    fn visit_break(&self, _stmt: &BreakStmt) -> Result<(), JokerError> {
-        Err(JokerError::Abort(AbortError::ControlFlow(
-            ControlFlowAbort::Break,
-        )))
+    fn visit_break(&self, stmt: &BreakStmt) -> Result<(), JokerError> {
+        if matches!(
+            self.control_flow_stack.borrow().last(),
+            Some(ControlFlowContext::Loop)
+        ) {
+            Err(JokerError::Abort(AbortError::ControlFlow(
+                ControlFlowAbort::Break,
+            )))
+        } else {
+            Err(JokerError::Interpreter(IntoIteratorError::new(
+                &stmt.name,
+                String::from("break statement is not inside a loop statement."),
+            )))
+        }
     }
-    fn visit_continue(&self, _stmt: &ContinueStmt) -> Result<(), JokerError> {
-        Err(JokerError::Abort(AbortError::ControlFlow(
-            ControlFlowAbort::Continue,
-        )))
+    fn visit_continue(&self, stmt: &ContinueStmt) -> Result<(), JokerError> {
+        if matches!(
+            self.control_flow_stack.borrow().last(),
+            Some(ControlFlowContext::Loop)
+        ) {
+            Err(JokerError::Abort(AbortError::ControlFlow(
+                ControlFlowAbort::Continue,
+            )))
+        } else {
+            Err(JokerError::Interpreter(IntoIteratorError::new(
+                &stmt.name,
+                String::from("continue statement is not inside a loop statement."),
+            )))
+        }
     }
 }
 

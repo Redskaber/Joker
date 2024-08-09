@@ -18,3 +18,41 @@ while (j > 0) {
 print "This line will not be printed.";
 
 // Output: 10
+
+
+var a = 2;
+var b = 2;
+var c = 2;
+
+while(a > 0) {
+  while(b > 0) {
+    while(c > 0) {
+      print "1"*a*b*c ;
+      c = c -1;
+    }
+    b = b -1;
+  }
+  a = a -1;
+}
+
+
+var a = 4;
+var b = 4;
+var c = 4;
+
+while(a > 0) {
+  while(b > 0) {
+    while(c > 0) {
+      print a*b*c ;
+      if(c == 2) break;
+      c = c -1;
+    }
+    if(b == 2) break;
+    b = b -1;
+  }
+  if(a == 2) break;
+  a = a -1;
+}
+
+print "end loop";
+

@@ -27,3 +27,23 @@ for (var b = 1; a < 10000; b = temp + b) {
     temp = a;
     a = b;
 }
+
+print "end loop";
+
+for(var i = 1; i < 10; i = i + 1) {
+  for(var j = i; j < 10; j = j + 1) {
+    print i * j;
+  }
+  print " ";
+}
+
+print "end loop";
+
+
+for(var i = 10; i > 0; i = i -1) {
+  for(var j = 10; j > 0; j = j -1) {
+    print i ;
+    if(i > j) break;
+  }
+  if(i < 5) break;
+}
