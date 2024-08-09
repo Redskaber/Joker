@@ -3,10 +3,9 @@
 //!
 //!
 
-use std::fmt::Display;
-
 use super::{
-    env::EnvError, interpreter::IntoIteratorError, parse::ParserError, scanner::ScannerError,
+    abort::AbortError, env::EnvError, interpreter::InterpreterError, parse::ParserError,
+    scanner::ScannerError,
 };
 
 pub trait ReportError {
@@ -18,7 +17,7 @@ pub enum JokerError {
     Env(EnvError),
     Scanner(ScannerError),
     Parser(ParserError),
-    Interpreter(IntoIteratorError),
+    Interpreter(InterpreterError),
     Abort(AbortError),
 }
 
@@ -31,37 +30,5 @@ impl ReportError for JokerError {
             JokerError::Env(env) => ReportError::report(env),
             JokerError::Abort(abort) => ReportError::report(abort),
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum AbortError {
-    ControlFlow(ControlFlowAbort),
-}
-
-impl ReportError for AbortError {
-    fn report(&self) {
-        match &self {
-            AbortError::ControlFlow(control_flow) => ReportError::report(control_flow),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum ControlFlowAbort {
-    Break,
-    Continue,
-}
-impl Display for ControlFlowAbort {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ControlFlowAbort::Break => write!(f, "Break"),
-            ControlFlowAbort::Continue => write!(f, "Continue"),
-        }
-    }
-}
-impl ReportError for ControlFlowAbort {
-    fn report(&self) {
-        eprintln!("{self}");
     }
 }
