@@ -115,7 +115,7 @@ impl Parser {
                     String::from("Expect parameter name."),
                 )?);
 
-                if self.is_match(&[TokenType::Comma]) {
+                if !self.is_match(&[TokenType::Comma]) {
                     break;
                 }
             }

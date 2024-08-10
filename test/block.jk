@@ -17,3 +17,19 @@ var c = "global c";
 print a;
 print b;
 print c;
+
+{
+  var a = "block a";
+  print a;
+  print b;
+}
+
+print "global a";
+print "global b";
+
+{
+
+  var b = "block b";
+  print a;
+  print b;
+}

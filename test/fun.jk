@@ -1,0 +1,56 @@
+// This is a test file for joker language.
+
+// fun_env: Env { 
+//     symbol: {}, 
+//     enclosing: Some(RefCell { 
+//     value: Env { 
+//         symbol: {
+//             "global_var": Literal(I32(100)), 
+//             "fd": Caller(Func(User(UserFun(FunStmt(
+//                 name: fd, 
+//                 params: [
+//                     Token(ttype: Ident, lexeme: a, literal: null, line: 4), Token(ttype: Ident, lexeme: b, literal: null, line: 4)
+//                 ], 
+//                 body: [
+//                     PrintStmt(PrintStmt { 
+//                         expr: Binary(Binary { 
+//                             l_expr: Variable(Variable { name: Token(ttype: Ident, lexeme: a, literal: null, line: 5) }), 
+//                             m_opera: Token(ttype: +, lexeme: +, literal: null, line: 5), 
+//                             r_expr: Variable(Variable { name: Token(ttype: Ident, lexeme: b, literal: null, line: 5) }) 
+//                         }) 
+//                     }), 
+//                     PrintStmt(PrintStmt { 
+//                         expr: Variable(Variable { name: Token(ttype: Ident, lexeme: global_var, literal: null, line: 6) }) 
+//                     }), 
+//                     ExprStmt(ExprStmt { 
+//                         expr: Assign(Assign { 
+//                             name: Token(ttype: Ident, lexeme: global_var, literal: null, line: 8), 
+//                             value: Binary(Binary { 
+//                                 l_expr: Variable(Variable { name: Token(ttype: Ident, lexeme: a, literal: null, line: 8) }), 
+//                                 m_opera: Token(ttype: +, lexeme: +, literal: null, line: 8), 
+//                                 r_expr: Variable(Variable { name: Token(ttype: Ident, lexeme: b, literal: null, line: 8) }) 
+//                             }) 
+//                         }) 
+//                     }), 
+//                     PrintStmt(PrintStmt { 
+//                         expr: Variable(Variable { name: Token(ttype: Ident, lexeme: global_var, literal: null, line: 10) }) 
+//                     })
+//                 ]))))), 
+//                 "clock": Caller(Func(Native(NativeFun(NativeClock))))}, 
+//                 enclosing: None 
+//             } 
+//         }) 
+//     }
+
+var global_var = 100;
+fun fd(a, b) {
+    var c = a + b;
+    print c;
+    
+    print a + b;
+    print global_var;
+
+    global_var = a + b;
+    print global_var;
+}
+fd(5, 5); // Output: 15

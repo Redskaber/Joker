@@ -4,7 +4,10 @@
 
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
-use crate::joker::error::{SystemError, SystemTimeError};
+use crate::joker::{
+    error::{SystemError, SystemTimeError},
+    object::UserFunction,
+};
 
 use super::{
     abort::{AbortError, ControlFlowAbort, ControlFlowContext},
@@ -21,8 +24,8 @@ use super::{
 };
 
 pub struct Interpreter {
-    global: Rc<RefCell<Env>>,
-    local: RefCell<Rc<RefCell<Env>>>,
+    pub global: Rc<RefCell<Env>>,
+    pub local: RefCell<Rc<RefCell<Env>>>,
     control_flow_stack: RefCell<Vec<ControlFlowContext>>,
 }
 
@@ -83,7 +86,7 @@ impl Interpreter {
     fn execute(&self, stmt: &Stmt) -> Result<(), JokerError> {
         stmt.accept(self)
     }
-    fn execute_block(&self, stmts: &[Stmt], block_env: Env) -> Result<(), JokerError> {
+    pub fn execute_block(&self, stmts: &[Stmt], block_env: Env) -> Result<(), JokerError> {
         let previous = self.local.replace(Rc::new(RefCell::new(block_env)));
         let result = stmts.iter().try_for_each(|stmt| self.execute(stmt));
         self.local.replace(previous);
@@ -225,13 +228,12 @@ impl StmtVisitor<()> for Interpreter {
             )))
         }
     }
-    fn visit_fun(&self, _stmt: &FunStmt) -> Result<(), JokerError> {
-        // let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new())));
-        // self.local
-        //     .borrow()
-        //     .borrow_mut()
-        //     .define(&stmt.name.lexeme, fun);
-        println!("visit_fun");
+    fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
+        let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new(stmt))));
+        self.local
+            .borrow()
+            .borrow_mut()
+            .define(&stmt.name.lexeme, fun);
         Ok(())
     }
 }

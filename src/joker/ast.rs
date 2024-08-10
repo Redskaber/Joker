@@ -86,14 +86,14 @@ macro_rules! define_ast {
         $acceptor_name:ident,
     ) => {
         // abstract tree enum
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, Clone, PartialEq)]
         pub enum $ast_name {
             $($struct_name($struct_name),)*
         }
 
         // subtree struct
         $(
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, Clone, PartialEq)]
         pub struct $struct_name {
             $(pub $field: $field_type),*
         }

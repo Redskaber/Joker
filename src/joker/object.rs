@@ -7,7 +7,9 @@ use std::{
     rc::Rc,
 };
 
-use super::{ast::FunStmt, callable::Callable, error::JokerError, interpreter::Interpreter};
+use super::{
+    ast::FunStmt, callable::Callable, env::Env, error::JokerError, interpreter::Interpreter,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Object {
@@ -156,29 +158,36 @@ impl Debug for NativeFunction {
 
 #[derive(Clone)]
 pub struct UserFunction {
-    declaration: Rc<FunStmt>,
+    fun_stmt: Rc<FunStmt>,
 }
 impl PartialEq for UserFunction {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.declaration, &other.declaration)
+        Rc::ptr_eq(&self.fun_stmt, &other.fun_stmt)
     }
 }
 
 impl UserFunction {
-    pub fn new(declaration: Rc<FunStmt>) -> UserFunction {
-        UserFunction { declaration }
+    pub fn new(fun_stmt: &FunStmt) -> UserFunction {
+        UserFunction {
+            fun_stmt: Rc::new(fun_stmt.clone()),
+        }
     }
 }
 impl Callable for UserFunction {
-    fn call(
-        &self,
-        _interpreter: &Interpreter,
-        _arguments: &[Object],
-    ) -> Result<Object, JokerError> {
+    fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
+        let mut fun_env: Env = Env::new_with_enclosing(Rc::clone(&interpreter.global));
+
+        for pos in 0..arguments.len() {
+            fun_env.define(
+                &self.fun_stmt.params.get(pos).unwrap().lexeme,
+                arguments.get(pos).unwrap().clone(),
+            );
+        }
+        interpreter.execute_block(&self.fun_stmt.body, fun_env)?;
         Ok(Object::Literal(Literal::Null))
     }
     fn arity(&self) -> usize {
-        0
+        self.fun_stmt.params.len()
     }
 }
 
@@ -190,6 +199,6 @@ impl Display for UserFunction {
 
 impl Debug for UserFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UserFun({})", self.declaration)
+        write!(f, "UserFun({})", self.fun_stmt)
     }
 }
