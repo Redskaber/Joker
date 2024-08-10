@@ -4,9 +4,9 @@
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, BreakStmt, Expr, ExprAcceptor, ExprStmt, ExprVisitor, ForStmt,
-        Grouping, IfStmt, Literal, Logical, PrintStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial,
-        Unary, VarStmt, Variable, WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, Call, Expr, ExprAcceptor, ExprStmt, ExprVisitor,
+        ForStmt, FunStmt, Grouping, IfStmt, Literal, Logical, PrintStmt, Stmt, StmtAcceptor,
+        StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -109,12 +109,25 @@ impl StmtVisitor<String> for AstPrinter {
             &stmt.body.accept(self)?,
         ))
     }
+    fn visit_fun(&self, stmt: &FunStmt) -> Result<String, JokerError> {
+        Ok(format!(
+            "FunStmt(name: {}, params: {:?}, body: {:?})",
+            stmt.name.lexeme,
+            stmt.params,
+            stmt.body
+                .iter()
+                .map(|st| -> String { st.accept(self).unwrap() })
+                .collect::<Vec<String>>(),
+        ))
+    }
 }
 
 impl ExprVisitor<String> for AstPrinter {
     fn visit_literal(&self, expr: &Literal) -> Result<String, JokerError> {
         match &expr.value {
             Object::Literal(literal) => Ok(literal.to_string()),
+            // TODO: Caller object ast impl.
+            Object::Caller(call) => Ok(call.to_string()),
         }
     }
     fn visit_unary(&self, expr: &Unary) -> Result<String, JokerError> {
@@ -144,12 +157,24 @@ impl ExprVisitor<String> for AstPrinter {
             expr.r_expr.accept(self)?,
         ))
     }
-    fn visit_trinomial(&self, stmt: &Trinomial) -> Result<String, JokerError> {
+    fn visit_trinomial(&self, expr: &Trinomial) -> Result<String, JokerError> {
         Ok(format!(
-            "TrinomialStmt(cond: {}, l_stmt: {}, r_stmt: {})",
-            stmt.condition.accept(self)?,
-            stmt.l_expr.accept(self)?,
-            stmt.r_expr.accept(self)?,
+            "Trinomial(cond: {}, l_stmt: {}, r_stmt: {})",
+            expr.condition.accept(self)?,
+            expr.l_expr.accept(self)?,
+            expr.r_expr.accept(self)?,
+        ))
+    }
+    fn visit_call(&self, expr: &Call) -> Result<String, JokerError> {
+        let mut args: Vec<String> = Vec::new();
+        for arg in &expr.arguments {
+            args.push(arg.accept(self)?);
+        }
+        Ok(format!(
+            "Call(callee: {}, paren: {}, arguments: {:?})",
+            expr.callee.accept(self)?,
+            expr.paren.lexeme,
+            args,
         ))
     }
 }

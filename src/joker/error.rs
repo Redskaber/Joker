@@ -4,8 +4,8 @@
 //!
 
 use super::{
-    abort::AbortError, env::EnvError, interpreter::InterpreterError, parse::ParserError,
-    scanner::ScannerError,
+    abort::AbortError, callable::CallError, env::EnvError, interpreter::InterpreterError,
+    parse::ParserError, scanner::ScannerError,
 };
 
 pub trait ReportError {
@@ -19,6 +19,8 @@ pub enum JokerError {
     Parser(ParserError),
     Interpreter(InterpreterError),
     Abort(AbortError),
+    Call(CallError),
+    System(SystemError),
 }
 
 impl ReportError for JokerError {
@@ -29,6 +31,40 @@ impl ReportError for JokerError {
             JokerError::Interpreter(inter) => ReportError::report(inter),
             JokerError::Env(env) => ReportError::report(env),
             JokerError::Abort(abort) => ReportError::report(abort),
+            JokerError::Call(call) => ReportError::report(call),
+            JokerError::System(system) => ReportError::report(system),
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum SystemError {
+    Time(SystemTimeError),
+}
+impl ReportError for SystemError {
+    fn report(&self) {
+        match self {
+            SystemError::Time(time) => ReportError::report(time),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SystemTimeError {
+    msg: String,
+}
+impl SystemTimeError {
+    pub fn new(msg: String) -> SystemTimeError {
+        SystemTimeError { msg }
+    }
+    pub fn report_error(msg: String) -> SystemTimeError {
+        let sys_terr = SystemTimeError::new(msg);
+        sys_terr.report();
+        sys_terr
+    }
+}
+impl ReportError for SystemTimeError {
+    fn report(&self) {
+        eprintln!("msg: {}\n", self.msg);
     }
 }

@@ -2,17 +2,24 @@
 //!
 //!
 //!
-use std::fmt::Display;
+use std::{
+    fmt::{Debug, Display},
+    rc::Rc,
+};
+
+use super::{ast::FunStmt, callable::Callable, error::JokerError, interpreter::Interpreter};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Object {
     Literal(Literal),
+    Caller(Caller),
 }
 
 impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Object::Literal(literal) => Display::fmt(literal, f),
+            Object::Caller(caller) => Display::fmt(caller, f),
         }
     }
 }
@@ -56,4 +63,133 @@ pub fn literal_bool(bool_: bool) -> Object {
 
 pub fn literal_null() -> Object {
     Object::Literal(Literal::Null)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Caller {
+    Func(Function),
+}
+impl Display for Caller {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Caller::Func(func) => Display::fmt(func, f),
+        }
+    }
+}
+impl Callable for Caller {
+    fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
+        match self {
+            Caller::Func(func) => Callable::call(func, interpreter, arguments),
+        }
+    }
+    fn arity(&self) -> usize {
+        match self {
+            Caller::Func(func) => Callable::arity(func),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Function {
+    Native(NativeFunction),
+    User(UserFunction),
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Function::Native(native) => Display::fmt(native, f),
+            Function::User(user) => Display::fmt(user, f),
+        }
+    }
+}
+impl Callable for Function {
+    fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
+        match self {
+            Function::Native(native) => Callable::call(native, interpreter, arguments),
+            Function::User(user) => Callable::call(user, interpreter, arguments),
+        }
+    }
+    fn arity(&self) -> usize {
+        match self {
+            Function::Native(native) => Callable::arity(native),
+            Function::User(user) => Callable::arity(user),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct NativeFunction {
+    pub fun: Rc<dyn Callable>,
+}
+impl PartialEq for NativeFunction {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.fun, &other.fun)
+    }
+}
+
+impl NativeFunction {
+    pub fn new(builder: impl Fn() -> Self) -> NativeFunction {
+        builder()
+    }
+}
+impl Callable for NativeFunction {
+    fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
+        self.fun.call(interpreter, arguments)
+    }
+    fn arity(&self) -> usize {
+        self.fun.arity()
+    }
+}
+
+impl Display for NativeFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NativeFun(<callable>)")
+    }
+}
+
+impl Debug for NativeFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NativeFun({})", self.fun)
+    }
+}
+
+#[derive(Clone)]
+pub struct UserFunction {
+    declaration: Rc<FunStmt>,
+}
+impl PartialEq for UserFunction {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.declaration, &other.declaration)
+    }
+}
+
+impl UserFunction {
+    pub fn new(declaration: Rc<FunStmt>) -> UserFunction {
+        UserFunction { declaration }
+    }
+}
+impl Callable for UserFunction {
+    fn call(
+        &self,
+        _interpreter: &Interpreter,
+        _arguments: &[Object],
+    ) -> Result<Object, JokerError> {
+        Ok(Object::Literal(Literal::Null))
+    }
+    fn arity(&self) -> usize {
+        0
+    }
+}
+
+impl Display for UserFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UserFun(<callable>)")
+    }
+}
+
+impl Debug for UserFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UserFun({})", self.declaration)
+    }
 }

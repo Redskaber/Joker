@@ -59,7 +59,7 @@ impl Joker {
                     break;
                 }
                 if line == "@" {
-                    self.interpreter.println_env()
+                    self.interpreter.println_local()
                 };
                 let _ = self.run(line);
                 print!("> ");

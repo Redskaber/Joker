@@ -11,6 +11,8 @@ pub enum Stmt {
     IfStmt(IfStmt),
     WhileStmt(WhileStmt),
     ForStmt(ForStmt),
+    BreakStmt(BreakStmt),
+    ContinueStmt(ContinueStmt),
 }
 
 pub struct ExprStmt {
@@ -42,9 +44,18 @@ pub struct WhileStmt {
 }
 
 pub struct ForStmt {
-    pub initializer: Box<Stmt>,
+    pub initializer: Option<Box<Stmt>>,
     pub condition: Expr,
-    pub increment: Expr,
+    pub increment: Option<Expr>,
+    pub body: Box<Stmt>,
+}
+
+pub struct BreakStmt {
+    pub name: Token,
+}
+
+pub struct ContinueStmt {
+    pub name: Token,
 }
 
 impl<T> StmtVisitor<T> for Stmt {
@@ -57,6 +68,8 @@ impl<T> StmtVisitor<T> for Stmt {
             Stmt::IfStmt(ifstmt) => ifstmt.accept(visitor),
             Stmt::WhileStmt(whilestmt) => whilestmt.accept(visitor),
             Stmt::ForStmt(forstmt) => forstmt.accept(visitor),
+            Stmt::BreakStmt(breakstmt) => breakstmt.accept(visitor),
+            Stmt::ContinueStmt(continuestmt) => continuestmt.accept(visitor),
         }
     }
 }
@@ -69,6 +82,8 @@ pub trait StmtVisitor<T> {
     fn visit_ifstmt(&self, expr: &IfStmt) -> Result<T, JokerError>;
     fn visit_whilestmt(&self, expr: &WhileStmt) -> Result<T, JokerError>;
     fn visit_forstmt(&self, expr: &ForStmt) -> Result<T, JokerError>;
+    fn visit_breakstmt(&self, expr: &BreakStmt) -> Result<T, JokerError>;
+    fn visit_continuestmt(&self, expr: &ContinueStmt) -> Result<T, JokerError>;
 }
 
 pub trait StmtAcceptor<T> {
@@ -114,6 +129,18 @@ impl<T> StmtAcceptor<T> for WhileStmt {
 impl<T> StmtAcceptor<T> for ForStmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_forstmt(self)
+    }
+}
+
+impl<T> StmtAcceptor<T> for BreakStmt {
+    fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_breakstmt(self)
+    }
+}
+
+impl<T> StmtAcceptor<T> for ContinueStmt {
+    fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_continuestmt(self)
     }
 }
 

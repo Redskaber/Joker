@@ -12,6 +12,7 @@ pub enum Expr {
     Assign(Assign),
     Logical(Logical),
     Trinomial(Trinomial),
+    Call(Call),
 }
 
 pub struct Literal {
@@ -54,6 +55,12 @@ pub struct Trinomial {
     pub r_expr: Box<Expr>,
 }
 
+pub struct Call {
+    pub callee: Box<Expr>,
+    pub paren: Token,
+    pub arguments: Vec<Box<Expr>>,
+}
+
 impl<T> ExprVisitor<T> for Expr {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -65,6 +72,7 @@ impl<T> ExprVisitor<T> for Expr {
             Expr::Assign(assign) => assign.accept(visitor),
             Expr::Logical(logical) => logical.accept(visitor),
             Expr::Trinomial(trinomial) => trinomial.accept(visitor),
+            Expr::Call(call) => call.accept(visitor),
         }
     }
 }
@@ -78,6 +86,7 @@ pub trait ExprVisitor<T> {
     fn visit_assign(&self, expr: &Assign) -> Result<T, JokerError>;
     fn visit_logical(&self, expr: &Logical) -> Result<T, JokerError>;
     fn visit_trinomial(&self, expr: &Trinomial) -> Result<T, JokerError>;
+    fn visit_call(&self, expr: &Call) -> Result<T, JokerError>;
 }
 
 pub trait ExprAcceptor<T> {
@@ -129,6 +138,12 @@ impl<T> ExprAcceptor<T> for Logical {
 impl<T> ExprAcceptor<T> for Trinomial {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_trinomial(self)
+    }
+}
+
+impl<T> ExprAcceptor<T> for Call {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_call(self)
     }
 }
 

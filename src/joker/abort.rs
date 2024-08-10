@@ -1,18 +1,23 @@
 //! This file is Flow handle
 //!
 //!
-use super::error::ReportError;
+use super::{
+    error::ReportError,
+    token::{Token, TokenType},
+};
 use std::fmt::Display;
 
 #[derive(Debug)]
 pub enum AbortError {
     ControlFlow(ControlFlowAbort),
+    Argument(ArgumentAbort),
 }
 
 impl ReportError for AbortError {
     fn report(&self) {
         match &self {
             AbortError::ControlFlow(control_flow) => ReportError::report(control_flow),
+            AbortError::Argument(argument) => ReportError::report(argument),
         }
     }
 }
@@ -38,5 +43,67 @@ impl Display for ControlFlowAbort {
 impl ReportError for ControlFlowAbort {
     fn report(&self) {
         eprintln!("{self}");
+    }
+}
+
+#[derive(Debug)]
+pub enum ArgumentAbort {
+    Limit(ArgLimitAbort),
+}
+impl Display for ArgumentAbort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArgumentAbort::Limit(limit) => Display::fmt(limit, f),
+        }
+    }
+}
+impl ReportError for ArgumentAbort {
+    fn report(&self) {
+        match self {
+            ArgumentAbort::Limit(limit) => ReportError::report(limit),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ArgLimitAbort {
+    line: usize,
+    where_: String,
+    msg: String,
+}
+impl ArgLimitAbort {
+    pub fn new(token: &Token, msg: String) -> ArgLimitAbort {
+        let where_: String = if token.ttype == TokenType::Eof {
+            String::from(" at end")
+        } else {
+            format!(" at '{}'", token.lexeme)
+        };
+        ArgLimitAbort {
+            line: token.line,
+            where_,
+            msg,
+        }
+    }
+    pub fn report_error(token: &Token, msg: String) -> ArgLimitAbort {
+        let arg_limit = ArgLimitAbort::new(token, msg);
+        arg_limit.report();
+        arg_limit
+    }
+}
+impl Display for ArgLimitAbort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ArgLimitAbort(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+impl ReportError for ArgLimitAbort {
+    fn report(&self) {
+        eprintln!(
+            "[line {}] where: '{}', \n\tmsg: {}\n",
+            self.line, self.where_, self.msg
+        );
     }
 }

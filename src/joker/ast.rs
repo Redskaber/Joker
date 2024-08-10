@@ -59,6 +59,7 @@
 //!                     | call ;
 //!
 //!     call           → grouping ( "(" arguments? ")" )* ;
+//!     arguments      → expression ( "," expression )* ;
 //!
 //!     grouping       → "(" expression ")" ;
 //!                     | primary ;
@@ -144,6 +145,17 @@ macro_rules! define_ast {
         $(define_ast!{@impl_display $struct_name, $($field: $field_type),*})*
     };
 
+    (@impl_display Call, $($field:ident: $field_type: ty),*) => {
+        impl Display for Call {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "Call(callee: {}, paren: {}, arguments: {:?})",
+                    self.callee,
+                    self.paren,
+                    self.arguments,
+                )
+            }
+        }
+    };
     (@impl_display BlockStmt, $($field:ident: $field_type: ty),*) => {
         impl Display for BlockStmt {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -194,6 +206,14 @@ macro_rules! define_ast {
             }
         }
     };
+    (@impl_display FunStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for FunStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "FunStmt(name: {}, params: {:?}, body: {:?})",
+                    self.name, self.params, self.body)
+            }
+        }
+    };
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -215,10 +235,11 @@ define_ast! {
         Variable    { name: Token },                // right value
         Assign      { name: Token, value: Box<Expr>},
         Logical     { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
-        Trinomial   {condition: Box<Expr>, l_expr: Box<Expr>, r_expr: Box<Expr>},
+        Trinomial   { condition: Box<Expr>, l_expr: Box<Expr>, r_expr: Box<Expr> },
+        Call        { callee: Box<Expr>, paren: Token, arguments: Vec<Expr> },
     },
     ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable,
-                            visit_assign, visit_logical, visit_trinomial },
+                            visit_assign, visit_logical, visit_trinomial, visit_call },
     ExprAcceptor,
 }
 
@@ -233,8 +254,9 @@ define_ast! {
         ForStmt     { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Expr> , body: Box<Stmt> },
         BreakStmt   { name: Token },
         ContinueStmt{ name: Token },
+        FunStmt    { name: Token, params: Vec<Token>, body: Vec<Stmt> },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
-                            visit_for, visit_break, visit_continue },
+                            visit_for, visit_break, visit_continue, visit_fun },
     StmtAcceptor,
 }

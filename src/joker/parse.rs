@@ -4,9 +4,11 @@
 //!
 
 use super::{
+    abort::{AbortError, ArgLimitAbort, ArgumentAbort},
     ast::{
-        Assign, Binary, BlockStmt, BreakStmt, ContinueStmt, Expr, ExprStmt, ForStmt, Grouping,
-        IfStmt, Literal, Logical, PrintStmt, Stmt, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprStmt, ForStmt, FunStmt,
+        Grouping, IfStmt, Literal, Logical, PrintStmt, Stmt, Trinomial, Unary, VarStmt, Variable,
+        WhileStmt,
     },
     error::{JokerError, ReportError},
     object::{literal_bool, literal_null},
@@ -58,8 +60,7 @@ impl Parser {
         while !self.is_at_end() {
             match self.declaration() {
                 Ok(stmt) => stmts.push(stmt),
-                Err(err) => {
-                    err.report();
+                Err(_err) => {
                     if self.is_at_end() {
                         break;
                     } // input: cc -> cc + Eof(now pos)
@@ -75,12 +76,69 @@ impl Parser {
 
     // declaration -> stmt              （语句）
     //               | var_declaration  (声明)
+    //               | fun_declaration
     fn declaration(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::Fun]) {
+            return self.fun_declaration();
+        }
         if self.is_match(&[TokenType::Var]) {
             return self.var_declaration();
         }
         self.statement()
     }
+    // fun_declaration        → "fun" function ;
+    // function       → IDENTIFIER "(" parameters? ")" block ;
+    fn fun_declaration(&mut self) -> Result<Stmt, JokerError> {
+        let name: Token = self.consume(
+            &TokenType::Identifier,
+            String::from("Expect function name."),
+        )?;
+        self.consume(
+            &TokenType::LeftParen,
+            String::from("Expect '(' after function name."),
+        )?;
+
+        let mut params: Vec<Token> = Vec::new();
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    // warning:?
+                    return Err(JokerError::Abort(AbortError::Argument(
+                        ArgumentAbort::Limit(ArgLimitAbort::report_error(
+                            &self.peek(),
+                            String::from("Can't have more than 255 parameters."),
+                        )),
+                    )));
+                }
+                params.push(self.consume(
+                    &TokenType::Identifier,
+                    String::from("Expect parameter name."),
+                )?);
+
+                if self.is_match(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(
+            &TokenType::RightParen,
+            String::from("Expect ')' after parameters."),
+        )?;
+        self.consume(
+            &TokenType::LeftBrace,
+            String::from("Expect '{' before body."),
+        )?;
+
+        match self.block_statement() {
+            Ok(Stmt::BlockStmt(body)) => Ok(FunStmt::upcast(name, params, body.stmts)),
+            Ok(_) => Err(JokerError::Parser(ParserError::report_error(
+                &self.peek(),
+                String::from("func translation err!"),
+            ))),
+            Err(err) => Err(err),
+        }
+    }
+    // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
             &TokenType::Identifier,
@@ -282,7 +340,7 @@ impl Parser {
                     return Ok(Assign::upcast(variable.name, Box::new(value)))
                 }
                 _ => {
-                    return Err(JokerError::Parser(ParserError::new(
+                    return Err(JokerError::Parser(ParserError::report_error(
                         &equal,
                         String::from("Invalid assignment target."),
                     )))
@@ -302,7 +360,7 @@ impl Parser {
                 let r_expr: Expr = self.trinomial()?;
                 expr = Trinomial::upcast(Box::new(expr), Box::new(l_expr), Box::new(r_expr));
             } else {
-                return Err(JokerError::Parser(ParserError::new(
+                return Err(JokerError::Parser(ParserError::report_error(
                     &question,
                     String::from("Expect ':' after expression."),
                 )));
@@ -376,14 +434,49 @@ impl Parser {
         Ok(expr)
     }
     // unary -> ( "!" | "-" ) unary
-    //          | grouping ;
+    //          | call  ;
     fn unary(&mut self) -> Result<Expr, JokerError> {
         if self.is_match(&[TokenType::Bang, TokenType::Minus]) {
             let l_opera: Token = self.previous();
             let r_expr: Expr = self.unary()?;
             return Ok(Unary::upcast(l_opera, Box::new(r_expr)));
         }
-        self.grouping()
+        self.call()
+    }
+    // call           → grouping ( "(" arguments? ")" )* ;
+    fn call(&mut self) -> Result<Expr, JokerError> {
+        let mut expr: Expr = self.grouping()?;
+        loop {
+            if self.is_match(&[TokenType::LeftParen]) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, JokerError> {
+        let mut arguments: Vec<Expr> = Vec::new();
+        if !self.check(&TokenType::RightParen) {
+            arguments.push(self.expression()?);
+            while self.is_match(&[TokenType::Comma]) {
+                if arguments.len() >= 255 {
+                    // waring:?
+                    return Err(JokerError::Abort(AbortError::Argument(
+                        ArgumentAbort::Limit(ArgLimitAbort::report_error(
+                            &self.peek(),
+                            String::from("Can't have more than 255 arguments."),
+                        )),
+                    )));
+                }
+                arguments.push(self.expression()?);
+            }
+        }
+        let paren = self.consume(
+            &TokenType::RightParen,
+            String::from("Expect ')' after arguments."),
+        )?;
+        Ok(Call::upcast(Box::new(callee), paren, arguments))
     }
     // grouping -> "(" expression ")" ;
     //              | primary ;
@@ -402,7 +495,7 @@ impl Parser {
     //          | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, JokerError> {
         if self.is_at_end() {
-            return Err(JokerError::Parser(ParserError::new(
+            return Err(JokerError::Parser(ParserError::report_error(
                 &self.peek(),
                 String::from("parse at Eof!"),
             )));
@@ -415,7 +508,7 @@ impl Parser {
             TokenType::F64 => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Str => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Identifier => Ok(Variable::upcast(self.advance())),
-            _ => Err(JokerError::Parser(ParserError::new(
+            _ => Err(JokerError::Parser(ParserError::report_error(
                 &self.advance(),
                 String::from("parse not impl!"),
             ))), // jump
@@ -425,7 +518,10 @@ impl Parser {
         if self.check(expected) {
             Ok(self.advance())
         } else {
-            Err(JokerError::Parser(ParserError::new(&self.peek(), msg)))
+            Err(JokerError::Parser(ParserError::report_error(
+                &self.peek(),
+                msg,
+            )))
         }
     }
     fn synchronize(&mut self) {
@@ -469,12 +565,10 @@ impl ParserError {
             msg,
         }
     }
-    pub fn error(line: usize, msg: String) -> ParserError {
-        ParserError {
-            line,
-            where_: String::from(""),
-            msg,
-        }
+    pub fn report_error(token: &Token, msg: String) -> ParserError {
+        let parser_err = ParserError::new(token, msg);
+        parser_err.report();
+        parser_err
     }
 }
 impl ReportError for ParserError {

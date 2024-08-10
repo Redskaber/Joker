@@ -40,7 +40,7 @@ impl Env {
             Some(value) => Ok(value.clone()),
             None => match &self.enclosing {
                 Some(enclosing) => enclosing.borrow().get(name),
-                None => Err(JokerError::Env(EnvError::new(
+                None => Err(JokerError::Env(EnvError::report_error(
                     name,
                     format!("Undefined variable '{}'.", name.lexeme),
                 ))),
@@ -54,7 +54,7 @@ impl Env {
         } else {
             match &self.enclosing {
                 Some(enclosing) => enclosing.borrow_mut().assign(name, value),
-                None => Err(JokerError::Env(EnvError::new(
+                None => Err(JokerError::Env(EnvError::report_error(
                     name,
                     format!("Undefined variable '{}'.", name.lexeme),
                 ))),
@@ -82,12 +82,10 @@ impl EnvError {
             msg,
         }
     }
-    pub fn error(line: usize, msg: String) -> EnvError {
-        EnvError {
-            line,
-            where_: String::from(""),
-            msg,
-        }
+    pub fn report_error(token: &Token, msg: String) -> EnvError {
+        let env_err = EnvError::new(token, msg);
+        env_err.report();
+        env_err
     }
 }
 impl ReportError for EnvError {

@@ -2,30 +2,78 @@
 //!
 //!
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
+
+use crate::joker::error::{SystemError, SystemTimeError};
 
 use super::{
     abort::{AbortError, ControlFlowAbort, ControlFlowContext},
     ast::{
-        Assign, Binary, BlockStmt, BreakStmt, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
-        ExprVisitor, ForStmt, Grouping, Literal, Logical, PrintStmt, Stmt, StmtAcceptor,
+        Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
+        ExprVisitor, ForStmt, FunStmt, Grouping, Literal, Logical, PrintStmt, Stmt, StmtAcceptor,
         StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
+    callable::{ArgumentError, CallError, Callable, NonCallError},
     env::Env,
     error::{JokerError, ReportError},
-    object::{Literal as ObL, Object},
+    object::{Caller, Function, Literal as ObL, NativeFunction, Object},
     token::{Token, TokenType},
 };
 
 pub struct Interpreter {
-    env: RefCell<Rc<RefCell<Env>>>,
+    global: Rc<RefCell<Env>>,
+    local: RefCell<Rc<RefCell<Env>>>,
     control_flow_stack: RefCell<Vec<ControlFlowContext>>,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
+        let global: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new()));
+        global.borrow_mut().define(
+            "clock",
+            Object::Caller(Caller::Func(Function::Native(NativeFunction::new(|| {
+                use std::time::SystemTime;
+                #[derive(Debug, Clone, PartialEq)]
+
+                pub struct NativeClock;
+
+                impl Callable for NativeClock {
+                    fn call(
+                        &self,
+                        _interpreter: &Interpreter,
+                        _arguments: &[Object],
+                    ) -> Result<Object, JokerError> {
+                        match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+                            Ok(duration) => {
+                                Ok(Object::Literal(ObL::F64(duration.as_millis() as f64)))
+                            }
+                            Err(err) => Err(JokerError::System(SystemError::Time(
+                                SystemTimeError::report_error(format!(
+                                    "Native clock return invalid duration: {:?}.",
+                                    err
+                                )),
+                            ))),
+                        }
+                    }
+                    fn arity(&self) -> usize {
+                        0
+                    }
+                }
+                impl Display for NativeClock {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(f, "NativeClock")
+                    }
+                }
+
+                NativeFunction {
+                    fun: Rc::new(NativeClock {}),
+                }
+            })))),
+        );
+
         Interpreter {
-            env: RefCell::new(Rc::new(RefCell::new(Env::new()))),
+            global: Rc::clone(&global),
+            local: RefCell::new(Rc::clone(&global)),
             control_flow_stack: RefCell::new(Vec::new()),
         }
     }
@@ -36,9 +84,9 @@ impl Interpreter {
         stmt.accept(self)
     }
     fn execute_block(&self, stmts: &[Stmt], block_env: Env) -> Result<(), JokerError> {
-        let previous = self.env.replace(Rc::new(RefCell::new(block_env)));
+        let previous = self.local.replace(Rc::new(RefCell::new(block_env)));
         let result = stmts.iter().try_for_each(|stmt| self.execute(stmt));
-        self.env.replace(previous);
+        self.local.replace(previous);
         result
     }
     fn evaluate(&self, expr: &Expr) -> Result<Object, JokerError> {
@@ -53,8 +101,8 @@ impl Interpreter {
         }
         Ok(())
     }
-    pub fn println_env(&self) {
-        println!("{:?}", self.env);
+    pub fn println_local(&self) {
+        println!("{:?}", self.local);
     }
 }
 
@@ -74,14 +122,14 @@ impl StmtVisitor<()> for Interpreter {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         let value = self.evaluate(&stmt.value)?;
-        self.env
+        self.local
             .borrow()
             .borrow_mut()
             .define(&stmt.name.lexeme, value);
         Ok(())
     }
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
-        let block_env = Env::new_with_enclosing(Rc::clone(&self.env.borrow()));
+        let block_env = Env::new_with_enclosing(Rc::clone(&self.local.borrow()));
         self.execute_block(&stmt.stmts, block_env)
     }
     fn visit_if(&self, stmt: &super::ast::IfStmt) -> Result<(), JokerError> {
@@ -156,7 +204,7 @@ impl StmtVisitor<()> for Interpreter {
                 ControlFlowAbort::Break,
             )))
         } else {
-            Err(JokerError::Interpreter(InterpreterError::new(
+            Err(JokerError::Interpreter(InterpreterError::report_error(
                 &stmt.name,
                 String::from("break statement is not inside a loop statement."),
             )))
@@ -171,11 +219,20 @@ impl StmtVisitor<()> for Interpreter {
                 ControlFlowAbort::Continue,
             )))
         } else {
-            Err(JokerError::Interpreter(InterpreterError::new(
+            Err(JokerError::Interpreter(InterpreterError::report_error(
                 &stmt.name,
                 String::from("continue statement is not inside a loop statement."),
             )))
         }
+    }
+    fn visit_fun(&self, _stmt: &FunStmt) -> Result<(), JokerError> {
+        // let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new())));
+        // self.local
+        //     .borrow()
+        //     .borrow_mut()
+        //     .define(&stmt.name.lexeme, fun);
+        println!("visit_fun");
+        Ok(())
     }
 }
 
@@ -190,7 +247,7 @@ impl ExprVisitor<Object> for Interpreter {
                 Object::Literal(literal) => match literal {
                     ObL::I32(i32_) => Ok(Object::Literal(ObL::I32(-i32_))),
                     ObL::F64(f64_) => Ok(Object::Literal(ObL::F64(-f64_))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.l_opera,
                         format!(
                             "[[Minus]] The literal cannot take negative values. {} !=> -{}",
@@ -198,11 +255,15 @@ impl ExprVisitor<Object> for Interpreter {
                         ),
                     ))),
                 },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                    &expr.l_opera,
+                    String::from("not impl Minus!"),
+                ))),
             },
             TokenType::Bang => match r_expr {
                 Object::Literal(ref literal) => match literal {
                     ObL::Bool(bool_) => Ok(Object::Literal(ObL::Bool(!bool_))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.l_opera,
                         format!(
                             "[[Bang]] The literal cannot take reversed values. {} !=> !{}",
@@ -210,8 +271,12 @@ impl ExprVisitor<Object> for Interpreter {
                         ),
                     ))),
                 },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                    &expr.l_opera,
+                    String::from("not impl Bang!"),
+                ))),
             },
-            _ => Err(JokerError::Interpreter(InterpreterError::new(
+            _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                 &expr.l_opera,
                 String::from("Unreachable according to Literal Num!"),
             ))),
@@ -229,11 +294,15 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str != r_str))),
                     (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(false))),
                     (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(true))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[BangEqual]] The literal cannot take bang equal values. !({l_literal} != {r_literal})")
                     )))
                 }
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl BangEqual!"),
+                    ))),
             },
             TokenType::EqualEqual => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
@@ -243,55 +312,75 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str == r_str))),
                     (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(true))),
                     (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(false))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[EqualEqual]] The literal cannot take equal values. !({l_literal} == {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl EqualEqual!"),
+                    ))),
             },
             TokenType::Greater => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 > r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 > r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str > r_str))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Greater]] The literal cannot take greater values. !({l_literal} > {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl EqualEqual!"),
+                    ))),
             },
             TokenType::GreaterEqual => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 >= r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 >= r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str >= r_str))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[GreaterEqual]] The literal cannot take greater equal values. !({l_literal} >= {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl GreaterEqual!"),
+                    ))),
             },
             TokenType::Less => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 < r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 < r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str < r_str))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Less]] The literal cannot take less values. !({l_literal} < {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl Less!"),
+                    ))),
             },
             TokenType::LessEqual => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 <= r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 <= r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str <= r_str))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[LessEqual]] The literal cannot take less equal values. !({l_literal} <= {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl LessEqual!"),
+                    ))),
             },
             TokenType::Plus => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
@@ -300,21 +389,29 @@ impl ExprVisitor<Object> for Interpreter {
                     (ObL::Str(l_str), ObL::Str(r_str)) => {
                         Ok(Object::Literal(ObL::Str(format!("{l_str}{r_str}"))))
                     },
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Plus]] The literal cannot take plus values. !({l_literal} + {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl Plus!"),
+                    ))),
             }
             TokenType::Minus => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 - r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 - r_f64))),
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Minus]] The literal cannot take minus values. !({l_literal} - {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl Minus!"),
+                    ))),
             }
             TokenType::Slash => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
@@ -322,7 +419,7 @@ impl ExprVisitor<Object> for Interpreter {
                         if r_i32 != &0 {
                             Ok(Object::Literal(ObL::I32(l_i32 / r_i32)))
                         } else {
-                            Err(JokerError::Interpreter(InterpreterError::new(
+                            Err(JokerError::Interpreter(InterpreterError::report_error(
                                 &expr.m_opera,
                                 format!("[[Slash::ZeroSlashError]]. !({l_literal} / {r_literal})")
                             )))
@@ -332,17 +429,21 @@ impl ExprVisitor<Object> for Interpreter {
                         if r_f64 != &0f64 {
                             Ok(Object::Literal(ObL::F64(l_f64 / r_f64)))
                         } else {
-                            Err(JokerError::Interpreter(InterpreterError::new(
+                            Err(JokerError::Interpreter(InterpreterError::report_error(
                                 &expr.m_opera,
                                 format!("[[Slash::ZeroSlashError]] . !({l_literal} / {r_literal})")
                             )))
                         }
                     },
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Slash]] The literal cannot take slash values. !({l_literal} /{r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl Slash!"),
+                    ))),
             }
             TokenType::Star => match (l_expr, r_expr) {
                 (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
@@ -358,24 +459,31 @@ impl ExprVisitor<Object> for Interpreter {
                         }
                         Ok(Object::Literal(ObL::Str(r_str)))
                     },
-                    _ => Err(JokerError::Interpreter(InterpreterError::new(
+                    _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Star]] The literal cannot take star values. !({l_literal} * {r_literal})")
                     )))
-                }
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.m_opera,
+                        String::from("not impl Star!"),
+                    ))),
             }
-            _ => Err(JokerError::Interpreter(InterpreterError::new(&expr.m_opera, String::from("Unreachable according other type!"))))
+            _ => Err(JokerError::Interpreter(InterpreterError::report_error(&expr.m_opera, String::from("Unreachable according other type!"))))
         }
     }
     fn visit_grouping(&self, expr: &Grouping) -> Result<Object, JokerError> {
         self.evaluate(&expr.expr)
     }
     fn visit_variable(&self, expr: &Variable) -> Result<Object, JokerError> {
-        self.env.borrow().borrow().get(&expr.name)
+        self.local.borrow().borrow().get(&expr.name)
     }
     fn visit_assign(&self, expr: &Assign) -> Result<Object, JokerError> {
         let value: Object = self.evaluate(&expr.value)?;
-        self.env.borrow().borrow_mut().assign(&expr.name, &value)?;
+        self.local
+            .borrow()
+            .borrow_mut()
+            .assign(&expr.name, &value)?;
         Ok(value)
     }
     fn visit_logical(&self, expr: &Logical) -> Result<Object, JokerError> {
@@ -405,7 +513,7 @@ impl ExprVisitor<Object> for Interpreter {
                     }
                 }
             }
-            _ => Err(JokerError::Interpreter(InterpreterError::new(
+            _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                 &expr.m_opera,
                 format!("Unsupported logic operator: {:?}", expr.m_opera.ttype),
             ))),
@@ -419,6 +527,37 @@ impl ExprVisitor<Object> for Interpreter {
         } else {
             let r_object = expr.r_expr.accept(self)?;
             Ok(r_object)
+        }
+    }
+    fn visit_call(&self, expr: &Call) -> Result<Object, JokerError> {
+        let callee: Object = self.evaluate(&expr.callee)?;
+
+        let mut arguments: Vec<Object> = Vec::new();
+        for arg in &expr.arguments {
+            arguments.push(self.evaluate(arg)?);
+        }
+
+        if let Object::Caller(caller) = callee {
+            if arguments.len() != caller.arity() {
+                return Err(JokerError::Call(CallError::Argument(
+                    ArgumentError::report_error(
+                        &expr.paren,
+                        format!(
+                            "Expected {} arguments but got {}.",
+                            caller.arity(),
+                            arguments.len()
+                        ),
+                    ),
+                )));
+            }
+            Ok(caller.call(self, &arguments)?)
+        } else {
+            Err(JokerError::Call(CallError::NonCallable(
+                NonCallError::report_error(
+                    &expr.paren,
+                    String::from("Can only call functions and classes."),
+                ),
+            )))
         }
     }
 }
@@ -442,12 +581,10 @@ impl InterpreterError {
             msg,
         }
     }
-    pub fn error(line: usize, msg: String) -> InterpreterError {
-        InterpreterError {
-            line,
-            where_: String::from(""),
-            msg,
-        }
+    pub fn report_error(token: &Token, msg: String) -> InterpreterError {
+        let inter_err = InterpreterError::new(token, msg);
+        inter_err.report();
+        inter_err
     }
 }
 impl ReportError for InterpreterError {

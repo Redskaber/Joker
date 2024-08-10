@@ -25,6 +25,7 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("Assign    : name Token, value Box<Expr>"),
             String::from("Logical   : l_expr Box<Expr>, m_opera Token, r_expr Box<Expr>"),
             String::from("Trinomial : condition Box<Expr>, l_expr Box<Expr>, r_expr Box<Expr>"),
+            String::from("Call      : callee Box<Expr>, paren Token, arguments Vec<Box<Expr>>"),
         ],
         &[
             String::from("use super::object::Object;"),
@@ -44,7 +45,9 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
                 "IfStmt    : condition Expr, then_branch Box<Stmt>, else_branch Box<Stmt>",
             ),
             String::from("WhileStmt : condition Expr, body Box<Stmt>"),
-            String::from("ForStmt   : initializer Box<Stmt>, condition Expr, increment Expr"),
+            String::from("ForStmt   : initializer Option<Box<Stmt>>, condition Expr, increment Option<Expr> , body Box<Stmt>"),
+            String::from("BreakStmt : name Token"),
+            String::from("ContinueStmt: name Token"),
         ],
         &[
             String::from("use super::ast::Expr;"),
