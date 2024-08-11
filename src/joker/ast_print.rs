@@ -120,13 +120,19 @@ impl StmtVisitor<String> for AstPrinter {
                 .collect::<Vec<String>>(),
         ))
     }
+    fn visit_return(&self, stmt: &super::ast::ReturnStmt) -> Result<String, JokerError> {
+        Ok(format!(
+            "ReturnStmt(keyword: {}, value: {})",
+            stmt.keyword.lexeme,
+            stmt.value.accept(self)?,
+        ))
+    }
 }
 
 impl ExprVisitor<String> for AstPrinter {
     fn visit_literal(&self, expr: &Literal) -> Result<String, JokerError> {
         match &expr.value {
             Object::Literal(literal) => Ok(literal.to_string()),
-            // TODO: Caller object ast impl.
             Object::Caller(call) => Ok(call.to_string()),
         }
     }

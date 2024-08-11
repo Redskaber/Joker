@@ -7,8 +7,8 @@ use super::{
     abort::{AbortError, ArgLimitAbort, ArgumentAbort},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprStmt, ForStmt, FunStmt,
-        Grouping, IfStmt, Literal, Logical, PrintStmt, Stmt, Trinomial, Unary, VarStmt, Variable,
-        WhileStmt,
+        Grouping, IfStmt, Literal, Logical, PrintStmt, ReturnStmt, Stmt, Trinomial, Unary, VarStmt,
+        Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::{literal_bool, literal_null},
@@ -156,6 +156,7 @@ impl Parser {
         Ok(VarStmt::upcast(name, value))
     }
     // stmt -> print_stmt
+    //        | return_stmt
     //        | break_stmt
     //        | continue_stmt
     //        | for_stmt
@@ -164,6 +165,9 @@ impl Parser {
     //        | block_stmt
     //        | if_stmt;
     fn statement(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::Return]) {
+            return self.return_statement();
+        }
         if self.is_match(&[TokenType::Continue]) {
             return self.continue_statement();
         }
@@ -186,6 +190,20 @@ impl Parser {
             return self.block_statement();
         }
         self.expr_statement()
+    }
+    // returnStmt -> "return" expression? ";" ;
+    fn return_statement(&mut self) -> Result<Stmt, JokerError> {
+        let keyword: Token = self.previous();
+        let value: Expr = if !self.check(&TokenType::Semicolon) {
+            self.expression()?
+        } else {
+            Expr::Literal(Literal::new(literal_null()))
+        };
+        self.consume(
+            &TokenType::Semicolon,
+            String::from("Expect ';' after return statement value."),
+        )?;
+        Ok(ReturnStmt::upcast(keyword, value))
     }
     // continueStmt -> "continue" ";" ;
     fn continue_statement(&mut self) -> Result<Stmt, JokerError> {

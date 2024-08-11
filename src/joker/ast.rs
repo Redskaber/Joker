@@ -20,6 +20,7 @@
 //!     program        → statement* EOF ;
 //!     
 //!     statement      → exprStmt
+//!                     | returnStmt
 //!                     | breakStmt
 //!                     | continueStmt
 //!                     | forStmt
@@ -39,6 +40,7 @@
 //!
 //!     breakStmt      → "break" ";"
 //!     continueStmt   → "continue" ";"
+//!     returnStmt     → "return" expression? ";" ;
 //!
 //!     expression     → assignment ;
 //!
@@ -254,9 +256,10 @@ define_ast! {
         ForStmt     { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Expr> , body: Box<Stmt> },
         BreakStmt   { name: Token },
         ContinueStmt{ name: Token },
-        FunStmt    { name: Token, params: Vec<Token>, body: Vec<Stmt> },
+        FunStmt     { name: Token, params: Vec<Token>, body: Vec<Stmt> },
+        ReturnStmt  { keyword: Token, value: Expr },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
-                            visit_for, visit_break, visit_continue, visit_fun },
+                            visit_for, visit_break, visit_continue, visit_fun, visit_return },
     StmtAcceptor,
 }

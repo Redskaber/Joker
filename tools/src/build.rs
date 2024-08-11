@@ -48,6 +48,8 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("ForStmt   : initializer Option<Box<Stmt>>, condition Expr, increment Option<Expr> , body Box<Stmt>"),
             String::from("BreakStmt : name Token"),
             String::from("ContinueStmt: name Token"),
+            String::from("FunStmt   : name Token, params Vec<Token>, body Vec<Stmt>"),
+            String::from("ReturnStmt: keyword Token, value Expr"),
         ],
         &[
             String::from("use super::ast::Expr;"),

@@ -8,7 +8,12 @@ use std::{
 };
 
 use super::{
-    ast::FunStmt, callable::Callable, env::Env, error::JokerError, interpreter::Interpreter,
+    abort::{AbortError, ControlFlowAbort},
+    ast::FunStmt,
+    callable::Callable,
+    env::Env,
+    error::JokerError,
+    interpreter::Interpreter,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -183,7 +188,14 @@ impl Callable for UserFunction {
                 arguments.get(pos).unwrap().clone(),
             );
         }
-        interpreter.execute_block(&self.fun_stmt.body, fun_env)?;
+        if let Err(err) = interpreter.execute_block(&self.fun_stmt.body, fun_env) {
+            match err {
+                JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
+                    return_value,
+                ))) => return Ok(return_value),
+                _ => return Err(err),
+            }
+        }
         Ok(Object::Literal(Literal::Null))
     }
     fn arity(&self) -> usize {

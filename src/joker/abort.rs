@@ -3,6 +3,7 @@
 //!
 use super::{
     error::ReportError,
+    object::Object,
     token::{Token, TokenType},
 };
 use std::fmt::Display;
@@ -31,12 +32,14 @@ pub enum ControlFlowContext {
 pub enum ControlFlowAbort {
     Break,
     Continue,
+    Return(Object),
 }
 impl Display for ControlFlowAbort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ControlFlowAbort::Break => write!(f, "Break"),
             ControlFlowAbort::Continue => write!(f, "Continue"),
+            ControlFlowAbort::Return(return_) => Display::fmt(return_, f),
         }
     }
 }

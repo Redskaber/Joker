@@ -13,6 +13,8 @@ pub enum Stmt {
     ForStmt(ForStmt),
     BreakStmt(BreakStmt),
     ContinueStmt(ContinueStmt),
+    FunStmt(FunStmt),
+    ReturnStmt(ReturnStmt),
 }
 
 pub struct ExprStmt {
@@ -58,6 +60,17 @@ pub struct ContinueStmt {
     pub name: Token,
 }
 
+pub struct FunStmt {
+    pub name: Token,
+    pub params: Vec<Token>,
+    pub body: Vec<Stmt>,
+}
+
+pub struct ReturnStmt {
+    pub keyword: Token,
+    pub value: Expr,
+}
+
 impl<T> StmtVisitor<T> for Stmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -70,6 +83,8 @@ impl<T> StmtVisitor<T> for Stmt {
             Stmt::ForStmt(forstmt) => forstmt.accept(visitor),
             Stmt::BreakStmt(breakstmt) => breakstmt.accept(visitor),
             Stmt::ContinueStmt(continuestmt) => continuestmt.accept(visitor),
+            Stmt::FunStmt(funstmt) => funstmt.accept(visitor),
+            Stmt::ReturnStmt(returnstmt) => returnstmt.accept(visitor),
         }
     }
 }
@@ -84,6 +99,8 @@ pub trait StmtVisitor<T> {
     fn visit_forstmt(&self, expr: &ForStmt) -> Result<T, JokerError>;
     fn visit_breakstmt(&self, expr: &BreakStmt) -> Result<T, JokerError>;
     fn visit_continuestmt(&self, expr: &ContinueStmt) -> Result<T, JokerError>;
+    fn visit_funstmt(&self, expr: &FunStmt) -> Result<T, JokerError>;
+    fn visit_returnstmt(&self, expr: &ReturnStmt) -> Result<T, JokerError>;
 }
 
 pub trait StmtAcceptor<T> {
@@ -141,6 +158,18 @@ impl<T> StmtAcceptor<T> for BreakStmt {
 impl<T> StmtAcceptor<T> for ContinueStmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_continuestmt(self)
+    }
+}
+
+impl<T> StmtAcceptor<T> for FunStmt {
+    fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_funstmt(self)
+    }
+}
+
+impl<T> StmtAcceptor<T> for ReturnStmt {
+    fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_returnstmt(self)
     }
 }
 

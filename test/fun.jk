@@ -42,6 +42,7 @@
 //         }) 
 //     }
 
+/*
 var global_var = 100;
 fun fd(a, b) {
     var c = a + b;
@@ -54,3 +55,17 @@ fun fd(a, b) {
     print global_var;
 }
 fd(5, 5); // Output: 15
+*/
+
+fun fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+var start = clock();
+print "Fibonacci sequence:";
+for (var i = 0; i < 20; i = i + 1) {
+  print fib(i);
+}
+print "Done.";
+print clock() - start;

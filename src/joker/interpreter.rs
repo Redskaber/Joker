@@ -155,6 +155,7 @@ impl StmtVisitor<()> for Interpreter {
                         match control_flow {
                             ControlFlowAbort::Break => break,
                             ControlFlowAbort::Continue => continue,
+                            _ => {}
                         }
                     }
                     _ => return Err(err),
@@ -185,6 +186,7 @@ impl StmtVisitor<()> for Interpreter {
                                 }
                                 continue;
                             }
+                            _ => {}
                         }
                     }
                     _ => return Err(err),
@@ -235,6 +237,12 @@ impl StmtVisitor<()> for Interpreter {
             .borrow_mut()
             .define(&stmt.name.lexeme, fun);
         Ok(())
+    }
+    fn visit_return(&self, stmt: &super::ast::ReturnStmt) -> Result<(), JokerError> {
+        let value: Object = self.evaluate(&stmt.value)?;
+        Err(JokerError::Abort(AbortError::ControlFlow(
+            ControlFlowAbort::Return(value),
+        )))
     }
 }
 
