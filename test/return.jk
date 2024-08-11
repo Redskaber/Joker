@@ -77,3 +77,16 @@ fun outer(o) {
 }
 
 print outer(10);     // Output: 30
+
+fun fn(a, b) {
+    return a + b;
+}
+
+fun re_fun() {
+    return fn;    // ok: return function reference
+}
+print re_fun;
+var f = re_fun(); // fn
+print f(1, 2);    // Output: 3
+
+// print f == fn;    // Output: true , todo: not implemented yet.

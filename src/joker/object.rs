@@ -3,6 +3,7 @@
 //!
 //!
 use std::{
+    cell::RefCell,
     fmt::{Debug, Display},
     rc::Rc,
 };
@@ -164,6 +165,7 @@ impl Debug for NativeFunction {
 #[derive(Clone)]
 pub struct UserFunction {
     fun_stmt: Rc<FunStmt>,
+    closure: Rc<RefCell<Env>>,
 }
 impl PartialEq for UserFunction {
     fn eq(&self, other: &Self) -> bool {
@@ -172,15 +174,16 @@ impl PartialEq for UserFunction {
 }
 
 impl UserFunction {
-    pub fn new(fun_stmt: &FunStmt) -> UserFunction {
+    pub fn new(fun_stmt: &FunStmt, closure: Rc<RefCell<Env>>) -> UserFunction {
         UserFunction {
             fun_stmt: Rc::new(fun_stmt.clone()),
+            closure,
         }
     }
 }
 impl Callable for UserFunction {
     fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
-        let mut fun_env: Env = Env::new_with_enclosing(Rc::clone(&interpreter.global));
+        let mut fun_env: Env = Env::new_with_enclosing(self.closure.clone());
 
         for pos in 0..arguments.len() {
             fun_env.define(

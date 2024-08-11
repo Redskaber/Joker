@@ -1,0 +1,29 @@
+// This is a test file for closure in joker language.
+
+fun makeCounter() {
+  var i = 0;
+  fun count() {
+    i = i + 1;
+    print i;
+  }
+
+  return count;
+}
+
+var counter = makeCounter();
+counter(); // "1".
+counter(); // "2".
+
+fun scopeTest() {    
+  var i = 1;
+  fun inner(i) {
+    var i = i + 1000;
+    print i;  
+  }
+
+  inner(i); // "1001".
+  inner(i); // "1001".
+  print i; // "1".
+}
+
+scopeTest(); // "1001", "1001", "1".

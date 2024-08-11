@@ -244,7 +244,10 @@ impl StmtVisitor<()> for Interpreter {
                 .borrow_mut()
                 .push(ControlFlowContext::Fun);
         }
-        let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new(stmt))));
+        let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new(
+            stmt,
+            Rc::clone(&self.local.borrow()),
+        ))));
         self.local
             .borrow()
             .borrow_mut()

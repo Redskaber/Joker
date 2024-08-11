@@ -4,5 +4,7 @@ TODO:
     - [v] add break and continue statements.
     - [v] add while loop and for loop.
     - [v] add if statement.
-    - [] add function and call it.
+    - [v] add function and call it.
+    - [v] add return statement.
+    - [] add lambda function.
     - [] add array and access it.
