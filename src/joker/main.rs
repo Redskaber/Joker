@@ -42,8 +42,18 @@ impl Joker {
     fn run_file(&self, path: &str) -> io::Result<()> {
         let contents: String = fs::read_to_string(path)?;
         if let Err(err) = self.run(contents) {
-            err.report();
-            std::process::exit(64);
+            match err {
+                JokerError::Scanner(scanner_err) => {
+                    scanner_err.report();
+                    std::process::exit(65);
+                }
+                JokerError::Parser(_) => std::process::exit(66),
+                JokerError::Env(_) => std::process::exit(67),
+                JokerError::Interpreter(_) => std::process::exit(68),
+                JokerError::Abort(_) => std::process::exit(69),
+                JokerError::Call(_) => std::process::exit(70),
+                JokerError::System(_) => std::process::exit(71),
+            }
         }
         Ok(())
     }

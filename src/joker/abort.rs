@@ -23,9 +23,10 @@ impl ReportError for AbortError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ControlFlowContext {
     Loop,
+    Fun,
 }
 
 #[derive(Debug)]

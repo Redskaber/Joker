@@ -8,7 +8,7 @@ use std::{
 };
 
 use super::{
-    abort::{AbortError, ControlFlowAbort},
+    abort::{AbortError, ControlFlowAbort, ControlFlowContext},
     ast::FunStmt,
     callable::Callable,
     env::Env,
@@ -192,7 +192,14 @@ impl Callable for UserFunction {
             match err {
                 JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
                     return_value,
-                ))) => return Ok(return_value),
+                ))) => {
+                    while interpreter.control_flow_stack.borrow().last()
+                        != Some(&ControlFlowContext::Fun)
+                    {
+                        interpreter.control_flow_stack.borrow_mut().pop();
+                    }
+                    return Ok(return_value);
+                }
                 _ => return Err(err),
             }
         }
