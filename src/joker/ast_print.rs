@@ -5,8 +5,8 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, Expr, ExprAcceptor, ExprStmt, ExprVisitor,
-        ForStmt, FunStmt, Grouping, IfStmt, Literal, Logical, PrintStmt, Stmt, StmtAcceptor,
-        StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt, Stmt,
+        StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -120,7 +120,7 @@ impl StmtVisitor<String> for AstPrinter {
                 .collect::<Vec<String>>(),
         ))
     }
-    fn visit_return(&self, stmt: &super::ast::ReturnStmt) -> Result<String, JokerError> {
+    fn visit_return(&self, stmt: &ReturnStmt) -> Result<String, JokerError> {
         Ok(format!(
             "ReturnStmt(keyword: {}, value: {})",
             stmt.keyword.lexeme,
@@ -181,6 +181,14 @@ impl ExprVisitor<String> for AstPrinter {
             expr.callee.accept(self)?,
             expr.paren.lexeme,
             args,
+        ))
+    }
+    fn visit_lambda(&self, stmt: &Lambda) -> Result<String, JokerError> {
+        Ok(format!(
+            "LambdaStmt(pipe: {}, params: {:?}, body: {:?})",
+            stmt.pipe.lexeme,
+            stmt.params,
+            stmt.body.accept(self)?,
         ))
     }
 }

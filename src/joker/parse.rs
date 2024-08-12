@@ -7,8 +7,8 @@ use super::{
     abort::{AbortError, ArgLimitAbort, ArgumentAbort},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprStmt, ForStmt, FunStmt,
-        Grouping, IfStmt, Literal, Logical, PrintStmt, ReturnStmt, Stmt, Trinomial, Unary, VarStmt,
-        Variable, WhileStmt,
+        Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt, Stmt, Trinomial, Unary,
+        VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::{literal_bool, literal_null},
@@ -139,6 +139,7 @@ impl Parser {
             Err(err) => Err(err),
         }
     }
+
     // varStmt → "var" IDENTIFIER ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
@@ -347,10 +348,10 @@ impl Parser {
     fn expression(&mut self) -> Result<Expr, JokerError> {
         self.assignment()
     }
-    // assignment  → IDENTIFIER "=" assignment
-    //              | trinomial ;
+    // assignment  → IDENTIFIER "=" (assignment "=")*
+    //              | lambda ;
     fn assignment(&mut self) -> Result<Expr, JokerError> {
-        let expr: Expr = self.trinomial()?;
+        let expr: Expr = self.lambda()?;
         if self.is_match(&[TokenType::Equal]) {
             let equal: Token = self.previous();
             let value: Expr = self.assignment()?;
@@ -367,6 +368,55 @@ impl Parser {
             }
         }
         Ok(expr)
+    }
+    // lambda_expr -> "|" parameters? "|" statement "(" parameters? ")"
+    //                |  trinomial ;
+    // parameters -> IDENTIFIER (, IDENTIFIER)*
+    fn lambda(&mut self) -> Result<Expr, JokerError> {
+        if self.is_match(&[TokenType::Pipeline]) {
+            let pipe: Token = self.previous();
+
+            let mut params: Vec<Token> = Vec::new();
+            if self.check(&TokenType::Identifier) {
+                loop {
+                    if params.len() >= 255 {
+                        // warning:?
+                        return Err(JokerError::Abort(AbortError::Argument(
+                            ArgumentAbort::Limit(ArgLimitAbort::report_error(
+                                &self.peek(),
+                                String::from("Can't have more than 255 parameters."),
+                            )),
+                        )));
+                    }
+                    params.push(self.consume(
+                        &TokenType::Identifier,
+                        String::from("Expect parameter name."),
+                    )?);
+                    if !self.is_match(&[TokenType::Comma]) {
+                        break;
+                    }
+                }
+            }
+
+            self.consume(
+                &TokenType::Pipeline,
+                String::from("Expect '|' after parameters."),
+            )?;
+
+            let body: Stmt = if self.is_match(&[TokenType::LeftBrace]) {
+                self.block_statement()?
+            } else {
+                ExprStmt::upcast(self.expression()?)
+            };
+
+            let lambda: Expr = Lambda::upcast(pipe, params, Box::new(body));
+            if self.is_match(&[TokenType::LeftParen]) {
+                return self.finish_call(lambda);
+            } else {
+                return Ok(lambda);
+            }
+        }
+        self.trinomial()
     }
     // Trinomial    → expression "?" expression ":" expression ";"
     //              | logic_or ;
@@ -545,7 +595,7 @@ impl Parser {
     }
     fn synchronize(&mut self) {
         self.advance();
-        while self.is_at_end() {
+        while !self.is_at_end() {
             if self.previous().ttype == TokenType::Semicolon {
                 return;
             }

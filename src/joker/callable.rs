@@ -26,12 +26,14 @@ pub trait Callable: Debug + Display {
 pub enum CallError {
     NonCallable(NonCallError),
     Argument(ArgumentError),
+    Struct(StructError),
 }
 impl ReportError for CallError {
     fn report(&self) {
         match self {
             CallError::NonCallable(non_call) => ReportError::report(non_call),
             CallError::Argument(arg) => ReportError::report(arg),
+            CallError::Struct(struct_) => ReportError::report(struct_),
         }
     }
 }
@@ -96,6 +98,40 @@ impl ArgumentError {
     }
 }
 impl ReportError for ArgumentError {
+    fn report(&self) {
+        eprintln!(
+            "[line {}] where: '{}', \n\tmsg: {}\n",
+            self.line, self.where_, self.msg
+        );
+    }
+}
+
+#[derive(Debug)]
+pub struct StructError {
+    line: usize,
+    where_: String,
+    msg: String,
+}
+impl StructError {
+    pub fn new(token: &Token, msg: String) -> StructError {
+        let where_: String = if token.ttype == TokenType::Eof {
+            String::from(" at end")
+        } else {
+            format!(" at '{}'", token.lexeme)
+        };
+        StructError {
+            line: token.line,
+            where_,
+            msg,
+        }
+    }
+    pub fn report_error(token: &Token, msg: String) -> StructError {
+        let arg_err = StructError::new(token, msg);
+        arg_err.report();
+        arg_err
+    }
+}
+impl ReportError for StructError {
     fn report(&self) {
         eprintln!(
             "[line {}] where: '{}', \n\tmsg: {}\n",

@@ -4,12 +4,14 @@
 
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
+use crate::joker::object::Lambda;
+
 use super::{
     abort::{AbortError, ControlFlowAbort, ControlFlowContext},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
-        ExprVisitor, ForStmt, FunStmt, Grouping, Literal, Logical, PrintStmt, Stmt, StmtAcceptor,
-        StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        ExprVisitor, ForStmt, FunStmt, Grouping, Lambda as LambdaExpr, Literal, Logical, PrintStmt,
+        Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     callable::{ArgumentError, CallError, Callable, NonCallError},
     env::Env,
@@ -87,7 +89,7 @@ impl Interpreter {
         self.local.replace(previous);
         result
     }
-    fn evaluate(&self, expr: &Expr) -> Result<Object, JokerError> {
+    pub fn evaluate(&self, expr: &Expr) -> Result<Object, JokerError> {
         expr.accept(self)
     }
 
@@ -313,8 +315,8 @@ impl ExprVisitor<Object> for Interpreter {
         let l_expr: Object = self.evaluate(&expr.l_expr)?;
         let r_expr: Object = self.evaluate(&expr.r_expr)?;
         match expr.m_opera.ttype {
-            TokenType::BangEqual => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::BangEqual => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 != r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 != r_f64))),
                     (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::Literal(ObL::Bool(l_bool != r_bool))),
@@ -328,11 +330,11 @@ impl ExprVisitor<Object> for Interpreter {
                 }
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl BangEqual!"),
+                        format!("not impl BangEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::EqualEqual => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::EqualEqual => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 == r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 == r_f64))),
                     (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::Literal(ObL::Bool(l_bool == r_bool))),
@@ -346,11 +348,11 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl EqualEqual!"),
+                        format!("not impl EqualEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::Greater => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::Greater => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 > r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 > r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str > r_str))),
@@ -361,11 +363,11 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl EqualEqual!"),
+                        format!("not impl Greater! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::GreaterEqual => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::GreaterEqual => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 >= r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 >= r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str >= r_str))),
@@ -376,11 +378,11 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl GreaterEqual!"),
+                        format!("not impl GreaterEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::Less => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::Less => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 < r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 < r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str < r_str))),
@@ -391,11 +393,11 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl Less!"),
+                        format!("not impl Less! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::LessEqual => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::LessEqual => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 <= r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 <= r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str <= r_str))),
@@ -406,11 +408,11 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl LessEqual!"),
+                        format!("not impl LessEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::Plus => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::Plus => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 + r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 + r_f64))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => {
@@ -423,11 +425,11 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl Plus!"),
+                        format!("not impl Plus! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
-            TokenType::Minus => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::Minus => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 - r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 - r_f64))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
@@ -437,11 +439,11 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl Minus!"),
+                        format!("not impl Minus! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
-            TokenType::Slash => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::Slash => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => {
                         if r_i32 != &0 {
                             Ok(Object::Literal(ObL::I32(l_i32 / r_i32)))
@@ -464,16 +466,16 @@ impl ExprVisitor<Object> for Interpreter {
                     },
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        format!("[[Slash]] The literal cannot take slash values. !({l_literal} /{r_literal})")
+                        format!("[[Slash]] The literal cannot take slash values. !({l_literal} / {r_literal})")
                     )))
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl Slash!"),
+                        format!("not impl Slash! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
-            TokenType::Star => match (l_expr, r_expr) {
-                (Object::Literal(ref l_literal), Object::Literal(ref r_literal)) => match (l_literal, r_literal) {
+            TokenType::Star => match (&l_expr, &r_expr) {
+                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 * r_i32))),
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 * r_f64))),
                     (ObL::Str(str_), ObL::I32(i32_))
@@ -493,7 +495,7 @@ impl ExprVisitor<Object> for Interpreter {
                 },
                 _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
-                        String::from("not impl Star!"),
+                        format!("not impl Star! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
             _ => Err(JokerError::Interpreter(InterpreterError::report_error(&expr.m_opera, String::from("Unreachable according other type!"))))
@@ -593,6 +595,13 @@ impl ExprVisitor<Object> for Interpreter {
                 ),
             )))
         }
+    }
+    fn visit_lambda(&self, expr: &LambdaExpr) -> Result<Object, JokerError> {
+        let lambda: Object = Object::Caller(Caller::Lambda(Lambda::new(
+            expr,
+            Rc::clone(&self.local.borrow()),
+        )));
+        Ok(lambda)
     }
 }
 

@@ -1,0 +1,43 @@
+// This is a lambda function in joker language.
+
+|a, b| a + b;          // This is a lambda function that adds two numbers and returns the result.
+|a, b|{return a +b;};  // This is a lambda function that adds two numbers and returns the result.
+||{};                  // This is a lambda function that returns an empty block.
+|a, b|{a + b;};        // This is a lambda function that adds two numbers and does not return anything.
+|a, b|{a + b; return;};// This is a lambda function that adds two numbers and returns nothing.
+
+|a|{print a;}("Hello, world!");    // This is a lambda function that prints "Hello, world!" to the console.
+
+|a, b|{print a + b;}(10, 20);      // This is a lambda function that prints 30 to the console.
+
+||{print "Hello, world!";}();      // This is a lambda function that prints "Hello, world!" to the console.
+
+var num = 10;
+var out_lambda = |a, b| a + b;
+|| {
+    print "inside the lambda block...";
+    var x = 10;
+    var y = 20;
+    print x + y;
+
+    var z = |a, b| a + b;
+    print z(10, 20);
+
+    fun add(a, b) {
+        return a + b;
+    }
+    print add(10, 20);
+
+    while (true) {
+        print "Hello, world!";
+        break;
+    }
+
+    print "used outside the variable num...";
+    print num;
+    print "used outside the variable out_lambda...";
+    print out_lambda(10, 20);
+
+    print "outside the lambda block...";
+}();
+

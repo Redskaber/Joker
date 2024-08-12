@@ -32,8 +32,8 @@ use std::{
 
 use super::{
     abort::{AbortError, ControlFlowAbort, ControlFlowContext},
-    ast::FunStmt,
-    callable::Callable,
+    ast::{ExprStmt, FunStmt, Lambda as LambdaExpr, Stmt},
+    callable::{CallError, Callable, StructError},
     env::Env,
     error::JokerError,
     interpreter::Interpreter,
@@ -98,23 +98,29 @@ pub fn literal_null() -> Object {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Caller {
     Func(Function),
+    Lambda(Lambda),
 }
+
 impl Display for Caller {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Caller::Func(func) => Display::fmt(func, f),
+            Caller::Lambda(lambda) => Display::fmt(lambda, f),
         }
     }
 }
+
 impl Callable for Caller {
     fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
         match self {
             Caller::Func(func) => Callable::call(func, interpreter, arguments),
+            Caller::Lambda(lambda) => Callable::call(lambda, interpreter, arguments),
         }
     }
     fn arity(&self) -> usize {
         match self {
             Caller::Func(func) => Callable::arity(func),
+            Caller::Lambda(lambda) => Callable::arity(lambda),
         }
     }
 }
@@ -133,6 +139,7 @@ impl Display for Function {
         }
     }
 }
+
 impl Callable for Function {
     fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
         match self {
@@ -152,6 +159,7 @@ impl Callable for Function {
 pub struct NativeFunction {
     pub fun: Rc<dyn Callable>,
 }
+
 impl PartialEq for NativeFunction {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.fun, &other.fun)
@@ -163,6 +171,7 @@ impl NativeFunction {
         builder()
     }
 }
+
 impl Callable for NativeFunction {
     fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
         self.fun.call(interpreter, arguments)
@@ -180,40 +189,42 @@ impl Display for NativeFunction {
 
 impl Debug for NativeFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "NativeFun({})", self.fun)
+        write!(f, "NativeFun(<callable>)")
     }
 }
 
 #[derive(Clone)]
 pub struct UserFunction {
-    fun_stmt: Rc<FunStmt>,
+    stmt: Rc<FunStmt>,
     closure: Rc<RefCell<Env>>,
 }
+
 impl PartialEq for UserFunction {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.fun_stmt, &other.fun_stmt)
+        Rc::ptr_eq(&self.stmt, &other.stmt)
     }
 }
 
 impl UserFunction {
-    pub fn new(fun_stmt: &FunStmt, closure: Rc<RefCell<Env>>) -> UserFunction {
+    pub fn new(stmt: &FunStmt, closure: Rc<RefCell<Env>>) -> UserFunction {
         UserFunction {
-            fun_stmt: Rc::new(fun_stmt.clone()),
+            stmt: Rc::new(stmt.clone()),
             closure,
         }
     }
 }
+
 impl Callable for UserFunction {
     fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
         let mut fun_env: Env = Env::new_with_enclosing(self.closure.clone());
 
         for pos in 0..arguments.len() {
             fun_env.define(
-                &self.fun_stmt.params.get(pos).unwrap().lexeme,
+                &self.stmt.params.get(pos).unwrap().lexeme,
                 arguments.get(pos).unwrap().clone(),
             );
         }
-        if let Err(err) = interpreter.execute_block(&self.fun_stmt.body, fun_env) {
+        if let Err(err) = interpreter.execute_block(&self.stmt.body, fun_env) {
             match err {
                 JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
                     return_value,
@@ -231,7 +242,7 @@ impl Callable for UserFunction {
         Ok(Object::Literal(Literal::Null))
     }
     fn arity(&self) -> usize {
-        self.fun_stmt.params.len()
+        self.stmt.params.len()
     }
 }
 
@@ -243,6 +254,90 @@ impl Display for UserFunction {
 
 impl Debug for UserFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UserFun({})", self.fun_stmt)
+        write!(f, "UserFun(<callable>)")
+    }
+}
+
+#[derive(Clone)]
+pub struct Lambda {
+    expr: Rc<LambdaExpr>,
+    closure: Rc<RefCell<Env>>,
+}
+
+impl PartialEq for Lambda {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.expr, &other.expr)
+    }
+}
+
+impl Lambda {
+    pub fn new(expr: &LambdaExpr, closure: Rc<RefCell<Env>>) -> Lambda {
+        Lambda {
+            expr: Rc::new(expr.clone()),
+            closure,
+        }
+    }
+}
+
+impl Callable for Lambda {
+    fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
+        let mut lambda_env: Env = Env::new_with_enclosing(self.closure.clone());
+
+        for pos in 0..arguments.len() {
+            lambda_env.define(
+                &self.expr.params.get(pos).unwrap().lexeme,
+                arguments.get(pos).unwrap().clone(),
+            );
+        }
+
+        match &*self.expr.body {
+            Stmt::BlockStmt(block) => {
+                if let Err(err) = interpreter.execute_block(&block.stmts, lambda_env) {
+                    match err {
+                        JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
+                            return_value,
+                        ))) => {
+                            while interpreter.control_flow_stack.borrow().last()
+                                != Some(&ControlFlowContext::Fun)
+                            {
+                                interpreter.control_flow_stack.borrow_mut().pop();
+                            }
+                            return Ok(return_value);
+                        }
+                        _ => return Err(err),
+                    }
+                }
+            }
+            Stmt::ExprStmt(ExprStmt { expr }) => {
+                let previous = interpreter.local.replace(Rc::new(RefCell::new(lambda_env)));
+                let result = interpreter.evaluate(expr);
+                interpreter.local.replace(previous);
+                return result;
+            }
+            _ => {
+                return Err(JokerError::Call(CallError::Struct(
+                    StructError::report_error(
+                        &self.expr.pipe,
+                        String::from("lambda structure: | params | expr '1' or block '{}'."),
+                    ),
+                )))
+            }
+        }
+        Ok(Object::Literal(Literal::Null))
+    }
+    fn arity(&self) -> usize {
+        self.expr.params.len()
+    }
+}
+
+impl Display for Lambda {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Lambda(<callable>)")
+    }
+}
+
+impl Debug for Lambda {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Lambda(<callable>)",)
     }
 }

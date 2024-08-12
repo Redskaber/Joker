@@ -72,6 +72,7 @@ impl Scanner {
             '*' => self.add_token(TokenType::Star),
             '?' => self.add_token(TokenType::Question),
             ':' => self.add_token(TokenType::Colon),
+            '|' => self.add_token(TokenType::Pipeline),
             '!' => {
                 let t_type = if self.is_match('=') {
                     TokenType::BangEqual

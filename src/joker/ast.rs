@@ -45,17 +45,20 @@
 //!                      expression? ";"
 //!                      expression? ")" statement ;
 //!     
-//!     funStmt        → "fun" IDENTIFIER  "(" parameters? ")" BlockStmt;
+//!     funStmt        → "fun" IDENTIFIER  "(" parameters? ")" statement ;
 //!     parameters     → IDENTIFIER  (, IDENTIFIER)*
 //!
 //!     breakStmt      → "break" ";"
 //!     continueStmt   → "continue" ";"
 //!     returnStmt     → "return" expression? ";" ;
-//!
+//!  
 //!     expression     → assignment ;
 //!
-//!      assignment     → IDENTIFIER "=" assignment
+//!     assignment     → IDENTIFIER "=" assignment
 //!                     | Trinomial ;
+//!
+//!     lambda         → "|" parameters? "|" statement ( "(" parameters? ")" ";" )? ;
+//!
 //!
 //!     Trinomial      → expression "?" Trinomial ":" Trinomial ";" ;    
 //!                     | logic_or ;
@@ -168,6 +171,14 @@ macro_rules! define_ast {
             }
         }
     };
+    (@impl_display Lambda, $($field:ident: $field_type: ty),*) => {
+        impl Display for Lambda {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "Lambda(params: {:?}, body: {:?})",
+                    self.params, self.body)
+            }
+        }
+    };
     (@impl_display BlockStmt, $($field:ident: $field_type: ty),*) => {
         impl Display for BlockStmt {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -249,9 +260,10 @@ define_ast! {
         Logical     { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Trinomial   { condition: Box<Expr>, l_expr: Box<Expr>, r_expr: Box<Expr> },
         Call        { callee: Box<Expr>, paren: Token, arguments: Vec<Expr> },
+        Lambda      { pipe: Token, params: Vec<Token>, body: Box<Stmt> },
     },
     ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable,
-                            visit_assign, visit_logical, visit_trinomial, visit_call },
+                            visit_assign, visit_logical, visit_trinomial, visit_call, visit_lambda },
     ExprAcceptor,
 }
 
