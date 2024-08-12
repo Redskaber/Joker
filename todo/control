@@ -8,3 +8,13 @@ TODO:
     - [v] add return statement.
     - [] add lambda function.
     - [] add array and access it.
+    ...
+    - [] add class and object.
+    - [] add module and import it.
+    - [] add exception handling.
+    - [] add explicit type marked and conversion.
+    - [] add type hinting.z
+    - [] add unit test.
+    - [] add documentation.
+    - [] add static type checking.
+    - ...

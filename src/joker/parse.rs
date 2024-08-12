@@ -87,7 +87,8 @@ impl Parser {
         self.statement()
     }
     // fun_declaration        → "fun" function ;
-    // function       → IDENTIFIER "(" parameters? ")" block ;
+    // funStmt       → IDENTIFIER "(" parameters? ")" blockStmt ;
+    // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
     fn fun_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
             &TokenType::Identifier,
@@ -138,7 +139,7 @@ impl Parser {
             Err(err) => Err(err),
         }
     }
-    // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
+    // varStmt → "var" IDENTIFIER ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
             &TokenType::Identifier,

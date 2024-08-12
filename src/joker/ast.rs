@@ -17,12 +17,19 @@
 //!
 //! Next Syntax RuleSet(使用优先级与结合性, 解决歧义):
 //!
-//!     program        → statement* EOF ;
-//!     
+//!     program        → declaration* EOF ;
+//!
+//!     ( 语义
+//!     declaration    → statement         (语句）            
+//!                     | var_declaration  (声明)
+//!                     | fun_declaration  (声明)
+//!     分析 )
+//!
 //!     statement      → exprStmt
 //!                     | returnStmt
 //!                     | breakStmt
 //!                     | continueStmt
+//!                     | funStmt
 //!                     | forStmt
 //!                     | ifStmt               
 //!                     | printStmt
@@ -37,6 +44,9 @@
 //!     forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
 //!                      expression? ";"
 //!                      expression? ")" statement ;
+//!     
+//!     funStmt        → "fun" IDENTIFIER  "(" parameters? ")" BlockStmt;
+//!     parameters     → IDENTIFIER  (, IDENTIFIER)*
 //!
 //!     breakStmt      → "break" ";"
 //!     continueStmt   → "continue" ";"

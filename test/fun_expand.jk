@@ -1,0 +1,18 @@
+// This file is function expansion demo for joker language.
+
+/*
+    base function:
+        fun add(a, b) {
+            return a + b;
+        }
+    
+    lambda function:
+        ultimate:   var add = |a: int, b: int| -> int {return a + b;}(1, 2);
+        base:       var add = |a, b| {a + b}(1, 2);
+
+
+        lambda base ast -> "|" parameters "|"  statement ;
+        parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
+        statement      → expr | block_stmt ;
+
+*/
