@@ -1,4 +1,11 @@
 //! This file is env rs
+//!
+//! - Env
+//!
+//! - EnvError
+//!
+//!
+//!
 
 use std::{
     cell::RefCell,

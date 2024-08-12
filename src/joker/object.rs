@@ -1,6 +1,28 @@
 //! This file is type.rs
 //!
 //!
+//!   #[derive(Debug, Clone, PartialEq)]
+//! - Object
+//!     - Literal
+//!     - Caller
+//!
+//!
+//!   #[derive(Debug, Clone, PartialEq)]
+//! - Literal
+//!     - I32
+//!     - F64
+//!     - Str
+//!     - Bool
+//!     - Null
+//!
+//!   #[derive(Debug, Clone, PartialEq)]
+//! - Caller: impl Callable
+//!     - Function
+//!
+//!
+//! - Function
+//!     - NativeFunction
+//!     - UserFunction
 //!
 use std::{
     cell::RefCell,

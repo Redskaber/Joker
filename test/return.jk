@@ -1,92 +1,180 @@
 // This is a test file for return statement in joker language.
 
 /*
+//----------------------------------------------------------------------------
 return 10;          // error: return statement outside function
-
+//----------------------------------------------------------------------------
 if (true) {
     return 20;      // error: return statement outside function
 }
-
+//----------------------------------------------------------------------------
 while (true) {
     return 30;      // error: return statement outside function
 }
-
+//----------------------------------------------------------------------------
 for(var i = 0; i < 10; i = i + 1) {
     if (i == 5) {
         return i;  // error: return statement outside function
     }
 }
-
+//----------------------------------------------------------------------------
 {
     return 40;      // error: return statement outside function
 }
-*/
-
-fun test() {
-    return 50;      // ok: return statement inside function
-}
-
-print test();       // Output: 50
-
-
-fun add(a, b) {
-    return a + b;
-}
-print add(1, 2);    // Output: 3
-
-
+//----------------------------------------------------------------------------
 fun outer() {
     fun inner() {
-        return 60;  // ok: return statement inside nested function
+        return 50;
     }
-    return inner(); // ok: return statement returns value of inner function
-}
-print outer();      // Output: 60
-
-
-fun outer(o) {
-    var result = 0;
-    for(var i = 0; i < o; i = i + 1) {
-        result = result + i;
-    }
-
-    return result;           // ok: return statement inside outer function
+    return inner();
 }
 
-print outer(10);     // Output: 45
-
-fun inner(i) {
-    if (i > 5 ) {
-        return 0;  
-    } else {
-        return 1;
-    }
-}
-
-fun outer(o) {
-
-    var result = 0;
-    for(var i = 0; i < o; i = i + 1) {
-        var j = i;
-        while (j > 5) {
-            j = inner(j) + inner(j-1);
+var result = outer();
+print(result);  // output: 50
+//----------------------------------------------------------------------------
+fun outer(a) {
+    fun inner(a) {
+        if (a == 100) {
+            return 100;
+        } else if (a == 200) {
+            return 200;
+        } else {
+            return 300;
         }
-        result = result + j;
     }
-    return result;           // ok: return statement inside outer function
+    // push stack: [Fun, Fun]
+    return inner(a);
 }
 
-print outer(10);     // Output: 30
+// push stack: [Fun]
+var result = outer(200);
+// pop stack: [Fun, Fun]
 
-fun fn(a, b) {
-    return a + b;
+print(result);
+//----------------------------------------------------------------------------
+fun outer(num) {    // visit outer
+    fun inner(a) {  // visit inner
+        if (a == 100) {
+            return 100;
+        } else if (a == 200) {
+            return 200;
+        } else {
+            return 300;
+        }
+        return 400;  // unreachable code
+    }
+
+    var res = 0;
+    while (num > 0) {  // visit while && push stack: [Fun, Loop]
+        // push stack: [Fun, Loop, Fun]
+        res = res + inner(num*100);  // call inner(num*100)
+        // pop stack: [Fun, Loop]
+        num = num - 1;
+    }   // pop stack: [Fun]
+    return res;
 }
 
-fun re_fun() {
-    return fn;    // ok: return function reference
-}
-print re_fun;
-var f = re_fun(); // fn
-print f(1, 2);    // Output: 3
+// push stack: [Fun]
+var result = outer(5);  // call outer(5)
+// pop stack: []
 
-// print f == fn;    // Output: true , todo: not implemented yet.
+print(result);
+//----------------------------------------------------------------------------
+fun outside(a) {  // visit outside
+    if (a == 100) {
+        return 100;
+    } else if (a == 200) {
+        return 200;
+    } else {
+        return 300;
+    }
+    return 400;  // unreachable code
+}
+
+fun outer(num) {    // visit outer
+    var res = 0;
+    while (num > 0) {  // visit while && push stack: [Fun, Loop]
+        // push stack: [Fun, Loop, Fun]
+        res = res + outside(num*100);  // call outside(num*100)
+        // pop stack: [Fun, Loop]
+        num = num - 1;
+    }   // pop stack: [Fun]
+    return res;
+}
+
+// push stack: [Fun]
+var result = outer(5);  // call outer(5)
+// pop stack: []
+
+print(result);
+//----------------------------------------------------------------------------
+fun outside(a) {  // visit outside
+    if (a == 100) {
+        return 100;
+    } else if (a == 200) {
+        return 200;
+    } else {
+        return 300;
+    }
+    return 400;  // unreachable code
+}
+
+fun outer(num) {    // visit outer
+    var res = 0;
+    while (num > 0) {  // visit while && push stack: [Fun, Loop]
+        if (num == 3) {
+            break;
+        }
+        // push stack: [Fun, Loop, Fun]
+        res = res + outside(num*100);  // call outside(num*100)
+        // pop stack: [Fun, Loop]
+        num = num - 1;
+        if (num == 5) {
+            continue;
+        }
+        print res;
+    }   // pop stack: [Fun]
+    return res;
+}
+
+// push stack: [Fun]
+var result = outer(7);  // call outer(7)
+// pop stack: []
+
+print(result);
+//----------------------------------------------------------------------------
+fun outside(a) {  // visit outside
+    if (a == 100) {
+        return 100;
+    } else if (a == 200) {
+        return 200;
+    } else {
+        return 300;
+    }
+    return 400;  // unreachable code
+}
+
+fun outer(num) {    // visit outer
+    var res = 0;
+    while (num > 0) {  // visit while && push stack: [Fun, Loop]
+        if (num == 3) {
+            return;  // return from outer Null value
+        }
+        // push stack: [Fun, Loop, Fun]
+        res = res + outside(num*100);  // call outside(num*100)
+        // pop stack: [Fun, Loop]
+        num = num - 1;
+        if (num == 5) {
+            continue;
+        }
+        print res;
+    }   // pop stack: [Fun]
+    return res;
+}
+
+// push stack: [Fun]
+var result = outer(7);  // call outer(7)
+// pop stack: []
+
+print result;   // null
+*/

@@ -1,5 +1,11 @@
 //! This file is callable rs
 //!
+//! - Callable Trait
+//!
+//! - CallError
+//!     - NonCallError
+//!     - ArgumentError
+//!
 //!
 
 use std::fmt::{Debug, Display};

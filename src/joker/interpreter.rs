@@ -4,11 +4,6 @@
 
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
-use crate::joker::{
-    error::{SystemError, SystemTimeError},
-    object::UserFunction,
-};
-
 use super::{
     abort::{AbortError, ControlFlowAbort, ControlFlowContext},
     ast::{
@@ -18,8 +13,8 @@ use super::{
     },
     callable::{ArgumentError, CallError, Callable, NonCallError},
     env::Env,
-    error::{JokerError, ReportError},
-    object::{Caller, Function, Literal as ObL, NativeFunction, Object},
+    error::{JokerError, ReportError, SystemError, SystemTimeError},
+    object::{Caller, Function, Literal as ObL, NativeFunction, Object, UserFunction},
     token::{Token, TokenType},
 };
 
@@ -36,8 +31,8 @@ impl Interpreter {
             "clock",
             Object::Caller(Caller::Func(Function::Native(NativeFunction::new(|| {
                 use std::time::SystemTime;
-                #[derive(Debug, Clone, PartialEq)]
 
+                #[derive(Debug, Clone, PartialEq)]
                 pub struct NativeClock;
 
                 impl Callable for NativeClock {
@@ -64,7 +59,7 @@ impl Interpreter {
                 }
                 impl Display for NativeClock {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(f, "NativeClock")
+                        write!(f, "clock")
                     }
                 }
 
@@ -239,11 +234,6 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
     fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        if self.control_flow_stack.borrow().last() == Some(&ControlFlowContext::Loop) {
-            self.control_flow_stack
-                .borrow_mut()
-                .push(ControlFlowContext::Fun);
-        }
         let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new(
             stmt,
             Rc::clone(&self.local.borrow()),
@@ -591,7 +581,6 @@ impl ExprVisitor<Object> for Interpreter {
             self.control_flow_stack
                 .borrow_mut()
                 .push(ControlFlowContext::Fun);
-            println!("call stack: {:?}", self.control_flow_stack);
             let result: Object = caller.call(self, &arguments)?;
             self.control_flow_stack.borrow_mut().pop();
 
