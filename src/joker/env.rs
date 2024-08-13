@@ -19,10 +19,10 @@ use super::{
     token::{Token, TokenType},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Env {
-    symbol: HashMap<String, Object>,
-    enclosing: Option<Rc<RefCell<Env>>>, // rc: 引用计数， RefCell: 运行时管理生命周期
+    pub symbol: HashMap<String, Object>,
+    pub enclosing: Option<Rc<RefCell<Env>>>, // rc: 引用计数， RefCell: 运行时管理生命周期
 }
 
 impl Env {
@@ -42,6 +42,32 @@ impl Env {
     pub fn define(&mut self, name: &str, value: Object) {
         self.symbol.insert(name.to_string(), value);
     }
+    pub fn ancestor(&self, distance: usize) -> Option<Rc<RefCell<Env>>> {
+        let mut current_env: Option<Rc<RefCell<Env>>> = self.enclosing.clone();
+        for _ in 1..distance {
+            match current_env {
+                Some(env) => {
+                    current_env = env.borrow().enclosing.clone();
+                }
+                None => break,
+            }
+        }
+        current_env
+    }
+    pub fn get_with_depth(&self, depth: usize, name: &Token) -> Result<Object, JokerError> {
+        if let Some(env) = &self.ancestor(depth) {
+            if let Some(object) = env.borrow().symbol.get(&name.lexeme) {
+                return Ok(object.clone());
+            }
+        }
+        Err(JokerError::Env(EnvError::report_error(
+            name,
+            format!(
+                "Undefined variable '{}' at line {}.",
+                name.lexeme, name.line
+            ),
+        )))
+    }
     pub fn get(&self, name: &Token) -> Result<Object, JokerError> {
         match self.symbol.get(&name.lexeme) {
             Some(value) => Ok(value.clone()),
@@ -53,6 +79,26 @@ impl Env {
                 ))),
             },
         }
+    }
+    pub fn assign_with_depth(
+        &mut self,
+        depth: usize,
+        name: &Token,
+        value: &Object,
+    ) -> Result<(), JokerError> {
+        if let Some(env) = &self.ancestor(depth) {
+            env.borrow_mut()
+                .symbol
+                .insert(name.lexeme.to_string(), value.clone());
+            return Ok(());
+        }
+        Err(JokerError::Env(EnvError::report_error(
+            name,
+            format!(
+                "Undefined variable '{}' at line {}.",
+                name.lexeme, name.line
+            ),
+        )))
     }
     pub fn assign(&mut self, name: &Token, value: &Object) -> Result<(), JokerError> {
         if let Entry::Occupied(mut entry) = self.symbol.entry(name.lexeme.to_string()) {

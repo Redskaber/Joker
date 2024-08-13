@@ -5,7 +5,7 @@ use std::fmt::{Debug, Display};
 
 use super::object::{literal_null, Object};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenType {
     // ()
     LeftParen,
@@ -133,7 +133,7 @@ impl Display for TokenType {
 }
 
 // 词素和标记（词法单元）
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Token {
     pub ttype: TokenType,
     pub lexeme: String,

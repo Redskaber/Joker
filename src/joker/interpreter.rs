@@ -2,7 +2,7 @@
 //!
 //!
 
-use std::{cell::RefCell, fmt::Display, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, hash::Hash, rc::Rc};
 
 use crate::joker::object::Lambda;
 
@@ -22,7 +22,8 @@ use super::{
 
 pub struct Interpreter {
     pub global: Rc<RefCell<Env>>,
-    pub local: RefCell<Rc<RefCell<Env>>>,
+    local_resolve: RefCell<HashMap<Expr, usize>>,
+    pub run_env: RefCell<Rc<RefCell<Env>>>,
     pub control_flow_stack: RefCell<Vec<ControlFlowContext>>,
 }
 
@@ -34,7 +35,7 @@ impl Interpreter {
             Object::Caller(Caller::Func(Function::Native(NativeFunction::new(|| {
                 use std::time::SystemTime;
 
-                #[derive(Debug, Clone, PartialEq)]
+                #[derive(Debug, Clone, PartialEq, Eq, Hash)]
                 pub struct NativeClock;
 
                 impl Callable for NativeClock {
@@ -73,7 +74,8 @@ impl Interpreter {
 
         Interpreter {
             global: Rc::clone(&global),
-            local: RefCell::new(Rc::clone(&global)),
+            local_resolve: RefCell::new(HashMap::new()),
+            run_env: RefCell::new(Rc::clone(&global)),
             control_flow_stack: RefCell::new(Vec::new()),
         }
     }
@@ -84,15 +86,33 @@ impl Interpreter {
         stmt.accept(self)
     }
     pub fn execute_block(&self, stmts: &[Stmt], block_env: Env) -> Result<(), JokerError> {
-        let previous = self.local.replace(Rc::new(RefCell::new(block_env)));
+        let previous = self.run_env.replace(Rc::new(RefCell::new(block_env)));
         let result = stmts.iter().try_for_each(|stmt| self.execute(stmt));
-        self.local.replace(previous);
+        self.run_env.replace(previous);
         result
     }
     pub fn evaluate(&self, expr: &Expr) -> Result<Object, JokerError> {
         expr.accept(self)
     }
-
+    pub fn evaluate_local(&self, expr: &Expr, env: Env) -> Result<Object, JokerError> {
+        let previous = self.run_env.replace(Rc::new(RefCell::new(env)));
+        let result = expr.accept(self);
+        self.run_env.replace(previous);
+        result
+    }
+    pub fn resolve(&self, expr: Expr, depth: usize) {
+        self.local_resolve.borrow_mut().insert(expr, depth);
+    }
+    fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Object, JokerError> {
+        match self.local_resolve.borrow().get(expr) {
+            Some(depth) => self
+                .run_env
+                .borrow()
+                .borrow_mut()
+                .get_with_depth(*depth, name),
+            None => self.global.borrow_mut().get(name),
+        }
+    }
     pub fn interpreter(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
         // let printer: AstPrinter = AstPrinter::new();
         for stmt in stmts {
@@ -102,7 +122,7 @@ impl Interpreter {
         Ok(())
     }
     pub fn println_local(&self) {
-        println!("{:?}", self.local);
+        println!("{:?}", self.run_env);
     }
 }
 
@@ -122,14 +142,14 @@ impl StmtVisitor<()> for Interpreter {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         let value = self.evaluate(&stmt.value)?;
-        self.local
+        self.run_env
             .borrow()
             .borrow_mut()
             .define(&stmt.name.lexeme, value);
         Ok(())
     }
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
-        let block_env = Env::new_with_enclosing(Rc::clone(&self.local.borrow()));
+        let block_env = Env::new_with_enclosing(Rc::clone(&self.run_env.borrow()));
         self.execute_block(&stmt.stmts, block_env)
     }
     fn visit_if(&self, stmt: &super::ast::IfStmt) -> Result<(), JokerError> {
@@ -238,9 +258,9 @@ impl StmtVisitor<()> for Interpreter {
     fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
         let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new(
             stmt,
-            Rc::clone(&self.local.borrow()),
+            Rc::clone(&self.run_env.borrow()),
         ))));
-        self.local
+        self.run_env
             .borrow()
             .borrow_mut()
             .define(&stmt.name.lexeme, fun);
@@ -505,14 +525,18 @@ impl ExprVisitor<Object> for Interpreter {
         self.evaluate(&expr.expr)
     }
     fn visit_variable(&self, expr: &Variable) -> Result<Object, JokerError> {
-        self.local.borrow().borrow().get(&expr.name)
+        self.look_up_variable(&expr.name, &Expr::Variable(expr.clone()))
     }
     fn visit_assign(&self, expr: &Assign) -> Result<Object, JokerError> {
         let value: Object = self.evaluate(&expr.value)?;
-        self.local
-            .borrow()
-            .borrow_mut()
-            .assign(&expr.name, &value)?;
+        match self.local_resolve.borrow().get(&Expr::Assign(expr.clone())) {
+            Some(depth) => self
+                .run_env
+                .borrow()
+                .borrow_mut()
+                .assign_with_depth(*depth, &expr.name, &value)?,
+            None => self.global.borrow_mut().assign(&expr.name, &value)?,
+        }
         Ok(value)
     }
     fn visit_logical(&self, expr: &Logical) -> Result<Object, JokerError> {
@@ -599,7 +623,7 @@ impl ExprVisitor<Object> for Interpreter {
     fn visit_lambda(&self, expr: &LambdaExpr) -> Result<Object, JokerError> {
         let lambda: Object = Object::Caller(Caller::Lambda(Lambda::new(
             expr,
-            Rc::clone(&self.local.borrow()),
+            Rc::clone(&self.run_env.borrow()),
         )));
         Ok(lambda)
     }

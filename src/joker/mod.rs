@@ -9,6 +9,7 @@ mod main;
 mod native_fun;
 mod object;
 mod parse;
+mod resolver;
 mod scanner;
 mod token;
 

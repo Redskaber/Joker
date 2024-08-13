@@ -5,8 +5,11 @@
 use std::env;
 use std::fs;
 use std::io::{self, stdout, Write};
+use std::rc::Rc;
 use std::result;
 
+use super::resolver::Resolver;
+use super::resolver::StmtResolver;
 use super::{
     error::{JokerError, ReportError},
     interpreter::Interpreter,
@@ -29,13 +32,13 @@ pub fn joker_main() {
 }
 
 pub struct Joker {
-    interpreter: Interpreter,
+    interpreter: Rc<Interpreter>,
 }
 
 impl Joker {
     pub fn new() -> Joker {
         Joker {
-            interpreter: Interpreter::new(),
+            interpreter: Rc::new(Interpreter::new()),
         }
     }
 
@@ -53,6 +56,7 @@ impl Joker {
                 JokerError::Abort(_) => std::process::exit(69),
                 JokerError::Call(_) => std::process::exit(70),
                 JokerError::System(_) => std::process::exit(71),
+                JokerError::Resolver(_) => std::process::exit(72),
             }
         }
         Ok(())
@@ -84,7 +88,11 @@ impl Joker {
         let mut scanner: Scanner = Scanner::new(source);
         let tokens: Vec<Token> = scanner.scan_tokens()?;
         let mut parser: Parser = Parser::new(tokens);
+
         if let Some(stmts) = parser.parse() {
+            let resolver: Resolver = Resolver::new(Rc::clone(&self.interpreter));
+            StmtResolver::resolve_block(&resolver, &stmts)?;
+
             self.interpreter.interpreter(&stmts)?
         }
 

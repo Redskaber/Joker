@@ -101,14 +101,14 @@ macro_rules! define_ast {
         $acceptor_name:ident,
     ) => {
         // abstract tree enum
-        #[derive(Debug, Clone, PartialEq)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub enum $ast_name {
             $($struct_name($struct_name),)*
         }
 
         // subtree struct
         $(
-        #[derive(Debug, Clone, PartialEq)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash)]
         pub struct $struct_name {
             $(pub $field: $field_type),*
         }
@@ -119,6 +119,9 @@ macro_rules! define_ast {
             }
             pub fn upcast($($field: $field_type),*) -> $ast_name {
                 $ast_name::$struct_name($struct_name::new($($field),*))
+            }
+            pub fn into_upcast(self) -> $ast_name {
+                $ast_name::$struct_name(self)
             }
         }
         )*

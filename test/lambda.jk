@@ -41,3 +41,27 @@ var out_lambda = |a, b| a + b;
     print "outside the lambda block...";
 }();
 
+|a, b|{
+    print (a > b)? "a is greater than b" : "b is greater than a";
+}(10, 20);
+
+10 > 20 
+    ? ||{ print "a is greater than b"; }() 
+    : ||{ print "b is greater than a"; }();
+
+
+fun add(a, b) {
+    return a + b;
+}
+
+print add(( |a| a*2 )(10), 10);
+print add(|a|{a}(10), 10);
+
+print "lambda function with no arguments";
+print |out|
+        |in|{print in; return in*2;}(out)
+        (100); // out; Output: 200
+
+print (|out|
+        |in|{ print in; return in*2;}(out)
+      )(100); // out; Output: 200

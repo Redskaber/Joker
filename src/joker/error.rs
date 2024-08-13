@@ -5,7 +5,7 @@
 
 use super::{
     abort::AbortError, callable::CallError, env::EnvError, interpreter::InterpreterError,
-    parse::ParserError, scanner::ScannerError,
+    parse::ParserError, resolver::ResolverError, scanner::ScannerError,
 };
 
 pub trait ReportError {
@@ -21,6 +21,7 @@ pub enum JokerError {
     Abort(AbortError),
     Call(CallError),
     System(SystemError),
+    Resolver(ResolverError),
 }
 
 impl ReportError for JokerError {
@@ -33,6 +34,7 @@ impl ReportError for JokerError {
             JokerError::Abort(abort) => ReportError::report(abort),
             JokerError::Call(call) => ReportError::report(call),
             JokerError::System(system) => ReportError::report(system),
+            JokerError::Resolver(resolver) => ReportError::report(resolver),
         }
     }
 }

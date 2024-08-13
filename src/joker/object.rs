@@ -27,6 +27,7 @@
 use std::{
     cell::RefCell,
     fmt::{Debug, Display},
+    hash::{Hash, Hasher},
     rc::Rc,
 };
 
@@ -39,7 +40,7 @@ use super::{
     interpreter::Interpreter,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Object {
     Literal(Literal),
     Caller(Caller),
@@ -54,13 +55,43 @@ impl Display for Object {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     I32(i32),
     F64(f64),
     Str(String),
     Bool(bool),
     Null,
+}
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::I32(a), Literal::I32(b)) => a == b,
+            (Literal::F64(a), Literal::F64(b)) => a.eq(b) || (a.is_nan() && b.is_nan()), // 特殊处理 NaN
+            (Literal::Str(a), Literal::Str(b)) => a == b,
+            (Literal::Bool(a), Literal::Bool(b)) => a == b,
+            (Literal::Null, Literal::Null) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Literal {}
+
+impl Hash for Literal {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Literal::I32(val) => val.hash(state),
+            Literal::F64(val) => {
+                // 对于 f64，使用 to_bits 来确保 NaN 有相同的哈希码
+                // 并且正无穷和负无穷有不同的哈希码
+                val.to_bits().hash(state);
+            }
+            Literal::Str(val) => val.hash(state),
+            Literal::Bool(val) => val.hash(state),
+            Literal::Null => 0.hash(state), // 或者选择一个固定的值作为 null 的哈希码
+        }
+    }
 }
 
 impl Display for Literal {
@@ -95,7 +126,7 @@ pub fn literal_null() -> Object {
     Object::Literal(Literal::Null)
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Caller {
     Func(Function),
     Lambda(Lambda),
@@ -125,7 +156,7 @@ impl Callable for Caller {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Function {
     Native(NativeFunction),
     User(UserFunction),
@@ -166,6 +197,14 @@ impl PartialEq for NativeFunction {
     }
 }
 
+impl Eq for NativeFunction {}
+
+impl Hash for NativeFunction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Rc::as_ptr(&self.fun).hash(state); // 使用 Rc 的指针地址作为哈希码
+    }
+}
+
 impl NativeFunction {
     pub fn new(builder: impl Fn() -> Self) -> NativeFunction {
         builder()
@@ -202,6 +241,13 @@ pub struct UserFunction {
 impl PartialEq for UserFunction {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.stmt, &other.stmt)
+    }
+}
+impl Eq for UserFunction {}
+
+impl Hash for UserFunction {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Rc::as_ptr(&self.stmt).hash(state)
     }
 }
 
@@ -270,6 +316,14 @@ impl PartialEq for Lambda {
     }
 }
 
+impl Eq for Lambda {}
+
+impl Hash for Lambda {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        Rc::as_ptr(&self.expr).hash(state)
+    }
+}
+
 impl Lambda {
     pub fn new(expr: &LambdaExpr, closure: Rc<RefCell<Env>>) -> Lambda {
         Lambda {
@@ -309,10 +363,7 @@ impl Callable for Lambda {
                 }
             }
             Stmt::ExprStmt(ExprStmt { expr }) => {
-                let previous = interpreter.local.replace(Rc::new(RefCell::new(lambda_env)));
-                let result = interpreter.evaluate(expr);
-                interpreter.local.replace(previous);
-                return result;
+                return interpreter.evaluate_local(expr, lambda_env)
             }
             _ => {
                 return Err(JokerError::Call(CallError::Struct(
