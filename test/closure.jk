@@ -17,8 +17,9 @@ counter(); // "2".
 fun scopeTest() {    
   var i = 1;
   fun inner(i) {
-    var i = i + 1000;
-    print i;  
+    var i = i + 1000;  // error: redefinition of 'i'.
+    var j = i + 1000; 
+    print j;  
   }
 
   inner(i); // "1001".

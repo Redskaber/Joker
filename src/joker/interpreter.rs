@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::HashMap, fmt::Display, hash::Hash, rc::Rc}
 use crate::joker::object::Lambda;
 
 use super::{
-    abort::{AbortError, ControlFlowAbort, ControlFlowContext},
+    abort::{AbortError, ControlFlowAbort},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
         ExprVisitor, ForStmt, FunStmt, Grouping, Lambda as LambdaExpr, Literal, Logical, PrintStmt,
@@ -24,7 +24,7 @@ pub struct Interpreter {
     pub global: Rc<RefCell<Env>>,
     local_resolve: RefCell<HashMap<Expr, usize>>,
     pub run_env: RefCell<Rc<RefCell<Env>>>,
-    pub control_flow_stack: RefCell<Vec<ControlFlowContext>>,
+    // pub control_flow_stack: RefCell<Vec<ControlFlowContext>>,
 }
 
 impl Interpreter {
@@ -76,7 +76,7 @@ impl Interpreter {
             global: Rc::clone(&global),
             local_resolve: RefCell::new(HashMap::new()),
             run_env: RefCell::new(Rc::clone(&global)),
-            control_flow_stack: RefCell::new(Vec::new()),
+            // control_flow_stack: RefCell::new(Vec::new()),
         }
     }
     fn is_true(&self, object: &Object) -> bool {
@@ -101,9 +101,17 @@ impl Interpreter {
         result
     }
     pub fn resolve(&self, expr: Expr, depth: usize) {
+        println!(
+            "[{:>10}][{:>20}]:\texpr:{:?},\tdepth:{}",
+            "inter", "resolve", expr, depth
+        );
         self.local_resolve.borrow_mut().insert(expr, depth);
     }
     fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Object, JokerError> {
+        println!(
+            "[{:>10}][{:>20}]:\texpr: {:?},\tname: {}",
+            "inter", "look_up_variable", expr, name
+        );
         match self.local_resolve.borrow().get(expr) {
             Some(depth) => self
                 .run_env
@@ -161,10 +169,6 @@ impl StmtVisitor<()> for Interpreter {
         Ok(())
     }
     fn visit_while(&self, stmt: &WhileStmt) -> Result<(), JokerError> {
-        self.control_flow_stack
-            .borrow_mut()
-            .push(ControlFlowContext::Loop);
-
         while self.is_true(&self.evaluate(&stmt.condition)?) {
             if let Err(err) = self.execute(&stmt.body) {
                 match err {
@@ -184,14 +188,9 @@ impl StmtVisitor<()> for Interpreter {
             }
         }
 
-        self.control_flow_stack.borrow_mut().pop();
         Ok(())
     }
     fn visit_for(&self, stmt: &ForStmt) -> Result<(), JokerError> {
-        self.control_flow_stack
-            .borrow_mut()
-            .push(ControlFlowContext::Loop);
-
         if let Some(initializer) = &stmt.initializer {
             self.execute(initializer)?
         }
@@ -222,38 +221,17 @@ impl StmtVisitor<()> for Interpreter {
             }
         }
 
-        self.control_flow_stack.borrow_mut().pop();
         Ok(())
     }
-    fn visit_break(&self, stmt: &BreakStmt) -> Result<(), JokerError> {
-        if matches!(
-            self.control_flow_stack.borrow().last(),
-            Some(ControlFlowContext::Loop)
-        ) {
-            Err(JokerError::Abort(AbortError::ControlFlow(
-                ControlFlowAbort::Break,
-            )))
-        } else {
-            Err(JokerError::Interpreter(InterpreterError::report_error(
-                &stmt.name,
-                String::from("break statement is not inside a loop statement."),
-            )))
-        }
+    fn visit_break(&self, _stmt: &BreakStmt) -> Result<(), JokerError> {
+        Err(JokerError::Abort(AbortError::ControlFlow(
+            ControlFlowAbort::Break,
+        )))
     }
-    fn visit_continue(&self, stmt: &ContinueStmt) -> Result<(), JokerError> {
-        if matches!(
-            self.control_flow_stack.borrow().last(),
-            Some(ControlFlowContext::Loop)
-        ) {
-            Err(JokerError::Abort(AbortError::ControlFlow(
-                ControlFlowAbort::Continue,
-            )))
-        } else {
-            Err(JokerError::Interpreter(InterpreterError::report_error(
-                &stmt.name,
-                String::from("continue statement is not inside a loop statement."),
-            )))
-        }
+    fn visit_continue(&self, _stmt: &ContinueStmt) -> Result<(), JokerError> {
+        Err(JokerError::Abort(AbortError::ControlFlow(
+            ControlFlowAbort::Continue,
+        )))
     }
     fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
         let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new(
@@ -267,21 +245,10 @@ impl StmtVisitor<()> for Interpreter {
         Ok(())
     }
     fn visit_return(&self, stmt: &super::ast::ReturnStmt) -> Result<(), JokerError> {
-        if self
-            .control_flow_stack
-            .borrow()
-            .contains(&ControlFlowContext::Fun)
-        {
-            let value: Object = self.evaluate(&stmt.value)?;
-            Err(JokerError::Abort(AbortError::ControlFlow(
-                ControlFlowAbort::Return(value),
-            )))
-        } else {
-            Err(JokerError::Interpreter(InterpreterError::report_error(
-                &stmt.keyword,
-                String::from("return statement is not inside a fun statement."),
-            )))
-        }
+        let value: Object = self.evaluate(&stmt.value)?;
+        Err(JokerError::Abort(AbortError::ControlFlow(
+            ControlFlowAbort::Return(value),
+        )))
     }
 }
 
@@ -604,13 +571,7 @@ impl ExprVisitor<Object> for Interpreter {
                 )));
             }
 
-            self.control_flow_stack
-                .borrow_mut()
-                .push(ControlFlowContext::Fun);
-            let result: Object = caller.call(self, &arguments)?;
-            self.control_flow_stack.borrow_mut().pop();
-
-            Ok(result)
+            Ok(caller.call(self, &arguments)?)
         } else {
             Err(JokerError::Call(CallError::NonCallable(
                 NonCallError::report_error(

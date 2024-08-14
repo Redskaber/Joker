@@ -89,12 +89,11 @@ impl Joker {
         let tokens: Vec<Token> = scanner.scan_tokens()?;
         let mut parser: Parser = Parser::new(tokens);
 
-        if let Some(stmts) = parser.parse() {
-            let resolver: Resolver = Resolver::new(Rc::clone(&self.interpreter));
-            StmtResolver::resolve_block(&resolver, &stmts)?;
+        let stmts = parser.parse()?;
+        let resolver: Resolver = Resolver::new(Rc::clone(&self.interpreter));
+        StmtResolver::resolve_block(&resolver, &stmts)?;
 
-            self.interpreter.interpreter(&stmts)?
-        }
+        self.interpreter.interpreter(&stmts)?;
 
         Ok(())
     }

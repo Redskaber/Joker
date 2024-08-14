@@ -55,9 +55,23 @@ impl Env {
         current_env
     }
     pub fn get_with_depth(&self, depth: usize, name: &Token) -> Result<Object, JokerError> {
-        if let Some(env) = &self.ancestor(depth) {
-            if let Some(object) = env.borrow().symbol.get(&name.lexeme) {
-                return Ok(object.clone());
+        println!(
+            "[{:>10}][{:>20}]:\tname: {},\tdepth: {}",
+            "env", "get_with_depth", name, depth
+        );
+
+        match depth {
+            0 => {
+                if let Some(object) = self.symbol.get(&name.lexeme) {
+                    return Ok(object.clone());
+                }
+            }
+            1.. => {
+                if let Some(env) = &self.ancestor(depth) {
+                    if let Some(object) = env.borrow().symbol.get(&name.lexeme) {
+                        return Ok(object.clone());
+                    }
+                }
             }
         }
         Err(JokerError::Env(EnvError::report_error(
@@ -86,11 +100,24 @@ impl Env {
         name: &Token,
         value: &Object,
     ) -> Result<(), JokerError> {
-        if let Some(env) = &self.ancestor(depth) {
-            env.borrow_mut()
-                .symbol
-                .insert(name.lexeme.to_string(), value.clone());
-            return Ok(());
+        println!(
+            "[{:>10}][{:>20}]:\tname: {},\tvalue: {:?},\tdepth: {}",
+            "env", "get_with_depth", name, value, depth
+        );
+
+        match depth {
+            0 => {
+                self.symbol.insert(name.lexeme.clone(), value.clone());
+                return Ok(());
+            }
+            1.. => {
+                if let Some(env) = &self.ancestor(depth) {
+                    env.borrow_mut()
+                        .symbol
+                        .insert(name.lexeme.clone(), value.clone());
+                    return Ok(());
+                }
+            }
         }
         Err(JokerError::Env(EnvError::report_error(
             name,

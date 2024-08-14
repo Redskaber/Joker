@@ -35,11 +35,11 @@ impl ReportError for AbortError {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum ControlFlowContext {
-    Loop,
-    Fun,
-}
+// #[derive(Debug, PartialEq)]
+// pub enum ControlFlowContext {
+//     Loop,
+//     Fun,
+// }
 
 #[derive(Debug)]
 pub enum ControlFlowAbort {

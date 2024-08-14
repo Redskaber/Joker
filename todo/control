@@ -8,6 +8,7 @@ TODO:
     - [v] add return statement.
     - [v] add lambda function.
     - [] add resolve the problem of borrow checker.
+      - [v] handle lambda function.
       - [] wait update code...
     - [] add array and access it.
     ...

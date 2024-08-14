@@ -1,17 +1,26 @@
 // This is a lambda function in joker language.
 
-|a, b| a + b;          // This is a lambda function that adds two numbers and returns the result.
-|a, b|{return a +b;};  // This is a lambda function that adds two numbers and returns the result.
-||{};                  // This is a lambda function that returns an empty block.
-|a, b|{a + b;};        // This is a lambda function that adds two numbers and does not return anything.
-|a, b|{a + b; return;};// This is a lambda function that adds two numbers and returns nothing.
-
-|a|{print a;}("Hello, world!");    // This is a lambda function that prints "Hello, world!" to the console.
-
-|a, b|{print a + b;}(10, 20);      // This is a lambda function that prints 30 to the console.
-
-||{print "Hello, world!";}();      // This is a lambda function that prints "Hello, world!" to the console.
-
+/*
+//----------------------------------------------------------------------------
+||{};   
+//----------------------------------------------------------------------------
+|a, b| a + b; 
+//----------------------------------------------------------------------------
+|a, b|{a + b;};
+//----------------------------------------------------------------------------
+|a, b|{return a +b;};
+//----------------------------------------------------------------------------
+|a, b|{a + b; return;};
+//----------------------------------------------------------------------------
+var a = |a| a + 10;
+print a(10); // Output: 20
+//----------------------------------------------------------------------------
+print |a|{return a + 10;}(10);
+//----------------------------------------------------------------------------
+||{print "Hello, world!";}();  
+|a|{print a;}("Hello, world!");  
+|a, b|{print a + b;}(10, 20);
+//----------------------------------------------------------------------------
 var num = 10;
 var out_lambda = |a, b| a + b;
 || {
@@ -40,28 +49,88 @@ var out_lambda = |a, b| a + b;
 
     print "outside the lambda block...";
 }();
-
+//----------------------------------------------------------------------------
+|a, b| {
+    print a;
+    print b;
+}(10, 20);
 |a, b|{
     print (a > b)? "a is greater than b" : "b is greater than a";
 }(10, 20);
-
+//----------------------------------------------------------------------------
+var d = 10 > 20 ? 10 : 20;
+print d;
+var d = 10 > 20 ? "10" : "20";
+print d;
+//----------------------------------------------------------------------------
 10 > 20 
-    ? ||{ print "a is greater than b"; }() 
-    : ||{ print "b is greater than a"; }();
-
-
+    ? 10 
+    : 20;
+10 > 20 
+    ? ||{ print "10 is greater than 20"; }() 
+    : ||{ print "20 is greater than 10"; }();
+//----------------------------------------------------------------------------
 fun add(a, b) {
     return a + b;
 }
-
-print add(( |a| a*2 )(10), 10);
-print add(|a|{a}(10), 10);
-
-print "lambda function with no arguments";
+print add((|a|a*2 )(10), 10);
+print add(|a|{return a;}(10), 10);
+//----------------------------------------------------------------------------
 print |out|
-        |in|{print in; return in*2;}(out)
+        |in|{print in; return in*2;}(out)   // in; Output: 100
         (100); // out; Output: 200
-
+// ps:
 print (|out|
         |in|{ print in; return in*2;}(out)
       )(100); // out; Output: 200
+//----------------------------------------------------------------------------
+var a = 100;
+var b = |a| a + 10;
+
+|a, b| {
+    print a;
+    print b;
+
+    fun foo(a, b) {
+        while(b > a) {
+            b = b -1;
+            if (b == 107) {
+                continue;
+            }
+            print b;
+            if (b == 105) {
+                print "foo";
+                return b;
+            }
+        }
+    }
+    print foo(a, b);
+}(a, b(a));
+
+// depth loop test
+var a = 100;
+var b = |a| a + 10;
+
+|a, b| {
+    print a;
+    print b;
+
+    fun foo(a, b) {
+        while(b > a) {
+            b = b -1;
+            if (b == 107) {
+                continue;
+            }
+            print b;
+            for (var i = 0; i < 10; i = i + 1) {
+                if (b - i == 95) {
+                    print "foo";
+                    return b;
+                }
+            }
+        }
+    }
+    print foo(a, b);
+}(a, b(a));
+
+*/

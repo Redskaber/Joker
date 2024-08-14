@@ -32,7 +32,7 @@ use std::{
 };
 
 use super::{
-    abort::{AbortError, ControlFlowAbort, ControlFlowContext},
+    abort::{AbortError, ControlFlowAbort},
     ast::{ExprStmt, FunStmt, Lambda as LambdaExpr, Stmt},
     callable::{CallError, Callable, StructError},
     env::Env,
@@ -275,11 +275,6 @@ impl Callable for UserFunction {
                 JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
                     return_value,
                 ))) => {
-                    while interpreter.control_flow_stack.borrow().last()
-                        != Some(&ControlFlowContext::Fun)
-                    {
-                        interpreter.control_flow_stack.borrow_mut().pop();
-                    }
                     return Ok(return_value);
                 }
                 _ => return Err(err),
@@ -351,11 +346,6 @@ impl Callable for Lambda {
                         JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
                             return_value,
                         ))) => {
-                            while interpreter.control_flow_stack.borrow().last()
-                                != Some(&ControlFlowContext::Fun)
-                            {
-                                interpreter.control_flow_stack.borrow_mut().pop();
-                            }
                             return Ok(return_value);
                         }
                         _ => return Err(err),

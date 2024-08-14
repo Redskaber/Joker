@@ -55,12 +55,14 @@ impl Parser {
         }
         false
     }
-    pub fn parse(&mut self) -> Option<Vec<Stmt>> {
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, JokerError> {
         let mut stmts: Vec<Stmt> = Vec::new();
+        let mut has_error: Option<JokerError> = None;
         while !self.is_at_end() {
             match self.declaration() {
                 Ok(stmt) => stmts.push(stmt),
-                Err(_err) => {
+                Err(err) => {
+                    has_error = Some(err);
                     if self.is_at_end() {
                         break;
                     } // input: cc -> cc + Eof(now pos)
@@ -68,10 +70,10 @@ impl Parser {
                 }
             }
         }
-        if stmts.is_empty() {
-            return None;
+        match has_error {
+            Some(err) => Err(err),
+            None => Ok(stmts),
         }
-        Some(stmts)
     }
 
     // declaration -> stmt              （语句）
@@ -424,9 +426,9 @@ impl Parser {
         let mut expr: Expr = self.logic_or()?;
         if self.is_match(&[TokenType::Question]) && !self.is_at_end() {
             let question: Token = self.previous();
-            let l_expr: Expr = self.trinomial()?;
+            let l_expr: Expr = self.expression()?;
             if self.is_match(&[TokenType::Colon]) && !self.is_at_end() {
-                let r_expr: Expr = self.trinomial()?;
+                let r_expr: Expr = self.expression()?;
                 expr = Trinomial::upcast(Box::new(expr), Box::new(l_expr), Box::new(r_expr));
             } else {
                 return Err(JokerError::Parser(ParserError::report_error(
