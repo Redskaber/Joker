@@ -131,3 +131,29 @@ pub fn d() {
     println!("df: df().call(10, 100).unwrap(): {}, df().arity(): {}", df().call(10, 100).unwrap(), df().arity());
     println!("ef: ef().call(20, 200).unwrap(): {}, ef().arity(): {}", ef().call(20, 200).unwrap(), ef().arity());
 } 
+
+pub fn ber() {
+    let base: Vec<i32> = vec![1,3,5,7,9];
+    // let mut diff: Vec<i32> = Vec::new();
+
+    // calc previous and current diff
+    
+    // 1: xxxxx不推荐
+    // for i in 1..base.len() {
+    //     let current = base[i];
+    //     let previous = base[i-1];
+    //     diff.push(current-previous);
+    // }
+
+    //2: 可以
+    // for [a, b] in base.array_windows::<2>().copied() {
+    //     diff.push(a - b);
+    // }
+
+    // 3. 函数式 
+    // let diff: Vec<i32> = base.array_windows::<2>() // nightly
+    //     .copied()
+    //     .map(|[a, b]| a-b)
+    //     .collect();
+    // println!("diff: {:?}",diff);
+}

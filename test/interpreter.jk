@@ -10,6 +10,6 @@ print 2 * 3;
 print 6 / 3;
 print 10 / 3;
 print 3 / 10;
-print clear
+print clear;        // error: msg: Undefined variable 'clear'.
 // print clear;
 // ;

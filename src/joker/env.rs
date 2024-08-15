@@ -10,6 +10,8 @@
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
+    error::Error,
+    fmt::Display,
     rc::Rc,
 };
 
@@ -38,9 +40,8 @@ impl Env {
             enclosing: Some(enclosing),
         }
     }
-
-    pub fn define(&mut self, name: &str, value: Object) {
-        self.symbol.insert(name.to_string(), value);
+    pub fn define(&mut self, name: String, value: Object) {
+        self.symbol.insert(name, value);
     }
     pub fn ancestor(&self, distance: usize) -> Option<Rc<RefCell<Env>>> {
         let mut current_env: Option<Rc<RefCell<Env>>> = self.enclosing.clone();
@@ -98,7 +99,7 @@ impl Env {
         &mut self,
         depth: usize,
         name: &Token,
-        value: &Object,
+        value: Object,
     ) -> Result<(), JokerError> {
         println!(
             "[{:>10}][{:>20}]:\tname: {},\tvalue: {:?},\tdepth: {}",
@@ -107,14 +108,12 @@ impl Env {
 
         match depth {
             0 => {
-                self.symbol.insert(name.lexeme.clone(), value.clone());
+                self.symbol.insert(name.lexeme.clone(), value);
                 return Ok(());
             }
             1.. => {
                 if let Some(env) = &self.ancestor(depth) {
-                    env.borrow_mut()
-                        .symbol
-                        .insert(name.lexeme.clone(), value.clone());
+                    env.borrow_mut().symbol.insert(name.lexeme.clone(), value);
                     return Ok(());
                 }
             }
@@ -127,9 +126,9 @@ impl Env {
             ),
         )))
     }
-    pub fn assign(&mut self, name: &Token, value: &Object) -> Result<(), JokerError> {
-        if let Entry::Occupied(mut entry) = self.symbol.entry(name.lexeme.to_string()) {
-            entry.insert(value.clone());
+    pub fn assign(&mut self, name: &Token, value: Object) -> Result<(), JokerError> {
+        if let Entry::Occupied(mut entry) = self.symbol.entry(name.lexeme.clone()) {
+            entry.insert(value);
             Ok(())
         } else {
             match &self.enclosing {
@@ -149,6 +148,7 @@ pub struct EnvError {
     where_: String,
     msg: String,
 }
+
 impl EnvError {
     pub fn new(token: &Token, msg: String) -> EnvError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -168,6 +168,19 @@ impl EnvError {
         env_err
     }
 }
+
+impl Display for EnvError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "EnvError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for EnvError {}
+
 impl ReportError for EnvError {
     fn report(&self) {
         eprintln!(
@@ -198,7 +211,7 @@ mod tests {
     #[test]
     fn test_define_a_variable() {
         let mut env = Env::new();
-        env.define(&String::from("name"), literal_str(String::from("reds")));
+        env.define(String::from("name"), literal_str(String::from("reds")));
         assert!(env.symbol.contains_key("name"));
         assert_eq!(
             env.get(&Token::new(
@@ -228,7 +241,7 @@ mod tests {
         sub.enclosing
             .unwrap()
             .borrow_mut()
-            .define("sub_key", literal_i32(100));
+            .define(String::from("sub_key"), literal_i32(100));
         let parent_get: Object = parent
             .borrow()
             .get(&maker_token(String::from("sub_key")))
@@ -242,7 +255,9 @@ mod tests {
         let parent: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new()));
         let sub: Env = Env::new_with_enclosing(Rc::clone(&parent));
 
-        parent.borrow_mut().define("sub_key", literal_i32(100));
+        parent
+            .borrow_mut()
+            .define(String::from("sub_key"), literal_i32(100));
         let sub_get: Object = sub.get(&maker_token(String::from("sub_key"))).unwrap();
 
         assert_eq!(sub_get, literal_i32(100));

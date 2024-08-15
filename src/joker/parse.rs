@@ -3,6 +3,8 @@
 //!
 //!
 
+use std::{error::Error, fmt::Display};
+
 use super::{
     abort::{AbortError, ArgLimitAbort, ArgumentAbort},
     ast::{
@@ -623,6 +625,7 @@ pub struct ParserError {
     where_: String,
     msg: String,
 }
+
 impl ParserError {
     pub fn new(token: &Token, msg: String) -> ParserError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -642,6 +645,19 @@ impl ParserError {
         parser_err
     }
 }
+
+impl Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ParserError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for ParserError {}
+
 impl ReportError for ParserError {
     fn report(&self) {
         eprintln!(

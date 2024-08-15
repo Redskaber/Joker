@@ -1,6 +1,8 @@
 //! This file is joker scanner.
 //!
 //!
+use std::{error::Error, fmt::Display};
+
 use super::{
     error::{JokerError, ReportError},
     object::{literal_bool, literal_f64, literal_i32, literal_null, literal_str, Object},
@@ -317,6 +319,7 @@ pub struct ScannerError {
     where_: String,
     msg: String,
 }
+
 impl ScannerError {
     pub fn new(token: &Token, msg: String) -> ScannerError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -338,6 +341,19 @@ impl ScannerError {
         }
     }
 }
+
+impl Display for ScannerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ScannerError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for ScannerError {}
+
 impl ReportError for ScannerError {
     fn report(&self) {
         eprintln!(

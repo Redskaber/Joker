@@ -5,8 +5,8 @@ var b = 20;
 var c = a + b;
 var d = a - b;
 var e = a * b;
-print a;
-print b;
-print c;
-print d;
-print e;
+print a;    // 10
+print b;    // 20
+print c;    // 30
+print d;    // -10
+print e;    // 200

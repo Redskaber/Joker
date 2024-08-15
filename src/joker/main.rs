@@ -8,12 +8,11 @@ use std::io::{self, stdout, Write};
 use std::rc::Rc;
 use std::result;
 
-use super::resolver::Resolver;
-use super::resolver::StmtResolver;
 use super::{
     error::{JokerError, ReportError},
     interpreter::Interpreter,
     parse::Parser,
+    resolver::Resolver,
     scanner::Scanner,
     token::Token,
 };
@@ -91,7 +90,7 @@ impl Joker {
 
         let stmts = parser.parse()?;
         let resolver: Resolver = Resolver::new(Rc::clone(&self.interpreter));
-        StmtResolver::resolve_block(&resolver, &stmts)?;
+        resolver.resolve(&stmts)?;
 
         self.interpreter.interpreter(&stmts)?;
 

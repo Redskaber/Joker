@@ -63,6 +63,7 @@ pub enum Literal {
     Bool(bool),
     Null,
 }
+
 impl PartialEq for Literal {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -264,11 +265,8 @@ impl Callable for UserFunction {
     fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
         let mut fun_env: Env = Env::new_with_enclosing(self.closure.clone());
 
-        for pos in 0..arguments.len() {
-            fun_env.define(
-                &self.stmt.params.get(pos).unwrap().lexeme,
-                arguments.get(pos).unwrap().clone(),
-            );
+        for (name, value) in self.stmt.params.iter().zip(arguments) {
+            fun_env.define(name.lexeme.clone(), value.clone());
         }
         if let Err(err) = interpreter.execute_block(&self.stmt.body, fun_env) {
             match err {
@@ -332,11 +330,8 @@ impl Callable for Lambda {
     fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError> {
         let mut lambda_env: Env = Env::new_with_enclosing(self.closure.clone());
 
-        for pos in 0..arguments.len() {
-            lambda_env.define(
-                &self.expr.params.get(pos).unwrap().lexeme,
-                arguments.get(pos).unwrap().clone(),
-            );
+        for (name, value) in self.expr.params.iter().zip(arguments) {
+            lambda_env.define(name.lexeme.clone(), value.clone());
         }
 
         match &*self.expr.body {

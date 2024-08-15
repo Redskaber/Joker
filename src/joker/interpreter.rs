@@ -2,7 +2,7 @@
 //!
 //!
 
-use std::{cell::RefCell, collections::HashMap, fmt::Display, hash::Hash, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, error::Error, fmt::Display, hash::Hash, rc::Rc};
 
 use crate::joker::object::Lambda;
 
@@ -13,7 +13,7 @@ use super::{
         ExprVisitor, ForStmt, FunStmt, Grouping, Lambda as LambdaExpr, Literal, Logical, PrintStmt,
         Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
-    callable::{ArgumentError, CallError, Callable, NonCallError},
+    callable::{CallError, Callable, NonCallError},
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
     object::{Caller, Function, Literal as ObL, NativeFunction, Object, UserFunction},
@@ -24,14 +24,13 @@ pub struct Interpreter {
     pub global: Rc<RefCell<Env>>,
     local_resolve: RefCell<HashMap<Expr, usize>>,
     pub run_env: RefCell<Rc<RefCell<Env>>>,
-    // pub control_flow_stack: RefCell<Vec<ControlFlowContext>>,
 }
 
 impl Interpreter {
     pub fn new() -> Interpreter {
         let global: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new()));
         global.borrow_mut().define(
-            "clock",
+            String::from("clock"),
             Object::Caller(Caller::Func(Function::Native(NativeFunction::new(|| {
                 use std::time::SystemTime;
 
@@ -76,7 +75,6 @@ impl Interpreter {
             global: Rc::clone(&global),
             local_resolve: RefCell::new(HashMap::new()),
             run_env: RefCell::new(Rc::clone(&global)),
-            // control_flow_stack: RefCell::new(Vec::new()),
         }
     }
     fn is_true(&self, object: &Object) -> bool {
@@ -106,6 +104,13 @@ impl Interpreter {
             "inter", "resolve", expr, depth
         );
         self.local_resolve.borrow_mut().insert(expr, depth);
+    }
+    pub fn resolve_call(&self, name: &Token, expr: &Expr) -> Result<Object, JokerError> {
+        println!(
+            "[{:>10}][{:>20}]:\texpr: {:?},\tname: {}",
+            "inter", "resolve_call", expr, name
+        );
+        self.look_up_variable(name, expr)
     }
     fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Object, JokerError> {
         println!(
@@ -153,7 +158,7 @@ impl StmtVisitor<()> for Interpreter {
         self.run_env
             .borrow()
             .borrow_mut()
-            .define(&stmt.name.lexeme, value);
+            .define(stmt.name.lexeme.clone(), value);
         Ok(())
     }
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
@@ -241,7 +246,7 @@ impl StmtVisitor<()> for Interpreter {
         self.run_env
             .borrow()
             .borrow_mut()
-            .define(&stmt.name.lexeme, fun);
+            .define(stmt.name.lexeme.clone(), fun);
         Ok(())
     }
     fn visit_return(&self, stmt: &super::ast::ReturnStmt) -> Result<(), JokerError> {
@@ -497,12 +502,12 @@ impl ExprVisitor<Object> for Interpreter {
     fn visit_assign(&self, expr: &Assign) -> Result<Object, JokerError> {
         let value: Object = self.evaluate(&expr.value)?;
         match self.local_resolve.borrow().get(&Expr::Assign(expr.clone())) {
-            Some(depth) => self
-                .run_env
-                .borrow()
-                .borrow_mut()
-                .assign_with_depth(*depth, &expr.name, &value)?,
-            None => self.global.borrow_mut().assign(&expr.name, &value)?,
+            Some(depth) => self.run_env.borrow().borrow_mut().assign_with_depth(
+                *depth,
+                &expr.name,
+                value.clone(),
+            )?,
+            None => self.global.borrow_mut().assign(&expr.name, value.clone())?,
         }
         Ok(value)
     }
@@ -558,19 +563,7 @@ impl ExprVisitor<Object> for Interpreter {
         }
 
         if let Object::Caller(caller) = callee {
-            if arguments.len() != caller.arity() {
-                return Err(JokerError::Call(CallError::Argument(
-                    ArgumentError::report_error(
-                        &expr.paren,
-                        format!(
-                            "Expected {} arguments but got {}.",
-                            caller.arity(),
-                            arguments.len()
-                        ),
-                    ),
-                )));
-            }
-
+            // arguments check in resolve static check.
             Ok(caller.call(self, &arguments)?)
         } else {
             Err(JokerError::Call(CallError::NonCallable(
@@ -596,6 +589,7 @@ pub struct InterpreterError {
     where_: String,
     msg: String,
 }
+
 impl InterpreterError {
     pub fn new(token: &Token, msg: String) -> InterpreterError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -615,6 +609,19 @@ impl InterpreterError {
         inter_err
     }
 }
+
+impl Display for InterpreterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "InterpreterError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for InterpreterError {}
+
 impl ReportError for InterpreterError {
     fn report(&self) {
         eprintln!(

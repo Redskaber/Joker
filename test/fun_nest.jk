@@ -32,8 +32,8 @@ var a = "global";
     print a;
   }
 
-  showA();
+  showA();          // "global".  closure captures the value of "a" when it is defined.
   var a = "block";
-  showA();
+  showA();          // "global".  closure still captures the value of "a" from the outer scope.
 }
 

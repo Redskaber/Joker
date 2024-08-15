@@ -5,6 +5,14 @@
 //!
 //!
 
+use std::{
+    cell::RefCell,
+    collections::{hash_map::Entry, HashMap},
+    error::Error,
+    fmt::Display,
+    rc::Rc,
+};
+
 use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
@@ -12,15 +20,11 @@ use super::{
         ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
         WhileStmt,
     },
-    callable::StructError,
+    callable::{ArgumentError, CallError, Callable, NonCallError, StructError},
     error::{JokerError, ReportError},
     interpreter::Interpreter,
+    object::Object,
     token::{Token, TokenType},
-};
-use std::{
-    cell::RefCell,
-    collections::{hash_map::Entry, HashMap},
-    rc::Rc,
 };
 
 pub trait StmtResolver<T> {
@@ -45,7 +49,7 @@ pub enum ContextStatus {
 
 pub struct Resolver {
     interpreter: Rc<Interpreter>,
-    scopes_stack: RefCell<Vec<HashMap<String, bool>>>,
+    pub scopes_stack: RefCell<Vec<HashMap<String, bool>>>,
     context_status_stack: RefCell<Vec<ContextStatus>>,
 }
 
@@ -56,6 +60,10 @@ impl Resolver {
             scopes_stack: RefCell::new(Vec::new()),
             context_status_stack: RefCell::new(Vec::new()),
         }
+    }
+    pub fn resolve(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
+        self.resolve_block(stmts)?;
+        Ok(())
     }
     fn begin_scope(&self) {
         self.scopes_stack.borrow_mut().push(HashMap::new());
@@ -122,11 +130,14 @@ impl StmtResolver<()> for Resolver {
         self.end_scope();
 
         self.context_status_stack.borrow_mut().pop();
+        
+        // before insert function? -> because for call check
+        self.interpreter.visit_fun(stmt)?;
+
         println!(
             "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "resolve_function", self.context_status_stack
         );
-
         Ok(())
     }
     fn resolve_lambda(&self, pipe: &Token, stmt: &Stmt) -> Result<(), JokerError> {
@@ -178,11 +189,11 @@ impl ExprResolver<()> for Resolver {
         self.end_scope();
 
         self.context_status_stack.borrow_mut().pop();
+
         println!(
             "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "resolve_lambda", self.context_status_stack
         );
-
         Ok(())
     }
     fn resolve_call(&self, expr: &Call) -> Result<(), JokerError> {
@@ -190,12 +201,49 @@ impl ExprResolver<()> for Resolver {
             "[{:>10}][{:>20}]:\tstack: {:?},\tcallee: {:?}",
             "resolve", "resolve_call", self.context_status_stack, expr.callee
         );
-        ExprResolver::resolve(self, &expr.callee)?;
-        for arg in &expr.arguments {
-            ExprResolver::resolve(self, arg)?;
+        match &*expr.callee {
+            Expr::Assign(assign) => self.visit_assign(assign),
+            Expr::Binary(binary) => self.visit_binary(binary),
+            Expr::Call(call) => self.visit_call(call),
+            Expr::Grouping(grouping) => self.visit_grouping(grouping),
+            Expr::Lambda(lambda) => self.visit_lambda(lambda),
+            Expr::Literal(literal) => self.visit_literal(literal),
+            Expr::Logical(logical) => self.visit_logical(logical),
+            Expr::Trinomial(trinomial) => self.visit_trinomial(trinomial),
+            Expr::Unary(unary) => self.visit_unary(unary),
+            Expr::Variable(variable) => {
+                ExprResolver::resolve(self, &expr.callee)?;
+                self.resolve_local(*expr.callee.clone(), &variable.name)?;
+                let callee = self
+                    .interpreter
+                    .resolve_call(&variable.name, &expr.callee)?;
+                if let Object::Caller(caller) = callee {
+                    if expr.arguments.len() != caller.arity() {
+                        return Err(JokerError::Resolver(ResolverError::Call(
+                            CallError::Argument(ArgumentError::report_error(
+                                &expr.paren,
+                                format!(
+                                    "call expected {} arguments but got {}.",
+                                    caller.arity(),
+                                    expr.arguments.len()
+                                ),
+                            )),
+                        )));
+                    }
+                    expr.arguments
+                        .iter()
+                        .try_for_each(|arg| ExprResolver::resolve(self, arg))?;
+                    Ok(())
+                } else {
+                    Err(JokerError::Resolver(ResolverError::Call(
+                        CallError::NonCallable(NonCallError::report_error(
+                            &expr.paren,
+                            String::from("Can only call functions and classes."),
+                        )),
+                    )))
+                }
+            }
         }
-
-        Ok(())
     }
 }
 
@@ -414,13 +462,29 @@ impl ExprVisitor<()> for Resolver {
 
 #[derive(Debug)]
 pub enum ResolverError {
+    Call(CallError),
     Var(VarError),
     KeyWord(KeyWordError),
     Struct(StructError),
 }
+
+impl Display for ResolverError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResolverError::Call(call) => Display::fmt(call, f),
+            ResolverError::Var(var) => Display::fmt(var, f),
+            ResolverError::KeyWord(keyword) => Display::fmt(keyword, f),
+            ResolverError::Struct(struct_) => Display::fmt(struct_, f),
+        }
+    }
+}
+
+impl Error for ResolverError {}
+
 impl ReportError for ResolverError {
     fn report(&self) {
         match self {
+            ResolverError::Call(call) => ReportError::report(call),
             ResolverError::Var(var) => ReportError::report(var),
             ResolverError::KeyWord(keyword) => ReportError::report(keyword),
             ResolverError::Struct(struct_) => ReportError::report(struct_),
@@ -433,6 +497,18 @@ pub enum VarError {
     InitError(InitError),
     RedefineError(RedefineError),
 }
+
+impl Display for VarError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VarError::InitError(init) => Display::fmt(init, f),
+            VarError::RedefineError(redefine) => Display::fmt(redefine, f),
+        }
+    }
+}
+
+impl Error for VarError {}
+
 impl ReportError for VarError {
     fn report(&self) {
         match self {
@@ -448,6 +524,7 @@ pub struct InitError {
     where_: String,
     msg: String,
 }
+
 impl InitError {
     pub fn new(token: &Token, msg: String) -> InitError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -467,6 +544,19 @@ impl InitError {
         arg_limit
     }
 }
+
+impl Display for InitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "InitError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for InitError {}
+
 impl ReportError for InitError {
     fn report(&self) {
         eprintln!(
@@ -482,6 +572,7 @@ pub struct RedefineError {
     where_: String,
     msg: String,
 }
+
 impl RedefineError {
     pub fn new(token: &Token, msg: String) -> RedefineError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -501,6 +592,19 @@ impl RedefineError {
         arg_limit
     }
 }
+
+impl Display for RedefineError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "RedefineError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for RedefineError {}
+
 impl ReportError for RedefineError {
     fn report(&self) {
         eprintln!(
@@ -514,6 +618,17 @@ impl ReportError for RedefineError {
 pub enum KeyWordError {
     Pos(PosError),
 }
+
+impl Display for KeyWordError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KeyWordError::Pos(pos) => Display::fmt(pos, f),
+        }
+    }
+}
+
+impl Error for KeyWordError {}
+
 impl ReportError for KeyWordError {
     fn report(&self) {
         match self {
@@ -528,6 +643,7 @@ pub struct PosError {
     where_: String,
     msg: String,
 }
+
 impl PosError {
     pub fn new(token: &Token, msg: String) -> PosError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -547,6 +663,19 @@ impl PosError {
         arg_limit
     }
 }
+
+impl Display for PosError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PosError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for PosError {}
+
 impl ReportError for PosError {
     fn report(&self) {
         eprintln!(

@@ -8,7 +8,10 @@
 //!
 //!
 
-use std::fmt::{Debug, Display};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+};
 
 use super::{
     error::{JokerError, ReportError},
@@ -28,6 +31,19 @@ pub enum CallError {
     Argument(ArgumentError),
     Struct(StructError),
 }
+
+impl Display for CallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallError::Argument(arg) => Display::fmt(arg, f),
+            CallError::NonCallable(non_call) => Display::fmt(non_call, f),
+            CallError::Struct(struct_) => Display::fmt(struct_, f),
+        }
+    }
+}
+
+impl Error for CallError {}
+
 impl ReportError for CallError {
     fn report(&self) {
         match self {
@@ -44,6 +60,7 @@ pub struct NonCallError {
     where_: String,
     msg: String,
 }
+
 impl NonCallError {
     pub fn new(token: &Token, msg: String) -> NonCallError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -63,6 +80,19 @@ impl NonCallError {
         non_err
     }
 }
+
+impl Display for NonCallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NonCallError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for NonCallError {}
+
 impl ReportError for NonCallError {
     fn report(&self) {
         eprintln!(
@@ -78,6 +108,7 @@ pub struct ArgumentError {
     where_: String,
     msg: String,
 }
+
 impl ArgumentError {
     pub fn new(token: &Token, msg: String) -> ArgumentError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -97,6 +128,19 @@ impl ArgumentError {
         arg_err
     }
 }
+
+impl Display for ArgumentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ArgumentError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for ArgumentError {}
+
 impl ReportError for ArgumentError {
     fn report(&self) {
         eprintln!(
@@ -112,6 +156,7 @@ pub struct StructError {
     where_: String,
     msg: String,
 }
+
 impl StructError {
     pub fn new(token: &Token, msg: String) -> StructError {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -131,6 +176,19 @@ impl StructError {
         arg_err
     }
 }
+
+impl Display for StructError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "StructError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for StructError {}
+
 impl ReportError for StructError {
     fn report(&self) {
         eprintln!(

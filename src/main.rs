@@ -8,4 +8,5 @@ fn main() {
     joker::joker_main();
     // idea::automata::automata_main();
     // idea::alias::d();
+    // idea::alias::ber();
 }

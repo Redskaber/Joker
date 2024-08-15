@@ -13,18 +13,31 @@
 //!     - ArgLimitAbort
 //!
 //!
+
+use std::{error::Error, fmt::Display};
+
 use super::{
     error::ReportError,
     object::Object,
     token::{Token, TokenType},
 };
-use std::fmt::Display;
 
 #[derive(Debug)]
 pub enum AbortError {
     ControlFlow(ControlFlowAbort),
     Argument(ArgumentAbort),
 }
+
+impl Display for AbortError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AbortError::Argument(arg) => Display::fmt(arg, f),
+            AbortError::ControlFlow(control) => Display::fmt(control, f),
+        }
+    }
+}
+
+impl Error for AbortError {}
 
 impl ReportError for AbortError {
     fn report(&self) {
@@ -35,18 +48,13 @@ impl ReportError for AbortError {
     }
 }
 
-// #[derive(Debug, PartialEq)]
-// pub enum ControlFlowContext {
-//     Loop,
-//     Fun,
-// }
-
 #[derive(Debug)]
 pub enum ControlFlowAbort {
     Break,
     Continue,
     Return(Object),
 }
+
 impl Display for ControlFlowAbort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -56,6 +64,7 @@ impl Display for ControlFlowAbort {
         }
     }
 }
+
 impl ReportError for ControlFlowAbort {
     fn report(&self) {
         eprintln!("{self}");
@@ -66,6 +75,7 @@ impl ReportError for ControlFlowAbort {
 pub enum ArgumentAbort {
     Limit(ArgLimitAbort),
 }
+
 impl Display for ArgumentAbort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -73,6 +83,7 @@ impl Display for ArgumentAbort {
         }
     }
 }
+
 impl ReportError for ArgumentAbort {
     fn report(&self) {
         match self {
@@ -87,6 +98,7 @@ pub struct ArgLimitAbort {
     where_: String,
     msg: String,
 }
+
 impl ArgLimitAbort {
     pub fn new(token: &Token, msg: String) -> ArgLimitAbort {
         let where_: String = if token.ttype == TokenType::Eof {
@@ -106,6 +118,7 @@ impl ArgLimitAbort {
         arg_limit
     }
 }
+
 impl Display for ArgLimitAbort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -115,6 +128,7 @@ impl Display for ArgLimitAbort {
         )
     }
 }
+
 impl ReportError for ArgLimitAbort {
     fn report(&self) {
         eprintln!(
