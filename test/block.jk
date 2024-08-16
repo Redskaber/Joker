@@ -1,3 +1,4 @@
+/*
 var a = "global a";
 var b = "global b";
 var c = "global c";
@@ -33,3 +34,10 @@ print "global b";
   print a;
   print b;
 }
+
+var a = "outer";
+{
+  var a = a;    // error:  Can't read local variable in its own initializer.
+}
+
+*/

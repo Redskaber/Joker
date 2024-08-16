@@ -240,6 +240,32 @@ macro_rules! define_ast {
             }
         }
     };
+    (@impl_display VarStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for VarStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "VarStmt(name: {}, value: {})",
+                    self.name,
+                    match &self.value {
+                        Some(expr) => format!("Some({})", expr),
+                        None => String::from("None"),
+                    }
+                )
+            }
+        }
+    };
+    (@impl_display ReturnStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for ReturnStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "ReturnStmt(keyword: {}, value: {})",
+                    self.keyword,
+                    match &self.value {
+                        Some(expr) => format!("Some({})", expr),
+                        None => String::from("None"),
+                    }
+                )
+            }
+        }
+    };
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -274,7 +300,7 @@ define_ast! {
     Stmt {
         ExprStmt    { expr: Expr },
         PrintStmt   { expr: Expr },
-        VarStmt     { name: Token, value: Expr },   // left value
+        VarStmt     { name: Token, value: Option<Expr> },   // left value
         BlockStmt   { stmts: Vec<Stmt> },           // space
         IfStmt      { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
         WhileStmt   { condition: Expr, body: Box<Stmt>},
@@ -282,7 +308,7 @@ define_ast! {
         BreakStmt   { name: Token },
         ContinueStmt{ name: Token },
         FunStmt     { name: Token, params: Vec<Token>, body: Vec<Stmt> },
-        ReturnStmt  { keyword: Token, value: Expr },
+        ReturnStmt  { keyword: Token, value: Option<Expr> },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
                             visit_for, visit_break, visit_continue, visit_fun, visit_return },

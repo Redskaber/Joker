@@ -13,7 +13,7 @@ use super::{
         VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
-    object::{literal_bool, literal_null},
+    object::literal_bool,
     token::{Token, TokenType},
 };
 
@@ -150,10 +150,10 @@ impl Parser {
             &TokenType::Identifier,
             String::from("Expect variable name."),
         )?;
-        let value: Expr = if self.is_match(&[TokenType::Equal]) {
-            self.expression()?
+        let value: Option<Expr> = if self.is_match(&[TokenType::Equal]) {
+            Some(self.expression()?)
         } else {
-            Expr::Literal(Literal::new(literal_null()))
+            None
         };
         self.consume(
             &TokenType::Semicolon,
@@ -200,10 +200,10 @@ impl Parser {
     // returnStmt -> "return" expression? ";" ;
     fn return_statement(&mut self) -> Result<Stmt, JokerError> {
         let keyword: Token = self.previous();
-        let value: Expr = if !self.check(&TokenType::Semicolon) {
-            self.expression()?
+        let value: Option<Expr> = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
         } else {
-            Expr::Literal(Literal::new(literal_null()))
+            None
         };
         self.consume(
             &TokenType::Semicolon,

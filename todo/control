@@ -9,6 +9,13 @@ TODO:
     - [v] add lambda function.
     - [] add resolve the problem of borrow checker.
       - [v] handle lambda function.
+      - [v] update var statement value expr to option<expr>.
+      - [v] update return statement value expr to option<expr>.
+      - [v] update block statement to function statement.
+      - [v] add resolve static check for var status.
+      - [v] add resolve static check for return status.
+      - [v] add resolve static check for block status.
+      - [v] add resolve static check for lambda block status.
       - [] wait update code...
     - [] add array and access it.
     ...

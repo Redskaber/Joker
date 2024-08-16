@@ -10,6 +10,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     error::Error,
     fmt::Display,
+    hash::Hash,
     rc::Rc,
 };
 
@@ -20,10 +21,10 @@ use super::{
         ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
         WhileStmt,
     },
-    callable::{ArgumentError, CallError, Callable, NonCallError, StructError},
+    callable::StructError,
+    env::EnvError,
     error::{JokerError, ReportError},
     interpreter::Interpreter,
-    object::Object,
     token::{Token, TokenType},
 };
 
@@ -47,9 +48,39 @@ pub enum ContextStatus {
     Loop,
 }
 
+#[derive(Debug)]
+pub struct Key(Token);
+impl Key {
+    pub fn token(&self) -> &Token {
+        &self.0
+    }
+}
+impl Hash for Key {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (&self.0.ttype, &self.0.lexeme, &self.0.literal).hash(state)
+    }
+}
+
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.ttype == other.0.ttype
+            && self.0.lexeme == other.0.lexeme
+            && self.0.literal == other.0.literal
+    }
+}
+
+impl Eq for Key {}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum VarStatus {
+    Declare,
+    Define,
+    Used,
+}
+
 pub struct Resolver {
     interpreter: Rc<Interpreter>,
-    pub scopes_stack: RefCell<Vec<HashMap<String, bool>>>,
+    pub scopes_stack: RefCell<Vec<RefCell<HashMap<Key, VarStatus>>>>,
     context_status_stack: RefCell<Vec<ContextStatus>>,
 }
 
@@ -66,17 +97,19 @@ impl Resolver {
         Ok(())
     }
     fn begin_scope(&self) {
-        self.scopes_stack.borrow_mut().push(HashMap::new());
+        self.scopes_stack
+            .borrow_mut()
+            .push(RefCell::new(HashMap::new()));
     }
     fn end_scope(&self) {
         self.scopes_stack.borrow_mut().pop();
     }
     fn declare(&self, name: &Token) -> Result<(), JokerError> {
-        if let Some(scope) = self.scopes_stack.borrow_mut().last_mut() {
-            match scope.entry(name.lexeme.clone()) {
+        if let Some(scope) = self.scopes_stack.borrow().last() {
+            match scope.borrow_mut().entry(Key(name.clone())) {
                 Entry::Occupied(_) => {
                     return Err(JokerError::Resolver(ResolverError::Var(
-                        VarError::RedefineError(RedefineError::report_error(
+                        VarError::Redefine(RedefineError::report_error(
                             name,
                             format!(
                                 "Variable '{}' is already declared in this scope.",
@@ -86,7 +119,7 @@ impl Resolver {
                     )));
                 }
                 Entry::Vacant(entry) => {
-                    entry.insert(false);
+                    entry.insert(VarStatus::Declare);
                     return Ok(());
                 }
             }
@@ -94,10 +127,41 @@ impl Resolver {
         Ok(())
     }
     fn define(&self, name: &Token) -> Result<(), JokerError> {
-        if let Some(scope) = self.scopes_stack.borrow_mut().last_mut() {
-            scope.insert(name.lexeme.clone(), true);
+        if let Some(scope) = self.scopes_stack.borrow().last() {
+            scope
+                .borrow_mut()
+                .insert(Key(name.clone()), VarStatus::Define);
         }
         Ok(())
+    }
+    fn check_var_status(&self, name: &Key, value_status: &VarStatus) -> Result<(), JokerError> {
+        match value_status {
+            VarStatus::Declare | VarStatus::Define => {
+                let message = match value_status {
+                    VarStatus::Declare => "Variable declared but not used",
+                    VarStatus::Define => "Variable defined but not used",
+                    _ => unreachable!(),
+                };
+                Err(JokerError::Resolver(ResolverError::Var(VarError::Status(
+                    StatusError::report_error(name.token(), message.to_string()),
+                ))))
+            }
+            VarStatus::Used => Ok(()),
+        }
+    }
+    fn check_vars_status(&self) -> Result<(), JokerError> {
+        match self.scopes_stack.borrow().last() {
+            Some(current_scope) => current_scope
+                .borrow()
+                .iter()
+                .try_for_each(|(name, value_status)| self.check_var_status(name, value_status)),
+            None => Err(JokerError::Resolver(ResolverError::Env(
+                EnvError::report_error(
+                    &Token::eof(0),
+                    String::from("No current environment to check variables"),
+                ),
+            ))),
+        }
     }
 }
 
@@ -127,12 +191,12 @@ impl StmtResolver<()> for Resolver {
             self.define(param)?;
         }
         StmtResolver::resolve_block(self, &stmt.body)?;
+
+        // check local var used status
+        self.check_vars_status()?;
         self.end_scope();
 
         self.context_status_stack.borrow_mut().pop();
-        
-        // before insert function? -> because for call check
-        self.interpreter.visit_fun(stmt)?;
 
         println!(
             "[{:>10}][{:>20}]:\tstack: {:?}",
@@ -164,8 +228,9 @@ impl ExprResolver<()> for Resolver {
                 "[{:>10}][{:>20}]:\tlayer: {},\tscope: {:?}",
                 "resolve", "resolve_local", layer, scope
             );
-            if scope.contains_key(&name.lexeme) {
-                self.interpreter.resolve(expr, layer); // 解决闭包：环境冻结
+            if let Entry::Occupied(mut entry) = scope.borrow_mut().entry(Key(name.clone())) {
+                self.interpreter.resolve(expr, layer);
+                entry.insert(VarStatus::Used);
                 return Ok(());
             }
         }
@@ -186,6 +251,9 @@ impl ExprResolver<()> for Resolver {
             self.define(param)?;
         }
         StmtResolver::resolve_lambda(self, &expr.pipe, &expr.body)?;
+
+        // check local var used status
+        self.check_vars_status()?;
         self.end_scope();
 
         self.context_status_stack.borrow_mut().pop();
@@ -201,49 +269,11 @@ impl ExprResolver<()> for Resolver {
             "[{:>10}][{:>20}]:\tstack: {:?},\tcallee: {:?}",
             "resolve", "resolve_call", self.context_status_stack, expr.callee
         );
-        match &*expr.callee {
-            Expr::Assign(assign) => self.visit_assign(assign),
-            Expr::Binary(binary) => self.visit_binary(binary),
-            Expr::Call(call) => self.visit_call(call),
-            Expr::Grouping(grouping) => self.visit_grouping(grouping),
-            Expr::Lambda(lambda) => self.visit_lambda(lambda),
-            Expr::Literal(literal) => self.visit_literal(literal),
-            Expr::Logical(logical) => self.visit_logical(logical),
-            Expr::Trinomial(trinomial) => self.visit_trinomial(trinomial),
-            Expr::Unary(unary) => self.visit_unary(unary),
-            Expr::Variable(variable) => {
-                ExprResolver::resolve(self, &expr.callee)?;
-                self.resolve_local(*expr.callee.clone(), &variable.name)?;
-                let callee = self
-                    .interpreter
-                    .resolve_call(&variable.name, &expr.callee)?;
-                if let Object::Caller(caller) = callee {
-                    if expr.arguments.len() != caller.arity() {
-                        return Err(JokerError::Resolver(ResolverError::Call(
-                            CallError::Argument(ArgumentError::report_error(
-                                &expr.paren,
-                                format!(
-                                    "call expected {} arguments but got {}.",
-                                    caller.arity(),
-                                    expr.arguments.len()
-                                ),
-                            )),
-                        )));
-                    }
-                    expr.arguments
-                        .iter()
-                        .try_for_each(|arg| ExprResolver::resolve(self, arg))?;
-                    Ok(())
-                } else {
-                    Err(JokerError::Resolver(ResolverError::Call(
-                        CallError::NonCallable(NonCallError::report_error(
-                            &expr.paren,
-                            String::from("Can only call functions and classes."),
-                        )),
-                    )))
-                }
-            }
-        }
+        ExprResolver::resolve(self, &expr.callee)?;
+        expr.arguments
+            .iter()
+            .try_for_each(|arg| ExprResolver::resolve(self, arg))?;
+        Ok(())
     }
 }
 
@@ -259,9 +289,10 @@ impl StmtVisitor<()> for Resolver {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         self.declare(&stmt.name)?;
-        // Expr all have value, so not condition if ..then.
-        ExprResolver::resolve(self, &stmt.value)?;
-        self.define(&stmt.name)?;
+        if let Some(expr) = &stmt.value {
+            ExprResolver::resolve(self, expr)?;
+            self.define(&stmt.name)?;
+        }
         Ok(())
     }
     fn visit_for(&self, stmt: &ForStmt) -> Result<(), JokerError> {
@@ -306,10 +337,29 @@ impl StmtVisitor<()> for Resolver {
         Ok(())
     }
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
-        self.begin_scope();
-        self.resolve_block(&stmt.stmts)?;
-        self.end_scope();
-        Ok(())
+        println!(
+            "[{:>10}][{:>20}]:\tstack: {:?}",
+            "resolve", "visit_block", self.context_status_stack
+        );
+        if self
+            .context_status_stack
+            .borrow()
+            .contains(&ContextStatus::Fun)
+        {
+            self.begin_scope();
+            self.resolve_block(&stmt.stmts)?;
+
+            // check local var used status
+            self.check_vars_status()?;
+            self.end_scope();
+            return Ok(());
+        }
+        Err(JokerError::Resolver(ResolverError::KeyWord(
+            KeyWordError::Pos(PosError::report_error(
+                &Token::eof(0),
+                String::from("Cannot use 'block' outside of a fun statement."),
+            )),
+        )))
     }
     fn visit_while(&self, stmt: &WhileStmt) -> Result<(), JokerError> {
         ExprResolver::resolve(self, &stmt.condition)?;
@@ -361,7 +411,9 @@ impl StmtVisitor<()> for Resolver {
             .borrow()
             .contains(&ContextStatus::Fun)
         {
-            ExprResolver::resolve(self, &stmt.value)?;
+            if let Some(expr) = &stmt.value {
+                ExprResolver::resolve(self, expr)?;
+            }
             return Ok(());
         }
         Err(JokerError::Resolver(ResolverError::KeyWord(
@@ -428,15 +480,13 @@ impl ExprVisitor<()> for Resolver {
     }
     fn visit_variable(&self, expr: &Variable) -> Result<(), JokerError> {
         if let Some(scope) = self.scopes_stack.borrow().last() {
-            if let Some(init_status) = scope.get(&expr.name.lexeme) {
-                if !init_status {
-                    return Err(JokerError::Resolver(ResolverError::Var(
-                        VarError::InitError(InitError::report_error(
-                            &expr.name,
-                            String::from("Can't read local variable in its own initializer."),
-                        )),
-                    )));
-                }
+            if let Some(VarStatus::Declare) = scope.borrow().get(&Key(expr.name.clone())) {
+                return Err(JokerError::Resolver(ResolverError::Var(VarError::Init(
+                    InitError::report_error(
+                        &expr.name,
+                        String::from("Can't read local variable in its own initializer."),
+                    ),
+                ))));
             }
         }
         self.resolve_local(Expr::Variable(expr.clone()), &expr.name)?;
@@ -462,7 +512,7 @@ impl ExprVisitor<()> for Resolver {
 
 #[derive(Debug)]
 pub enum ResolverError {
-    Call(CallError),
+    Env(EnvError),
     Var(VarError),
     KeyWord(KeyWordError),
     Struct(StructError),
@@ -471,7 +521,7 @@ pub enum ResolverError {
 impl Display for ResolverError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResolverError::Call(call) => Display::fmt(call, f),
+            ResolverError::Env(env) => Display::fmt(env, f),
             ResolverError::Var(var) => Display::fmt(var, f),
             ResolverError::KeyWord(keyword) => Display::fmt(keyword, f),
             ResolverError::Struct(struct_) => Display::fmt(struct_, f),
@@ -484,7 +534,7 @@ impl Error for ResolverError {}
 impl ReportError for ResolverError {
     fn report(&self) {
         match self {
-            ResolverError::Call(call) => ReportError::report(call),
+            ResolverError::Env(env) => ReportError::report(env),
             ResolverError::Var(var) => ReportError::report(var),
             ResolverError::KeyWord(keyword) => ReportError::report(keyword),
             ResolverError::Struct(struct_) => ReportError::report(struct_),
@@ -494,15 +544,17 @@ impl ReportError for ResolverError {
 
 #[derive(Debug)]
 pub enum VarError {
-    InitError(InitError),
-    RedefineError(RedefineError),
+    Init(InitError),
+    Redefine(RedefineError),
+    Status(StatusError),
 }
 
 impl Display for VarError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            VarError::InitError(init) => Display::fmt(init, f),
-            VarError::RedefineError(redefine) => Display::fmt(redefine, f),
+            VarError::Init(init) => Display::fmt(init, f),
+            VarError::Redefine(redefine) => Display::fmt(redefine, f),
+            VarError::Status(status) => Display::fmt(status, f),
         }
     }
 }
@@ -512,8 +564,9 @@ impl Error for VarError {}
 impl ReportError for VarError {
     fn report(&self) {
         match self {
-            VarError::InitError(init) => ReportError::report(init),
-            VarError::RedefineError(redefine) => ReportError::report(redefine),
+            VarError::Init(init) => ReportError::report(init),
+            VarError::Redefine(redefine) => ReportError::report(redefine),
+            VarError::Status(status) => ReportError::report(status),
         }
     }
 }
@@ -677,6 +730,54 @@ impl Display for PosError {
 impl Error for PosError {}
 
 impl ReportError for PosError {
+    fn report(&self) {
+        eprintln!(
+            "[line {}] where: '{}', \n\tmsg: {}\n",
+            self.line, self.where_, self.msg
+        );
+    }
+}
+
+#[derive(Debug)]
+pub struct StatusError {
+    line: usize,
+    where_: String,
+    msg: String,
+}
+
+impl StatusError {
+    pub fn new(token: &Token, msg: String) -> StatusError {
+        let where_: String = if token.ttype == TokenType::Eof {
+            String::from(" at end")
+        } else {
+            format!(" at '{}'", token.lexeme)
+        };
+        StatusError {
+            line: token.line,
+            where_,
+            msg,
+        }
+    }
+    pub fn report_error(token: &Token, msg: String) -> StatusError {
+        let arg_limit = StatusError::new(token, msg);
+        arg_limit.report();
+        arg_limit
+    }
+}
+
+impl Display for StatusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PosError(line: {}, where: {}, msg: {})",
+            self.line, self.where_, self.msg
+        )
+    }
+}
+
+impl Error for StatusError {}
+
+impl ReportError for StatusError {
     fn report(&self) {
         eprintln!(
             "[line {}] where: '{}', \n\tmsg: {}\n",

@@ -53,10 +53,14 @@ impl StmtVisitor<String> for AstPrinter {
         stmt.expr.accept(self)
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<String, JokerError> {
-        match stmt.value.accept(self) {
-            Ok(value) => Ok(format!("VarStmt({} = {})", stmt.name.lexeme, value)),
-            Err(err) => Err(err),
-        }
+        Ok(format!(
+            "VarStmt(name: {}, value: {})",
+            stmt.name.lexeme,
+            match &stmt.value {
+                Some(expr) => format!("Some({})", expr.accept(self)?),
+                None => String::from("None"),
+            }
+        ))
     }
     fn visit_block(&self, stmt: &BlockStmt) -> Result<String, JokerError> {
         let mut result: String = String::from("BlockStmt{ ");
@@ -124,7 +128,10 @@ impl StmtVisitor<String> for AstPrinter {
         Ok(format!(
             "ReturnStmt(keyword: {}, value: {})",
             stmt.keyword.lexeme,
-            stmt.value.accept(self)?,
+            match &stmt.value {
+                Some(expr) => format!("Some({})", expr.accept(self)?),
+                None => String::from("None"),
+            }
         ))
     }
 }

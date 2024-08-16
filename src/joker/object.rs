@@ -223,7 +223,7 @@ impl Callable for NativeFunction {
 
 impl Display for NativeFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "NativeFun(<callable>)")
+        Display::fmt(&self.fun, f)
     }
 }
 
@@ -287,7 +287,7 @@ impl Callable for UserFunction {
 
 impl Display for UserFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UserFun(<callable>)")
+        write!(f, "UserFun({})", self.stmt.name.lexeme)
     }
 }
 

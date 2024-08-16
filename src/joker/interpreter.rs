@@ -11,12 +11,15 @@ use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
         ExprVisitor, ForStmt, FunStmt, Grouping, Lambda as LambdaExpr, Literal, Logical, PrintStmt,
-        Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
+        WhileStmt,
     },
-    callable::{CallError, Callable, NonCallError},
+    callable::{ArgumentError, CallError, Callable, NonCallError},
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
-    object::{Caller, Function, Literal as ObL, NativeFunction, Object, UserFunction},
+    object::{
+        literal_null, Caller, Function, Literal as ObL, NativeFunction, Object, UserFunction,
+    },
     token::{Token, TokenType},
 };
 
@@ -154,7 +157,10 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
-        let value = self.evaluate(&stmt.value)?;
+        let value = match &stmt.value {
+            Some(expr) => self.evaluate(expr)?,
+            None => literal_null(),
+        };
         self.run_env
             .borrow()
             .borrow_mut()
@@ -249,8 +255,11 @@ impl StmtVisitor<()> for Interpreter {
             .define(stmt.name.lexeme.clone(), fun);
         Ok(())
     }
-    fn visit_return(&self, stmt: &super::ast::ReturnStmt) -> Result<(), JokerError> {
-        let value: Object = self.evaluate(&stmt.value)?;
+    fn visit_return(&self, stmt: &ReturnStmt) -> Result<(), JokerError> {
+        let value: Object = match &stmt.value {
+            Some(expr) => self.evaluate(expr)?,
+            None => literal_null(),
+        };
         Err(JokerError::Abort(AbortError::ControlFlow(
             ControlFlowAbort::Return(value),
         )))
@@ -563,7 +572,18 @@ impl ExprVisitor<Object> for Interpreter {
         }
 
         if let Object::Caller(caller) = callee {
-            // arguments check in resolve static check.
+            if arguments.len() != caller.arity() {
+                return Err(JokerError::Call(CallError::Argument(
+                    ArgumentError::report_error(
+                        &expr.paren,
+                        format!(
+                            "call expected {} arguments but got {}.",
+                            caller.arity(),
+                            arguments.len()
+                        ),
+                    ),
+                )));
+            }
             Ok(caller.call(self, &arguments)?)
         } else {
             Err(JokerError::Call(CallError::NonCallable(

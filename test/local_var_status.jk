@@ -1,0 +1,52 @@
+// This is a test file for local variable status.
+
+/*
+// ---------------------------------------------------------------
+fun decl_var() {
+    var decl_var;
+}
+decl_var();
+// ---------------------------------------------------------------
+fun define_var() {
+    var define_var = 10;
+}
+define_var();
+// ---------------------------------------------------------------
+fun block_decl_var() {
+    {
+        var block_decl_var;
+    }
+}
+block_decl_var();
+// ---------------------------------------------------------------
+fun block_define_var() {
+    {
+        var block_define_var = 10;
+    }
+}
+// ---------------------------------------------------------------
+fun lambda_param_var() {
+    {
+        |a|{};
+    }
+}
+lambda_param_var();
+// ---------------------------------------------------------------
+fun lambda_param_var() {
+    {
+        ||{
+            var decl_var;
+        };
+    }
+}
+lambda_param_var();
+// ---------------------------------------------------------------
+fun lambda_param_var() {
+    {
+        ||{
+            var define_var = 10;
+        };
+    }
+}
+lambda_param_var();
+*/
