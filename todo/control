@@ -16,6 +16,9 @@ TODO:
       - [v] add resolve static check for return status.
       - [v] add resolve static check for block status.
       - [v] add resolve static check for lambda block status.
+      - [v] add class statement.
+      - [v] add caller object class struct.
+      - [v] add instance object class instance strcut.
       - [] wait update code...
       - [] 我们的解析器会计算出变量是在哪个环境中找到的, 但是它仍然需要根据名称在对应的map中查找。
           一个更有效的环境表示形式是将局部变量保存在一个数组中，并通过索引来查找它们。
