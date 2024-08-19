@@ -44,6 +44,7 @@ use super::{
 pub enum Object {
     Literal(Literal),
     Caller(Caller),
+    Instance(Instance),
 }
 
 impl Display for Object {
@@ -51,6 +52,7 @@ impl Display for Object {
         match self {
             Object::Literal(literal) => Display::fmt(literal, f),
             Object::Caller(caller) => Display::fmt(caller, f),
+            Object::Instance(instance) => Display::fmt(instance, f),
         }
     }
 }
@@ -131,6 +133,7 @@ pub fn literal_null() -> Object {
 pub enum Caller {
     Func(Function),
     Lambda(Lambda),
+    Class(Class),
 }
 
 impl Display for Caller {
@@ -138,6 +141,7 @@ impl Display for Caller {
         match self {
             Caller::Func(func) => Display::fmt(func, f),
             Caller::Lambda(lambda) => Display::fmt(lambda, f),
+            Caller::Class(class) => Display::fmt(class, f),
         }
     }
 }
@@ -147,12 +151,14 @@ impl Callable for Caller {
         match self {
             Caller::Func(func) => Callable::call(func, interpreter, arguments),
             Caller::Lambda(lambda) => Callable::call(lambda, interpreter, arguments),
+            Caller::Class(class) => Callable::call(class, interpreter, arguments),
         }
     }
     fn arity(&self) -> usize {
         match self {
             Caller::Func(func) => Callable::arity(func),
             Caller::Lambda(lambda) => Callable::arity(lambda),
+            Caller::Class(class) => Callable::arity(class),
         }
     }
 }
@@ -375,5 +381,67 @@ impl Display for Lambda {
 impl Debug for Lambda {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Lambda(<callable>)",)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Class {
+    name: String,
+}
+
+impl Class {
+    pub fn new(name: String) -> Class {
+        Class { name }
+    }
+}
+
+impl Callable for Class {
+    fn call(
+        &self,
+        _interpreter: &Interpreter,
+        _arguments: &[Object],
+    ) -> Result<Object, JokerError> {
+        Ok(Object::Instance(Instance::Class(ClassInstance {
+            this: self.clone(),
+        })))
+    }
+    fn arity(&self) -> usize {
+        0
+    }
+}
+
+impl Display for Class {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Class({})", self.name)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Instance {
+    Class(ClassInstance),
+}
+
+impl Display for Instance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Instance::Class(class_instance) => Display::fmt(class_instance, f),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ClassInstance {
+    this: Class,
+}
+
+impl ClassInstance {
+    pub fn new(this: Class) -> ClassInstance {
+        ClassInstance { this }
+    }
+}
+
+impl Display for ClassInstance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ClassInstance({})", self.this.name)
     }
 }

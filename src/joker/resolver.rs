@@ -16,10 +16,10 @@ use std::{
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
-        ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
-        ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
-        WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
+        ExprStmt, ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical,
+        PrintStmt, ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt,
+        Variable, WhileStmt,
     },
     callable::StructError,
     env::EnvError,
@@ -49,7 +49,7 @@ pub enum ContextStatus {
 }
 
 #[derive(Debug)]
-pub struct Key(Token);
+pub struct Key(pub Token);
 impl Key {
     pub fn token(&self) -> &Token {
         &self.0
@@ -326,6 +326,11 @@ impl StmtVisitor<()> for Resolver {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         StmtResolver::resolve_function(self, stmt)?;
+        Ok(())
+    }
+    fn visit_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
+        self.declare(&stmt.name)?;
+        self.define(&stmt.name)?;
         Ok(())
     }
     fn visit_expr(&self, stmt: &ExprStmt) -> Result<(), JokerError> {

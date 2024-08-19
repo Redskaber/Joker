@@ -9,20 +9,21 @@ use crate::joker::object::Lambda;
 use super::{
     abort::{AbortError, ControlFlowAbort},
     ast::{
-        Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
-        ExprVisitor, ForStmt, FunStmt, Grouping, Lambda as LambdaExpr, Literal, Logical, PrintStmt,
-        ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
-        WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
+        ExprStmt, ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda as LambdaExpr, Literal,
+        Logical, PrintStmt, ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt,
+        Variable, WhileStmt,
     },
     callable::{ArgumentError, CallError, Callable, NonCallError},
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
     object::{
-        literal_null, Caller, Function, Literal as ObL, NativeFunction, Object, UserFunction,
+        literal_null, Caller, Class, Function, Literal as ObL, NativeFunction, Object, UserFunction,
     },
     token::{Token, TokenType},
 };
 
+#[derive(Debug)]
 pub struct Interpreter {
     pub global: Rc<RefCell<Env>>,
     local_resolve: RefCell<HashMap<Expr, usize>>,
@@ -171,7 +172,7 @@ impl StmtVisitor<()> for Interpreter {
         let block_env = Env::new_with_enclosing(Rc::clone(&self.run_env.borrow()));
         self.execute_block(&stmt.stmts, block_env)
     }
-    fn visit_if(&self, stmt: &super::ast::IfStmt) -> Result<(), JokerError> {
+    fn visit_if(&self, stmt: &IfStmt) -> Result<(), JokerError> {
         if self.is_true(&self.evaluate(&stmt.condition)?) {
             self.execute(&stmt.then_branch)?;
         } else if let Some(box_stmt) = &stmt.else_branch {
@@ -263,6 +264,18 @@ impl StmtVisitor<()> for Interpreter {
         Err(JokerError::Abort(AbortError::ControlFlow(
             ControlFlowAbort::Return(value),
         )))
+    }
+    fn visit_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
+        self.run_env
+            .borrow()
+            .borrow_mut()
+            .define(stmt.name.lexeme.clone(), literal_null());
+        let class: Object = Object::Caller(Caller::Class(Class::new(stmt.name.lexeme.clone())));
+        self.run_env
+            .borrow()
+            .borrow_mut()
+            .assign(&stmt.name, class)?;
+        Ok(())
     }
 }
 

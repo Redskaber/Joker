@@ -8,9 +8,9 @@ use std::{error::Error, fmt::Display};
 use super::{
     abort::{AbortError, ArgLimitAbort, ArgumentAbort},
     ast::{
-        Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprStmt, ForStmt, FunStmt,
-        Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt, Stmt, Trinomial, Unary,
-        VarStmt, Variable, WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprStmt,
+        ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt, Stmt,
+        Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::literal_bool,
@@ -81,7 +81,11 @@ impl Parser {
     // declaration -> stmt              （语句）
     //               | var_declaration  (声明)
     //               | fun_declaration
+    //               | class_declaration
     fn declaration(&mut self) -> Result<Stmt, JokerError> {
+        if self.is_match(&[TokenType::Class]) {
+            return self.class_declaration();
+        }
         if self.is_match(&[TokenType::Fun]) {
             return self.fun_declaration();
         }
@@ -90,8 +94,42 @@ impl Parser {
         }
         self.statement()
     }
-    // fun_declaration        → "fun" function ;
-    // funStmt       → IDENTIFIER "(" parameters? ")" blockStmt ;
+    // class_declaration      → "class" classStmt ;
+    // classStmt      → IDENTIFIER "{" funStmt* "}" ;
+    fn class_declaration(&mut self) -> Result<Stmt, JokerError> {
+        let name: Token =
+            self.consume(&TokenType::Identifier, String::from("expect class name."))?;
+        self.consume(
+            &TokenType::LeftBrace,
+            String::from("expect '{' before class body."),
+        )?;
+
+        let methods: Option<Vec<Stmt>> = if self.check(&TokenType::RightBrace) {
+            None
+        } else if self.is_match(&[TokenType::Fun]) {
+            let mut methods: Vec<Stmt> = vec![self.fun_declaration()?];
+            while !self.check(&TokenType::RightBrace)
+                && !self.is_at_end()
+                && self.is_match(&[TokenType::Fun])
+            {
+                methods.push(self.fun_declaration()?);
+            }
+            Some(methods)
+        } else {
+            return Err(JokerError::Parser(ParserError::report_error(
+                &self.peek(),
+                String::from("class methods need fun keyword start."),
+            )));
+        };
+
+        self.consume(
+            &TokenType::RightBrace,
+            String::from("expect '}' after class body."),
+        )?;
+        Ok(ClassStmt::upcast(name, methods))
+    }
+    // fun_declaration        → "fun" funStmt ;
+    // funStmt        → IDENTIFIER "(" parameters? ")" blockStmt ;
     // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
     fn fun_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(

@@ -4,9 +4,10 @@
 
 use super::{
     ast::{
-        Assign, Binary, BlockStmt, BreakStmt, Call, Expr, ExprAcceptor, ExprStmt, ExprVisitor,
-        ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt, Stmt,
-        StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, Expr, ExprAcceptor, ExprStmt,
+        ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
+        ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
+        WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -134,6 +135,20 @@ impl StmtVisitor<String> for AstPrinter {
             }
         ))
     }
+    fn visit_class(&self, stmt: &ClassStmt) -> Result<String, JokerError> {
+        Ok(format!(
+            "ClassStmt(name: {}, methods: {:?}",
+            stmt.name.lexeme,
+            match &stmt.methods {
+                Some(methods) => methods
+                    .iter()
+                    .map(|md| -> String { md.accept(self).unwrap() })
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+                None => String::from("None"),
+            }
+        ))
+    }
 }
 
 impl ExprVisitor<String> for AstPrinter {
@@ -141,6 +156,7 @@ impl ExprVisitor<String> for AstPrinter {
         match &expr.value {
             Object::Literal(literal) => Ok(literal.to_string()),
             Object::Caller(call) => Ok(call.to_string()),
+            Object::Instance(instance) => Ok(instance.to_string()),
         }
     }
     fn visit_unary(&self, expr: &Unary) -> Result<String, JokerError> {

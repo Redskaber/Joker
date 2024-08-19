@@ -15,6 +15,7 @@ pub enum Stmt {
     ContinueStmt(ContinueStmt),
     FunStmt(FunStmt),
     ReturnStmt(ReturnStmt),
+    ClassStmt(ClassStmt),
 }
 
 pub struct ExprStmt {
@@ -71,6 +72,11 @@ pub struct ReturnStmt {
     pub value: Expr,
 }
 
+pub struct ClassStmt {
+    pub name: Token,
+    pub methods: Vec<FunStmt>,
+}
+
 impl<T> StmtVisitor<T> for Stmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -85,6 +91,7 @@ impl<T> StmtVisitor<T> for Stmt {
             Stmt::ContinueStmt(continuestmt) => continuestmt.accept(visitor),
             Stmt::FunStmt(funstmt) => funstmt.accept(visitor),
             Stmt::ReturnStmt(returnstmt) => returnstmt.accept(visitor),
+            Stmt::ClassStmt(classstmt) => classstmt.accept(visitor),
         }
     }
 }
@@ -101,6 +108,7 @@ pub trait StmtVisitor<T> {
     fn visit_continuestmt(&self, expr: &ContinueStmt) -> Result<T, JokerError>;
     fn visit_funstmt(&self, expr: &FunStmt) -> Result<T, JokerError>;
     fn visit_returnstmt(&self, expr: &ReturnStmt) -> Result<T, JokerError>;
+    fn visit_classstmt(&self, expr: &ClassStmt) -> Result<T, JokerError>;
 }
 
 pub trait StmtAcceptor<T> {
@@ -170,6 +178,12 @@ impl<T> StmtAcceptor<T> for FunStmt {
 impl<T> StmtAcceptor<T> for ReturnStmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_returnstmt(self)
+    }
+}
+
+impl<T> StmtAcceptor<T> for ClassStmt {
+    fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_classstmt(self)
     }
 }
 

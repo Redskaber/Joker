@@ -1,0 +1,14 @@
+// This is a class test file for joker language.
+
+class Person {
+    fun serve_on() {
+        return "serve_on";
+    }
+    fun drink_beer() {
+        return "drink_beer";
+    }
+}
+
+print Person;
+
+

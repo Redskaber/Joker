@@ -3,3 +3,4 @@
 #[path = "./automata.rs"]
 pub mod automata;
 pub mod alias;
+pub mod resolve;

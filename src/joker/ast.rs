@@ -19,11 +19,15 @@
 //!
 //!     program        → declaration* EOF ;
 //!
-//!     ( 语义
 //!     declaration    → statement         (语句）            
 //!                     | var_declaration  (声明)
 //!                     | fun_declaration  (声明)
-//!     分析 )
+//!                     | class_declaration(声明)
+//!
+//!     var_decl       → "var" varStmt ;
+//!     fun_decl       → "fun" funStmt ;
+//!     class_decl     → "class" classStmt ;
+//!     
 //!
 //!     statement      → exprStmt
 //!                     | returnStmt
@@ -48,7 +52,10 @@
 //!     funStmt        → "fun" IDENTIFIER  "(" parameters? ")" statement ;
 //!     parameters     → IDENTIFIER  (, IDENTIFIER)*
 //!
-//!     breakStmt      → "break" ";"
+//!     classStmt      → "class" IDENTIFIER "{" fun_decl* "}" ;
+//!
+//!
+//!      breakStmt      → "break" ";"
 //!     continueStmt   → "continue" ";"
 //!     returnStmt     → "return" expression? ";" ;
 //!  
@@ -73,7 +80,7 @@
 //!     unary          → ( "!" | "-" ) unary
 //!                     | call ;
 //!
-//!     call           → grouping ( "(" arguments? ")" )* ;
+//!     call           → grouping ( "(" arguments? ")" | "." IDENTIFIER  )* ;
 //!     arguments      → expression ( "," expression )* ;
 //!
 //!     grouping       → "(" expression ")" ;
@@ -266,6 +273,16 @@ macro_rules! define_ast {
             }
         }
     };
+    (@impl_display ClassStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for ClassStmt {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "ClassStmt(name: {}, methods: {:?})",
+                    self.name,
+                    self.methods,
+                )
+            }
+        }
+    };
     (@impl_display $struct_name:ident, $($field:ident : $field_type:ty),* $(,)?) => {
         impl Display for $struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -309,8 +326,9 @@ define_ast! {
         ContinueStmt{ name: Token },
         FunStmt     { name: Token, params: Vec<Token>, body: Vec<Stmt> },
         ReturnStmt  { keyword: Token, value: Option<Expr> },
+        ClassStmt   { name: Token, methods: Option<Vec<Stmt>> },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
-                            visit_for, visit_break, visit_continue, visit_fun, visit_return },
+                            visit_for, visit_break, visit_continue, visit_fun, visit_return, visit_class },
     StmtAcceptor,
 }

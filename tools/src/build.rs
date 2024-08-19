@@ -50,6 +50,7 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("ContinueStmt: name Token"),
             String::from("FunStmt   : name Token, params Vec<Token>, body Vec<Stmt>"),
             String::from("ReturnStmt: keyword Token, value Expr"),
+            String::from("ClassStmt : name Token, methods Vec<FunStmt>"),
         ],
         &[
             String::from("use super::ast::Expr;"),
