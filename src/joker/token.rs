@@ -153,6 +153,9 @@ impl Token {
     pub fn eof(line: usize) -> Token {
         Token::new(TokenType::Eof, String::new(), literal_null(), line)
     }
+    pub fn this(line: usize) -> Token {
+        Token::new(TokenType::This, String::from("this"), literal_null(), line)
+    }
 }
 
 impl Display for Token {

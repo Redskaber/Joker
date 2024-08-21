@@ -12,5 +12,6 @@ mod parse;
 mod resolver;
 mod scanner;
 mod token;
+mod types;
 
 pub use main::joker_main;

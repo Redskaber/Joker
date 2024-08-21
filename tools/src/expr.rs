@@ -13,6 +13,9 @@ pub enum Expr {
     Logical(Logical),
     Trinomial(Trinomial),
     Call(Call),
+    Getter(Getter),
+    Setter(Setter),
+    This(This),
 }
 
 pub struct Literal {
@@ -61,6 +64,21 @@ pub struct Call {
     pub arguments: Vec<Box<Expr>>,
 }
 
+pub struct Getter {
+    pub expr: Box<Expr>,
+    pub name: Token,
+}
+
+pub struct Setter {
+    pub l_expr: Box<Expr>,
+    pub name: Token,
+    pub r_expr: Box<Expr>,
+}
+
+pub struct This {
+    pub keyword: Token,
+}
+
 impl<T> ExprVisitor<T> for Expr {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -73,6 +91,9 @@ impl<T> ExprVisitor<T> for Expr {
             Expr::Logical(logical) => logical.accept(visitor),
             Expr::Trinomial(trinomial) => trinomial.accept(visitor),
             Expr::Call(call) => call.accept(visitor),
+            Expr::Getter(getter) => getter.accept(visitor),
+            Expr::Setter(setter) => setter.accept(visitor),
+            Expr::This(this) => this.accept(visitor),
         }
     }
 }
@@ -87,6 +108,9 @@ pub trait ExprVisitor<T> {
     fn visit_logical(&self, expr: &Logical) -> Result<T, JokerError>;
     fn visit_trinomial(&self, expr: &Trinomial) -> Result<T, JokerError>;
     fn visit_call(&self, expr: &Call) -> Result<T, JokerError>;
+    fn visit_getter(&self, expr: &Getter) -> Result<T, JokerError>;
+    fn visit_setter(&self, expr: &Setter) -> Result<T, JokerError>;
+    fn visit_this(&self, expr: &This) -> Result<T, JokerError>;
 }
 
 pub trait ExprAcceptor<T> {
@@ -144,6 +168,24 @@ impl<T> ExprAcceptor<T> for Trinomial {
 impl<T> ExprAcceptor<T> for Call {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_call(self)
+    }
+}
+
+impl<T> ExprAcceptor<T> for Getter {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_getter(self)
+    }
+}
+
+impl<T> ExprAcceptor<T> for Setter {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_setter(self)
+    }
+}
+
+impl<T> ExprAcceptor<T> for This {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_this(self)
     }
 }
 

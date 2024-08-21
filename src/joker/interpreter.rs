@@ -10,17 +10,19 @@ use super::{
     abort::{AbortError, ControlFlowAbort},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
-        ExprStmt, ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda as LambdaExpr, Literal,
-        Logical, PrintStmt, ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt,
-        Variable, WhileStmt,
+        ExprStmt, ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda as LambdaExpr,
+        Literal, Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, This,
+        Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     callable::{ArgumentError, CallError, Callable, NonCallError},
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
     object::{
-        literal_null, Caller, Class, Function, Literal as ObL, NativeFunction, Object, UserFunction,
+        literal_null, Caller, Class, Function, Instance, Literal as ObL, MethodFunction,
+        NativeFunction, Object as OEnum, UserFunction,
     },
     token::{Token, TokenType},
+    types::Object,
 };
 
 #[derive(Debug)]
@@ -35,44 +37,46 @@ impl Interpreter {
         let global: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new()));
         global.borrow_mut().define(
             String::from("clock"),
-            Object::Caller(Caller::Func(Function::Native(NativeFunction::new(|| {
-                use std::time::SystemTime;
+            Object::new(OEnum::Caller(Caller::Func(Function::Native(
+                NativeFunction::new(|| {
+                    use std::time::SystemTime;
 
-                #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-                pub struct NativeClock;
+                    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+                    pub struct NativeClock;
 
-                impl Callable for NativeClock {
-                    fn call(
-                        &self,
-                        _interpreter: &Interpreter,
-                        _arguments: &[Object],
-                    ) -> Result<Object, JokerError> {
-                        match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
-                            Ok(duration) => {
-                                Ok(Object::Literal(ObL::F64(duration.as_millis() as f64)))
+                    impl Callable for NativeClock {
+                        fn call(
+                            &self,
+                            _interpreter: &Interpreter,
+                            _arguments: &[Object],
+                        ) -> Result<Option<Object>, JokerError> {
+                            match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+                                Ok(duration) => Ok(Some(Object::new(OEnum::Literal(ObL::F64(
+                                    duration.as_millis() as f64,
+                                ))))),
+                                Err(err) => Err(JokerError::System(SystemError::Time(
+                                    SystemTimeError::report_error(format!(
+                                        "Native clock return invalid duration: {:?}.",
+                                        err
+                                    )),
+                                ))),
                             }
-                            Err(err) => Err(JokerError::System(SystemError::Time(
-                                SystemTimeError::report_error(format!(
-                                    "Native clock return invalid duration: {:?}.",
-                                    err
-                                )),
-                            ))),
+                        }
+                        fn arity(&self) -> usize {
+                            0
                         }
                     }
-                    fn arity(&self) -> usize {
-                        0
+                    impl Display for NativeClock {
+                        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                            write!(f, "clock")
+                        }
                     }
-                }
-                impl Display for NativeClock {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(f, "clock")
-                    }
-                }
 
-                NativeFunction {
-                    fun: Rc::new(NativeClock {}),
-                }
-            })))),
+                    NativeFunction {
+                        fun: Rc::new(NativeClock {}),
+                    }
+                }),
+            )))),
         );
 
         Interpreter {
@@ -82,7 +86,7 @@ impl Interpreter {
         }
     }
     fn is_true(&self, object: &Object) -> bool {
-        matches!(object, Object::Literal(ObL::Bool(true)))
+        matches!(*object.get(), OEnum::Literal(ObL::Bool(true)))
     }
     fn execute(&self, stmt: &Stmt) -> Result<(), JokerError> {
         stmt.accept(self)
@@ -104,7 +108,7 @@ impl Interpreter {
     }
     pub fn resolve(&self, expr: Expr, depth: usize) {
         println!(
-            "[{:>10}][{:>20}]:\texpr:{:?},\tdepth:{}",
+            "[{:>10}][{:>20}]:\texpr: {:?},\tdepth: {}",
             "inter", "resolve", expr, depth
         );
         self.local_resolve.borrow_mut().insert(expr, depth);
@@ -158,9 +162,10 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
+        println!("[{:>10}][{:>20}]:\tstmt: {:?}", "inter", "visit_var", stmt);
         let value = match &stmt.value {
             Some(expr) => self.evaluate(expr)?,
-            None => literal_null(),
+            None => Object::new(literal_null()),
         };
         self.run_env
             .borrow()
@@ -246,9 +251,8 @@ impl StmtVisitor<()> for Interpreter {
         )))
     }
     fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        let fun = Object::Caller(Caller::Func(Function::User(UserFunction::new(
-            stmt,
-            Rc::clone(&self.run_env.borrow()),
+        let fun = Object::new(OEnum::Caller(Caller::Func(Function::User(
+            UserFunction::new(stmt, Rc::clone(&self.run_env.borrow())),
         ))));
         self.run_env
             .borrow()
@@ -257,9 +261,9 @@ impl StmtVisitor<()> for Interpreter {
         Ok(())
     }
     fn visit_return(&self, stmt: &ReturnStmt) -> Result<(), JokerError> {
-        let value: Object = match &stmt.value {
-            Some(expr) => self.evaluate(expr)?,
-            None => literal_null(),
+        let value: Option<Object> = match &stmt.value {
+            Some(expr) => Some(self.evaluate(expr)?),
+            None => None,
         };
         Err(JokerError::Abort(AbortError::ControlFlow(
             ControlFlowAbort::Return(value),
@@ -269,8 +273,28 @@ impl StmtVisitor<()> for Interpreter {
         self.run_env
             .borrow()
             .borrow_mut()
-            .define(stmt.name.lexeme.clone(), literal_null());
-        let class: Object = Object::Caller(Caller::Class(Class::new(stmt.name.lexeme.clone())));
+            .define(stmt.name.lexeme.clone(), Object::new(literal_null()));
+
+        let methods: Option<HashMap<String, MethodFunction>> = match &stmt.methods {
+            Some(stmts) => {
+                let mut methods: HashMap<String, MethodFunction> = HashMap::new();
+                for stmt in stmts {
+                    if let Stmt::FunStmt(fun_stmt) = stmt {
+                        methods.insert(
+                            fun_stmt.name.lexeme.clone(),
+                            MethodFunction::new(fun_stmt, Rc::clone(&self.run_env.borrow())),
+                        );
+                    }
+                }
+                Some(methods)
+            }
+            None => None,
+        };
+
+        let class: Object = Object::new(OEnum::Caller(Caller::Class(Class::new(
+            stmt.name.lexeme.clone(),
+            methods,
+        ))));
         self.run_env
             .borrow()
             .borrow_mut()
@@ -281,15 +305,15 @@ impl StmtVisitor<()> for Interpreter {
 
 impl ExprVisitor<Object> for Interpreter {
     fn visit_literal(&self, expr: &Literal) -> Result<Object, JokerError> {
-        Ok(expr.value.clone())
+        Ok(Object::new(expr.value.clone()))
     }
     fn visit_unary(&self, expr: &Unary) -> Result<Object, JokerError> {
         let r_expr: Object = self.evaluate(&expr.r_expr)?;
         match expr.l_opera.ttype {
-            TokenType::Minus => match r_expr {
-                Object::Literal(literal) => match literal {
-                    ObL::I32(i32_) => Ok(Object::Literal(ObL::I32(-i32_))),
-                    ObL::F64(f64_) => Ok(Object::Literal(ObL::F64(-f64_))),
+            TokenType::Minus => match &*r_expr.get() {
+                OEnum::Literal(literal) => match literal {
+                    ObL::I32(i32_) => Ok(Object::new(OEnum::Literal(ObL::I32(-i32_)))),
+                    ObL::F64(f64_) => Ok(Object::new(OEnum::Literal(ObL::F64(-f64_)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.l_opera,
                         format!(
@@ -303,9 +327,9 @@ impl ExprVisitor<Object> for Interpreter {
                     String::from("not impl Minus!"),
                 ))),
             },
-            TokenType::Bang => match r_expr {
-                Object::Literal(ref literal) => match literal {
-                    ObL::Bool(bool_) => Ok(Object::Literal(ObL::Bool(!bool_))),
+            TokenType::Bang => match &*r_expr.get() {
+                OEnum::Literal(ref literal) => match literal {
+                    ObL::Bool(bool_) => Ok(Object::new(OEnum::Literal(ObL::Bool(!bool_)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.l_opera,
                         format!(
@@ -329,14 +353,14 @@ impl ExprVisitor<Object> for Interpreter {
         let l_expr: Object = self.evaluate(&expr.l_expr)?;
         let r_expr: Object = self.evaluate(&expr.r_expr)?;
         match expr.m_opera.ttype {
-            TokenType::BangEqual => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 != r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 != r_f64))),
-                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::Literal(ObL::Bool(l_bool != r_bool))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str != r_str))),
-                    (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(false))),
-                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(true))),
+            TokenType::BangEqual => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 != r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 != r_f64)))),
+                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_bool != r_bool)))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str != r_str)))),
+                    (ObL::Null, ObL::Null) => Ok(Object::new(OEnum::Literal(ObL::Bool(false)))),
+                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::new(OEnum::Literal(ObL::Bool(true)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[BangEqual]] The literal cannot take bang equal values. !({l_literal} != {r_literal})")
@@ -347,14 +371,14 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl BangEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::EqualEqual => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 == r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 == r_f64))),
-                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::Literal(ObL::Bool(l_bool == r_bool))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str == r_str))),
-                    (ObL::Null, ObL::Null) => Ok(Object::Literal(ObL::Bool(true))),
-                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::Literal(ObL::Bool(false))),
+            TokenType::EqualEqual => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 == r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 == r_f64)))),
+                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_bool == r_bool)))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str == r_str)))),
+                    (ObL::Null, ObL::Null) => Ok(Object::new(OEnum::Literal(ObL::Bool(true)))),
+                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::new(OEnum::Literal(ObL::Bool(false)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[EqualEqual]] The literal cannot take equal values. !({l_literal} == {r_literal})")
@@ -365,11 +389,11 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl EqualEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::Greater => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 > r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 > r_f64))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str > r_str))),
+            TokenType::Greater => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 > r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 > r_f64)))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str > r_str)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Greater]] The literal cannot take greater values. !({l_literal} > {r_literal})")
@@ -380,11 +404,11 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl Greater! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::GreaterEqual => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 >= r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 >= r_f64))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str >= r_str))),
+            TokenType::GreaterEqual => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 >= r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 >= r_f64)))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str >= r_str)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[GreaterEqual]] The literal cannot take greater equal values. !({l_literal} >= {r_literal})")
@@ -395,11 +419,11 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl GreaterEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::Less => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 < r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 < r_f64))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str < r_str))),
+            TokenType::Less => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 < r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 < r_f64)))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str < r_str)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Less]] The literal cannot take less values. !({l_literal} < {r_literal})")
@@ -410,11 +434,11 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl Less! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::LessEqual => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::Bool(l_i32 <= r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::Bool(l_f64 <= r_f64))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::Literal(ObL::Bool(l_str <= r_str))),
+            TokenType::LessEqual => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 <= r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 <= r_f64)))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str <= r_str)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[LessEqual]] The literal cannot take less equal values. !({l_literal} <= {r_literal})")
@@ -425,12 +449,12 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl LessEqual! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             },
-            TokenType::Plus => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 + r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 + r_f64))),
+            TokenType::Plus => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 + r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 + r_f64)))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => {
-                        Ok(Object::Literal(ObL::Str(format!("{l_str}{r_str}"))))
+                        Ok(Object::new(OEnum::Literal(ObL::Str(format!("{l_str}{r_str}")))))
                     },
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
@@ -442,10 +466,10 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl Plus! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
-            TokenType::Minus => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 - r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 - r_f64))),
+            TokenType::Minus => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 - r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 - r_f64)))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Minus]] The literal cannot take minus values. !({l_literal} - {r_literal})")
@@ -456,11 +480,11 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl Minus! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
-            TokenType::Slash => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
+            TokenType::Slash => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => {
                         if r_i32 != &0 {
-                            Ok(Object::Literal(ObL::I32(l_i32 / r_i32)))
+                            Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 / r_i32))))
                         } else {
                             Err(JokerError::Interpreter(InterpreterError::report_error(
                                 &expr.m_opera,
@@ -470,7 +494,7 @@ impl ExprVisitor<Object> for Interpreter {
                     },
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => {
                         if r_f64 != &0f64 {
-                            Ok(Object::Literal(ObL::F64(l_f64 / r_f64)))
+                            Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 / r_f64))))
                         } else {
                             Err(JokerError::Interpreter(InterpreterError::report_error(
                                 &expr.m_opera,
@@ -488,10 +512,10 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl Slash! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
-            TokenType::Star => match (&l_expr, &r_expr) {
-                (Object::Literal(l_literal), Object::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::Literal(ObL::I32(l_i32 * r_i32))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::Literal(ObL::F64(l_f64 * r_f64))),
+            TokenType::Star => match (&*l_expr.get(), &*r_expr.get()) {
+                (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 * r_i32)))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 * r_f64)))),
                     (ObL::Str(str_), ObL::I32(i32_))
                     | (ObL::I32(i32_), ObL::Str(str_)) => {
                         let mut count = *i32_;
@@ -500,7 +524,7 @@ impl ExprVisitor<Object> for Interpreter {
                             r_str.push_str(str_);
                             count -= 1;
                         }
-                        Ok(Object::Literal(ObL::Str(r_str)))
+                        Ok(Object::new(OEnum::Literal(ObL::Str(r_str))))
                     },
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
@@ -538,25 +562,25 @@ impl ExprVisitor<Object> for Interpreter {
         match expr.m_opera.ttype {
             TokenType::Or => {
                 if self.is_true(&l_object) {
-                    Ok(Object::Literal(ObL::Bool(true)))
+                    Ok(Object::new(OEnum::Literal(ObL::Bool(true))))
                 } else {
                     let r_object: Object = self.evaluate(&expr.r_expr)?;
                     if self.is_true(&r_object) {
-                        Ok(Object::Literal(ObL::Bool(true)))
+                        Ok(Object::new(OEnum::Literal(ObL::Bool(true))))
                     } else {
-                        Ok(Object::Literal(ObL::Bool(false)))
+                        Ok(Object::new(OEnum::Literal(ObL::Bool(false))))
                     }
                 }
             }
             TokenType::And => {
                 if !self.is_true(&l_object) {
-                    Ok(Object::Literal(ObL::Bool(false)))
+                    Ok(Object::new(OEnum::Literal(ObL::Bool(false))))
                 } else {
                     let r_object: Object = self.evaluate(&expr.r_expr)?;
                     if self.is_true(&r_object) {
-                        Ok(Object::Literal(ObL::Bool(true)))
+                        Ok(Object::new(OEnum::Literal(ObL::Bool(true))))
                     } else {
-                        Ok(Object::Literal(ObL::Bool(false)))
+                        Ok(Object::new(OEnum::Literal(ObL::Bool(false))))
                     }
                 }
             }
@@ -584,7 +608,7 @@ impl ExprVisitor<Object> for Interpreter {
             arguments.push(self.evaluate(arg)?);
         }
 
-        if let Object::Caller(caller) = callee {
+        let result = if let OEnum::Caller(caller) = &*callee.get() {
             if arguments.len() != caller.arity() {
                 return Err(JokerError::Call(CallError::Argument(
                     ArgumentError::report_error(
@@ -597,7 +621,10 @@ impl ExprVisitor<Object> for Interpreter {
                     ),
                 )));
             }
-            Ok(caller.call(self, &arguments)?)
+            match caller.call(self, &arguments)? {
+                Some(value) => Ok(value),
+                None => Ok(Object::new(literal_null())),
+            }
         } else {
             Err(JokerError::Call(CallError::NonCallable(
                 NonCallError::report_error(
@@ -605,14 +632,66 @@ impl ExprVisitor<Object> for Interpreter {
                     String::from("Can only call functions and classes."),
                 ),
             )))
-        }
+        };
+
+        result
     }
     fn visit_lambda(&self, expr: &LambdaExpr) -> Result<Object, JokerError> {
-        let lambda: Object = Object::Caller(Caller::Lambda(Lambda::new(
+        let lambda: Object = Object::new(OEnum::Caller(Caller::Lambda(Lambda::new(
             expr,
             Rc::clone(&self.run_env.borrow()),
-        )));
+        ))));
         Ok(lambda)
+    }
+    fn visit_getter(&self, expr: &Getter) -> Result<Object, JokerError> {
+        let object: Object = self.evaluate(&expr.expr)?;
+        let result = if let OEnum::Instance(Instance::Class(class_instance)) = &*object.get() {
+            println!(
+                "[{:>10}][{:>20}]:\tclass_instance: {:?},\tname: {}",
+                "inter", "visit_getter", class_instance, expr.name
+            );
+            match class_instance.getter(&expr.name.lexeme) {
+                Some(object) => Ok(object),
+                None => Err(JokerError::Interpreter(InterpreterError::report_error(
+                    &expr.name,
+                    format!("getter undefined attribute '{}'.", expr.name.lexeme),
+                ))),
+            }
+        } else {
+            Err(JokerError::Interpreter(InterpreterError::report_error(
+                &expr.name,
+                String::from("getter only instance have attribute."),
+            )))
+        };
+
+        result
+    }
+    fn visit_setter(&self, expr: &Setter) -> Result<Object, JokerError> {
+        println!(
+            "[{:>10}][{:>20}]:\tl_expr: {:?},\tname: {},\tr_expr: {:?}",
+            "inter", "visit_setter", expr.l_expr, expr.name, expr.r_expr
+        );
+        let object: Object = self.evaluate(&expr.l_expr)?;
+        let result =
+            if let OEnum::Instance(Instance::Class(class_instance)) = &mut *object.get_mut() {
+                let value: Object = self.evaluate(&expr.r_expr)?;
+                class_instance.setter(&expr.name.lexeme, value.clone())?;
+                println!(
+                    "[{:>10}][{:>20}]:\tclass_instance: {:?}",
+                    "inter", "visit_setter", class_instance
+                );
+                Ok(value)
+            } else {
+                Err(JokerError::Interpreter(InterpreterError::report_error(
+                    &expr.name,
+                    String::from("setter only instance have attribute."),
+                )))
+            };
+
+        result
+    }
+    fn visit_this(&self, expr: &This) -> Result<Object, JokerError> {
+        self.look_up_variable(&expr.keyword, &Expr::This(expr.clone()))
     }
 }
 
@@ -672,27 +751,27 @@ mod tests {
 
     fn maker_literal_i32_expr(v: i32) -> Box<Expr> {
         Box::new(Expr::Literal(Literal {
-            value: Object::Literal(ObL::I32(v)),
+            value: OEnum::Literal(ObL::I32(v)),
         }))
     }
     fn maker_literal_f64_expr(v: f64) -> Box<Expr> {
         Box::new(Expr::Literal(Literal {
-            value: Object::Literal(ObL::F64(v)),
+            value: OEnum::Literal(ObL::F64(v)),
         }))
     }
     fn maker_literal_str_expr(v: String) -> Box<Expr> {
         Box::new(Expr::Literal(Literal {
-            value: Object::Literal(ObL::Str(v)),
+            value: OEnum::Literal(ObL::Str(v)),
         }))
     }
     fn maker_literal_bool_expr(v: bool) -> Box<Expr> {
         Box::new(Expr::Literal(Literal {
-            value: Object::Literal(ObL::Bool(v)),
+            value: OEnum::Literal(ObL::Bool(v)),
         }))
     }
     fn maker_literal_null_expr() -> Box<Expr> {
         Box::new(Expr::Literal(Literal {
-            value: Object::Literal(ObL::Null),
+            value: OEnum::Literal(ObL::Null),
         }))
     }
     fn maker_token(ttype: TokenType) -> Token {
@@ -736,7 +815,7 @@ mod tests {
 
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::Literal(ObL::I32(-12300))),
+            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::I32(-12300)))),
             Err(err) => err.report(),
         };
     }
@@ -746,7 +825,7 @@ mod tests {
         let expr = maker_literal_i32_expr(32);
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::Literal(ObL::I32(32))),
+            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::I32(32)))),
             Err(err) => err.report(),
         };
     }
@@ -756,7 +835,7 @@ mod tests {
         let expr = maker_literal_f64_expr(320.0);
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::Literal(ObL::F64(320.0))),
+            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::F64(320.0)))),
             Err(err) => err.report(),
         };
     }
@@ -766,7 +845,10 @@ mod tests {
         let expr = maker_literal_str_expr(String::from("string"));
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::Literal(ObL::Str(String::from("string")))),
+            Ok(value) => assert_eq!(
+                value,
+                Object::new(OEnum::Literal(ObL::Str(String::from("string"))))
+            ),
             Err(err) => err.report(),
         };
     }
@@ -776,7 +858,7 @@ mod tests {
         let expr = maker_literal_bool_expr(true);
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::Literal(ObL::Bool(true))),
+            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::Bool(true)))),
             Err(err) => err.report(),
         };
     }
@@ -786,7 +868,7 @@ mod tests {
         let expr = maker_literal_null_expr();
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::Literal(ObL::Null)),
+            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::Null))),
             Err(err) => err.report(),
         };
     }

@@ -9,4 +9,5 @@ fn main() {
     // idea::automata::automata_main();
     // idea::alias::d();
     // idea::resolve::resolve_main();
+    // idea::types::types_main();
 }

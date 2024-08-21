@@ -1,0 +1,11 @@
+// This file is used to test the class_setter.jk file.
+
+class Person {
+    fun sayHello() {
+        print "Hello, I am a person.";
+    }
+}
+
+var p = Person();
+p.sayHello();       // Output: "Hello, I am a person."
+p.name = "John";   // setter class instance attribute not exist.

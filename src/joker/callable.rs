@@ -16,12 +16,16 @@ use std::{
 use super::{
     error::{JokerError, ReportError},
     interpreter::Interpreter,
-    object::Object,
     token::{Token, TokenType},
+    types::Object,
 };
 
 pub trait Callable: Debug + Display {
-    fn call(&self, interpreter: &Interpreter, arguments: &[Object]) -> Result<Object, JokerError>;
+    fn call(
+        &self,
+        interpreter: &Interpreter,
+        arguments: &[Object],
+    ) -> Result<Option<Object>, JokerError>;
     fn arity(&self) -> usize;
 }
 

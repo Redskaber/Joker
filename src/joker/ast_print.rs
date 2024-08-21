@@ -5,9 +5,9 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, Expr, ExprAcceptor, ExprStmt,
-        ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
-        ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
-        WhileStmt,
+        ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical,
+        PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, This, Trinomial, Unary,
+        VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -206,13 +206,31 @@ impl ExprVisitor<String> for AstPrinter {
             args,
         ))
     }
-    fn visit_lambda(&self, stmt: &Lambda) -> Result<String, JokerError> {
+    fn visit_lambda(&self, expr: &Lambda) -> Result<String, JokerError> {
         Ok(format!(
-            "LambdaStmt(pipe: {}, params: {:?}, body: {:?})",
-            stmt.pipe.lexeme,
-            stmt.params,
-            stmt.body.accept(self)?,
+            "Lambda(pipe: {}, params: {:?}, body: {:?})",
+            expr.pipe.lexeme,
+            expr.params,
+            expr.body.accept(self)?,
         ))
+    }
+    fn visit_getter(&self, expr: &Getter) -> Result<String, JokerError> {
+        Ok(format!(
+            "Getter(expr: {}, name: {})",
+            expr.expr.accept(self)?,
+            expr.name.lexeme,
+        ))
+    }
+    fn visit_setter(&self, expr: &Setter) -> Result<String, JokerError> {
+        Ok(format!(
+            "Setter(l_expr: {}, name: {}, r_expr: {})",
+            expr.l_expr.accept(self)?,
+            expr.name.lexeme,
+            expr.r_expr.accept(self)?,
+        ))
+    }
+    fn visit_this(&self, expr: &This) -> Result<String, JokerError> {
+        Ok(format!("This(keyword: {})", expr.keyword.lexeme))
     }
 }
 

@@ -61,10 +61,11 @@
 //!  
 //!     expression     → assignment ;
 //!
-//!     assignment     → IDENTIFIER "=" assignment
-//!                     | Trinomial ;
+//!     assignment     → ( call "." )? IDENTIFIER "=" assignment
+//!                     | Lambda ;
 //!
-//!     lambda         → "|" parameters? "|" statement ( "(" parameters? ")" ";" )? ;
+//!     Lambda         → "|" parameters? "|" statement ( "(" parameters? ")" ";" )?
+//!                     | Trinomial ;
 //!
 //!
 //!     Trinomial      → expression "?" Trinomial ":" Trinomial ";" ;    
@@ -89,11 +90,15 @@
 //!     primary        → I32| F64 | STRING | "true" | "false" | "null"
 //!                     | IDENTIFIER ;
 //!
+//!     getter      -> expr.ident
+//!     setter      -> expr.ident = expr
+//!
+//!
 //!
 //!
 use std::fmt::Display;
 
-use super::{error::JokerError, object::Object, token::Token};
+use super::{error::JokerError, object::Object as OEnum, token::Token};
 
 macro_rules! define_ast {
     (
@@ -297,7 +302,7 @@ macro_rules! define_ast {
 
 define_ast! {
     Expr {
-        Literal     { value: Object },
+        Literal     { value: OEnum },
         Unary       { l_opera: Token, r_expr: Box<Expr> },
         Binary      { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Grouping    { expr: Box<Expr> },
@@ -307,9 +312,12 @@ define_ast! {
         Trinomial   { condition: Box<Expr>, l_expr: Box<Expr>, r_expr: Box<Expr> },
         Call        { callee: Box<Expr>, paren: Token, arguments: Vec<Expr> },
         Lambda      { pipe: Token, params: Vec<Token>, body: Box<Stmt> },
+        Getter      { expr: Box<Expr>, name: Token },
+        Setter      { l_expr: Box<Expr>, name: Token, r_expr: Box<Expr> },
+        This        { keyword: Token },
     },
     ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable,
-                            visit_assign, visit_logical, visit_trinomial, visit_call, visit_lambda },
+                            visit_assign, visit_logical, visit_trinomial, visit_call, visit_lambda, visit_getter, visit_setter, visit_this },
     ExprAcceptor,
 }
 

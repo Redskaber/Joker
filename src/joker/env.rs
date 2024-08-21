@@ -17,8 +17,8 @@ use std::{
 
 use super::{
     error::{JokerError, ReportError},
-    object::Object,
     token::{Token, TokenType},
+    types::Object,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -211,7 +211,10 @@ mod tests {
     #[test]
     fn test_define_a_variable() {
         let mut env = Env::new();
-        env.define(String::from("name"), literal_str(String::from("reds")));
+        env.define(
+            String::from("name"),
+            Object::new(literal_str(String::from("reds"))),
+        );
         assert!(env.symbol.contains_key("name"));
         assert_eq!(
             env.get(&Token::new(
@@ -221,7 +224,7 @@ mod tests {
                 0
             ))
             .unwrap(),
-            literal_str(String::from("reds"))
+            Object::new(literal_str(String::from("reds")))
         );
     }
 
@@ -241,13 +244,13 @@ mod tests {
         sub.enclosing
             .unwrap()
             .borrow_mut()
-            .define(String::from("sub_key"), literal_i32(100));
+            .define(String::from("sub_key"), Object::new(literal_i32(100)));
         let parent_get: Object = parent
             .borrow()
             .get(&maker_token(String::from("sub_key")))
             .unwrap();
 
-        assert_eq!(parent_get, literal_i32(100));
+        assert_eq!(parent_get, Object::new(literal_i32(100)));
     }
 
     #[test]
@@ -257,10 +260,10 @@ mod tests {
 
         parent
             .borrow_mut()
-            .define(String::from("sub_key"), literal_i32(100));
+            .define(String::from("sub_key"), Object::new(literal_i32(100)));
         let sub_get: Object = sub.get(&maker_token(String::from("sub_key"))).unwrap();
 
-        assert_eq!(sub_get, literal_i32(100));
+        assert_eq!(sub_get, Object::new(literal_i32(100)));
     }
 
     #[test]
@@ -271,6 +274,6 @@ mod tests {
 
         let sub_get: Object = sub.get(&maker_token(String::from("sub_key"))).unwrap();
 
-        assert_eq!(sub_get, literal_i32(100));
+        assert_eq!(sub_get, Object::new(literal_i32(100)));
     }
 }

@@ -17,9 +17,9 @@ use std::{
 use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
-        ExprStmt, ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical,
-        PrintStmt, ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt,
-        Variable, WhileStmt,
+        ExprStmt, ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal,
+        Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, This, Trinomial,
+        Unary, VarStmt, Variable, WhileStmt,
     },
     callable::StructError,
     env::EnvError,
@@ -33,6 +33,7 @@ pub trait StmtResolver<T> {
     fn resolve_block(&self, stmts: &[Stmt]) -> Result<T, JokerError>;
     fn resolve_function(&self, stmt: &FunStmt) -> Result<T, JokerError>;
     fn resolve_lambda(&self, pipe: &Token, stmt: &Stmt) -> Result<T, JokerError>;
+    fn resolve_class(&self, stmt: &ClassStmt) -> Result<T, JokerError>;
 }
 
 pub trait ExprResolver<T> {
@@ -44,8 +45,16 @@ pub trait ExprResolver<T> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContextStatus {
+    Class(ClassStatus),
     Fun,
     Loop,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ClassStatus {
+    Default,
+    Init,
+    Method,
 }
 
 #[derive(Debug)]
@@ -177,9 +186,25 @@ impl StmtResolver<()> for Resolver {
         Ok(())
     }
     fn resolve_function(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        self.context_status_stack
-            .borrow_mut()
-            .push(ContextStatus::Fun);
+        if matches!(
+            self.context_status_stack.borrow().last(),
+            Some(ContextStatus::Class(ClassStatus::Default))
+        ) {
+            if stmt.name.lexeme == "init" {
+                self.context_status_stack
+                    .borrow_mut()
+                    .push(ContextStatus::Class(ClassStatus::Init));
+            } else {
+                self.context_status_stack
+                    .borrow_mut()
+                    .push(ContextStatus::Class(ClassStatus::Method));
+            }
+        } else {
+            self.context_status_stack
+                .borrow_mut()
+                .push(ContextStatus::Fun);
+        }
+
         println!(
             "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "resolve_function", self.context_status_stack
@@ -215,6 +240,29 @@ impl StmtResolver<()> for Resolver {
                 ),
             ))),
         }
+    }
+    fn resolve_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
+        self.context_status_stack
+            .borrow_mut()
+            .push(ContextStatus::Class(ClassStatus::Default));
+        self.begin_scope();
+        self.scopes_stack
+            .borrow()
+            .last()
+            .unwrap()
+            .borrow_mut()
+            .insert(Key(Token::this(0)), VarStatus::Define);
+
+        if let Some(stmts) = &stmt.methods {
+            for stmt in stmts {
+                if let Stmt::FunStmt(fun) = stmt {
+                    StmtResolver::resolve_function(self, fun)?;
+                }
+            }
+        }
+        self.end_scope();
+        self.context_status_stack.borrow_mut().pop();
+        Ok(())
     }
 }
 impl ExprResolver<()> for Resolver {
@@ -331,6 +379,7 @@ impl StmtVisitor<()> for Resolver {
     fn visit_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
+        StmtResolver::resolve_class(self, stmt)?;
         Ok(())
     }
     fn visit_expr(&self, stmt: &ExprStmt) -> Result<(), JokerError> {
@@ -411,7 +460,12 @@ impl StmtVisitor<()> for Resolver {
             "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "visit_return", self.context_status_stack
         );
-        if self
+        if matches!(
+            self.context_status_stack.borrow().last(),
+            Some(&ContextStatus::Fun)
+                | Some(&ContextStatus::Class(ClassStatus::Init))
+                | Some(&ContextStatus::Class(ClassStatus::Method))
+        ) || self
             .context_status_stack
             .borrow()
             .contains(&ContextStatus::Fun)
@@ -419,14 +473,15 @@ impl StmtVisitor<()> for Resolver {
             if let Some(expr) = &stmt.value {
                 ExprResolver::resolve(self, expr)?;
             }
-            return Ok(());
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::KeyWord(
+                KeyWordError::Pos(PosError::report_error(
+                    &stmt.keyword,
+                    String::from("Cannot use 'return' outside of a function statement."),
+                )),
+            )))
         }
-        Err(JokerError::Resolver(ResolverError::KeyWord(
-            KeyWordError::Pos(PosError::report_error(
-                &stmt.keyword,
-                String::from("Cannot use 'return' outside of a function statement."),
-            )),
-        )))
     }
     fn visit_continue(&self, stmt: &ContinueStmt) -> Result<(), JokerError> {
         println!(
@@ -452,6 +507,56 @@ impl ExprVisitor<()> for Resolver {
     fn visit_call(&self, expr: &Call) -> Result<(), JokerError> {
         ExprResolver::resolve_call(self, expr)?;
         Ok(())
+    }
+    fn visit_getter(&self, expr: &Getter) -> Result<(), JokerError> {
+        println!(
+            "[{:>10}][{:>20}]:\tstack: {:?}\n",
+            "resolve", "visit_getter", self.context_status_stack
+        );
+        ExprResolver::resolve(self, &expr.expr)?;
+        Ok(())
+    }
+    fn visit_setter(&self, expr: &Setter) -> Result<(), JokerError> {
+        println!(
+            "[{:>10}][{:>20}]:\tstack: {:?}\n",
+            "resolve", "visit_setter", self.context_status_stack
+        );
+        if matches!(
+            self.context_status_stack.borrow().last(),
+            Some(&ContextStatus::Class(ClassStatus::Init))
+        ) {
+            ExprResolver::resolve(self, &expr.r_expr)?;
+            ExprResolver::resolve(self, &expr.l_expr)?;
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Env(
+                EnvError::report_error(
+                    &expr.name,
+                    String::from("setter class instance attribute not exist."),
+                ),
+            )))
+        }
+    }
+    fn visit_this(&self, expr: &This) -> Result<(), JokerError> {
+        println!(
+            "[{:>10}][{:>20}]:\tstack: {:?}\n",
+            "resolve", "visit_this", self.context_status_stack
+        );
+        if self
+            .context_status_stack
+            .borrow()
+            .contains(&ContextStatus::Class(ClassStatus::Default))
+        {
+            ExprResolver::resolve_local(self, Expr::This(expr.clone()), &expr.keyword)?;
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Env(
+                EnvError::report_error(
+                    &expr.keyword,
+                    String::from("can't use 'this' outside of a class."),
+                ),
+            )))
+        }
     }
     fn visit_unary(&self, expr: &Unary) -> Result<(), JokerError> {
         ExprResolver::resolve(self, &expr.r_expr)?;

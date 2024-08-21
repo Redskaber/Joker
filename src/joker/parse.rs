@@ -9,8 +9,8 @@ use super::{
     abort::{AbortError, ArgLimitAbort, ArgumentAbort},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprStmt,
-        ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt, Stmt,
-        Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
+        ReturnStmt, Setter, Stmt, This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::literal_bool,
@@ -98,9 +98,9 @@ impl Parser {
     // classStmt      → IDENTIFIER "{" funStmt* "}" ;
     fn class_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token =
-            self.consume(&TokenType::Identifier, String::from("expect class name."))?;
+            self.consume(TokenType::Identifier, String::from("expect class name."))?;
         self.consume(
-            &TokenType::LeftBrace,
+            TokenType::LeftBrace,
             String::from("expect '{' before class body."),
         )?;
 
@@ -123,7 +123,7 @@ impl Parser {
         };
 
         self.consume(
-            &TokenType::RightBrace,
+            TokenType::RightBrace,
             String::from("expect '}' after class body."),
         )?;
         Ok(ClassStmt::upcast(name, methods))
@@ -132,12 +132,10 @@ impl Parser {
     // funStmt        → IDENTIFIER "(" parameters? ")" blockStmt ;
     // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
     fn fun_declaration(&mut self) -> Result<Stmt, JokerError> {
-        let name: Token = self.consume(
-            &TokenType::Identifier,
-            String::from("Expect function name."),
-        )?;
+        let name: Token =
+            self.consume(TokenType::Identifier, String::from("Expect function name."))?;
         self.consume(
-            &TokenType::LeftParen,
+            TokenType::LeftParen,
             String::from("Expect '(' after function name."),
         )?;
 
@@ -154,7 +152,7 @@ impl Parser {
                     )));
                 }
                 params.push(self.consume(
-                    &TokenType::Identifier,
+                    TokenType::Identifier,
                     String::from("Expect parameter name."),
                 )?);
 
@@ -164,11 +162,11 @@ impl Parser {
             }
         }
         self.consume(
-            &TokenType::RightParen,
+            TokenType::RightParen,
             String::from("Expect ')' after parameters."),
         )?;
         self.consume(
-            &TokenType::LeftBrace,
+            TokenType::LeftBrace,
             String::from("Expect '{' before body."),
         )?;
 
@@ -184,17 +182,15 @@ impl Parser {
 
     // varStmt → "var" IDENTIFIER ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
-        let name: Token = self.consume(
-            &TokenType::Identifier,
-            String::from("Expect variable name."),
-        )?;
+        let name: Token =
+            self.consume(TokenType::Identifier, String::from("Expect variable name."))?;
         let value: Option<Expr> = if self.is_match(&[TokenType::Equal]) {
             Some(self.expression()?)
         } else {
             None
         };
         self.consume(
-            &TokenType::Semicolon,
+            TokenType::Semicolon,
             String::from("Expect ';' after variable declaration."),
         )?;
         Ok(VarStmt::upcast(name, value))
@@ -244,7 +240,7 @@ impl Parser {
             None
         };
         self.consume(
-            &TokenType::Semicolon,
+            TokenType::Semicolon,
             String::from("Expect ';' after return statement value."),
         )?;
         Ok(ReturnStmt::upcast(keyword, value))
@@ -253,7 +249,7 @@ impl Parser {
     fn continue_statement(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.previous();
         self.consume(
-            &TokenType::Semicolon,
+            TokenType::Semicolon,
             String::from("Expect ';' after 'continue' statement."),
         )?;
         Ok(ContinueStmt::upcast(name))
@@ -262,7 +258,7 @@ impl Parser {
     fn break_statement(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.previous();
         self.consume(
-            &TokenType::Semicolon,
+            TokenType::Semicolon,
             String::from("Expect ';' after 'break' statement."),
         )?;
         Ok(BreakStmt::upcast(name))
@@ -279,7 +275,7 @@ impl Parser {
     // }
     fn for_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
-            &TokenType::LeftParen,
+            TokenType::LeftParen,
             String::from("Expect '(' after 'for'."),
         )?;
 
@@ -297,7 +293,7 @@ impl Parser {
             Literal::upcast(literal_bool(true))
         };
         self.consume(
-            &TokenType::Semicolon,
+            TokenType::Semicolon,
             String::from("Expect ';' after for loop condition."),
         )?;
 
@@ -307,7 +303,7 @@ impl Parser {
             None
         };
         self.consume(
-            &TokenType::RightParen,
+            TokenType::RightParen,
             String::from("Expect ')' after for loop clauses."),
         )?;
 
@@ -323,12 +319,12 @@ impl Parser {
     // whileStmt      → "while" "(" expression ")" statement ;
     fn while_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
-            &TokenType::LeftParen,
+            TokenType::LeftParen,
             String::from("Expect '(' after 'while'."),
         )?;
         let condition: Expr = self.expression()?;
         self.consume(
-            &TokenType::RightParen,
+            TokenType::RightParen,
             String::from("Expect ')' after while condition."),
         )?;
         let body: Stmt = self.statement()?;
@@ -337,12 +333,12 @@ impl Parser {
     // if stmt  -> "if" "(" expression ")" statement ( "else" statement )?
     fn if_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
-            &TokenType::LeftParen,
+            TokenType::LeftParen,
             String::from("Expect '(' after 'if' statement."),
         )?;
         let condition: Expr = self.expression()?;
         self.consume(
-            &TokenType::RightParen,
+            TokenType::RightParen,
             String::from("Expect ')' after if condition."),
         )?;
         let then_branch: Stmt = self.statement()?;
@@ -360,7 +356,7 @@ impl Parser {
     fn print_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;
         self.consume(
-            &TokenType::Semicolon,
+            TokenType::Semicolon,
             String::from("Expect ';' after value."),
         )?;
         Ok(PrintStmt::upcast(expr))
@@ -372,7 +368,7 @@ impl Parser {
             stmts.push(self.declaration()?);
         }
         self.consume(
-            &TokenType::RightBrace,
+            TokenType::RightBrace,
             String::from("Expect '}' after block statement."),
         )?;
         Ok(BlockStmt::upcast(stmts))
@@ -381,7 +377,7 @@ impl Parser {
     fn expr_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;
         self.consume(
-            &TokenType::Semicolon,
+            TokenType::Semicolon,
             String::from("Expect ';' after value."),
         )?;
         Ok(ExprStmt::upcast(expr))
@@ -390,7 +386,7 @@ impl Parser {
     fn expression(&mut self) -> Result<Expr, JokerError> {
         self.assignment()
     }
-    // assignment  → IDENTIFIER "=" (assignment "=")*
+    // assignment  → (call ".")? IDENTIFIER "=" (assignment "=")*
     //              | lambda ;
     fn assignment(&mut self) -> Result<Expr, JokerError> {
         let expr: Expr = self.lambda()?;
@@ -399,7 +395,10 @@ impl Parser {
             let value: Expr = self.assignment()?;
             match expr {
                 Expr::Variable(variable) => {
-                    return Ok(Assign::upcast(variable.name, Box::new(value)))
+                    return Ok(Assign::upcast(variable.name, Box::new(value)));
+                }
+                Expr::Getter(getter) => {
+                    return Ok(Setter::upcast(getter.expr, getter.name, Box::new(value)));
                 }
                 _ => {
                     return Err(JokerError::Parser(ParserError::report_error(
@@ -431,7 +430,7 @@ impl Parser {
                         )));
                     }
                     params.push(self.consume(
-                        &TokenType::Identifier,
+                        TokenType::Identifier,
                         String::from("Expect parameter name."),
                     )?);
                     if !self.is_match(&[TokenType::Comma]) {
@@ -441,7 +440,7 @@ impl Parser {
             }
 
             self.consume(
-                &TokenType::Pipeline,
+                TokenType::Pipeline,
                 String::from("Expect '|' after parameters."),
             )?;
 
@@ -554,12 +553,19 @@ impl Parser {
         }
         self.call()
     }
-    // call           → grouping ( "(" arguments? ")" )* ;
+    // call           → grouping ( "(" arguments? ")" | "." IDENTIFIER )* ;
+    // arguments      → expression ( "," expression )* ;
     fn call(&mut self) -> Result<Expr, JokerError> {
         let mut expr: Expr = self.grouping()?;
         loop {
             if self.is_match(&[TokenType::LeftParen]) {
                 expr = self.finish_call(expr)?;
+            } else if self.is_match(&[TokenType::Dot]) {
+                let name: Token = self.consume(
+                    TokenType::Identifier,
+                    String::from("expect attribute name after '.'."),
+                )?;
+                expr = Getter::upcast(Box::new(expr), name);
             } else {
                 break;
             }
@@ -584,7 +590,7 @@ impl Parser {
             }
         }
         let paren = self.consume(
-            &TokenType::RightParen,
+            TokenType::RightParen,
             String::from("Expect ')' after arguments."),
         )?;
         Ok(Call::upcast(Box::new(callee), paren, arguments))
@@ -595,7 +601,7 @@ impl Parser {
         if self.is_match(&[TokenType::LeftParen]) {
             let expr: Expr = self.expression()?;
             self.consume(
-                &TokenType::RightParen,
+                TokenType::RightParen,
                 String::from("Expect ')' after expression."),
             )?;
             return Ok(Grouping::upcast(Box::new(expr)));
@@ -618,6 +624,7 @@ impl Parser {
             TokenType::I32 => Ok(Literal::upcast(self.advance().literal)),
             TokenType::F64 => Ok(Literal::upcast(self.advance().literal)),
             TokenType::Str => Ok(Literal::upcast(self.advance().literal)),
+            TokenType::This => Ok(This::upcast(self.advance())),
             TokenType::Identifier => Ok(Variable::upcast(self.advance())),
             _ => Err(JokerError::Parser(ParserError::report_error(
                 &self.advance(),
@@ -625,8 +632,8 @@ impl Parser {
             ))), // jump
         }
     }
-    fn consume(&mut self, expected: &TokenType, msg: String) -> Result<Token, JokerError> {
-        if self.check(expected) {
+    fn consume(&mut self, expected: TokenType, msg: String) -> Result<Token, JokerError> {
+        if self.check(&expected) {
             Ok(self.advance())
         } else {
             Err(JokerError::Parser(ParserError::report_error(

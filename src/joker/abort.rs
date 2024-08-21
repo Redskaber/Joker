@@ -18,8 +18,8 @@ use std::{error::Error, fmt::Display};
 
 use super::{
     error::ReportError,
-    object::Object,
     token::{Token, TokenType},
+    types::Object,
 };
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ impl ReportError for AbortError {
 pub enum ControlFlowAbort {
     Break,
     Continue,
-    Return(Object),
+    Return(Option<Object>),
 }
 
 impl Display for ControlFlowAbort {
@@ -60,7 +60,10 @@ impl Display for ControlFlowAbort {
         match self {
             ControlFlowAbort::Break => write!(f, "Break"),
             ControlFlowAbort::Continue => write!(f, "Continue"),
-            ControlFlowAbort::Return(return_) => Display::fmt(return_, f),
+            ControlFlowAbort::Return(return_) => match return_ {
+                Some(value) => Display::fmt(value, f),
+                None => write!(f, "Return(None)"),
+            },
         }
     }
 }

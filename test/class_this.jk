@@ -1,0 +1,29 @@
+// This is a test file for class_this.jk
+
+/*
+class Foo {
+  fun init() {
+    print this;
+    return this;
+  }
+}
+
+var foo = Foo();
+print foo.init;
+print foo.init();
+*/
+
+class Foo {
+  fun init() {
+    this.name = "FooName";
+    this.age = 100;
+  }
+  fun other() {
+    print "other.";
+  }
+}
+
+var foo = Foo();
+print foo;
+
+

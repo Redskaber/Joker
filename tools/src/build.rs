@@ -26,6 +26,9 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("Logical   : l_expr Box<Expr>, m_opera Token, r_expr Box<Expr>"),
             String::from("Trinomial : condition Box<Expr>, l_expr Box<Expr>, r_expr Box<Expr>"),
             String::from("Call      : callee Box<Expr>, paren Token, arguments Vec<Box<Expr>>"),
+            String::from("Getter    : expr Box<Expr>, name Token"),
+            String::from("Setter    : l_expr Box<Expr>, name Token, r_expr Box<Expr>"),
+            String::from("This      : keyword Token"),
         ],
         &[
             String::from("use super::object::Object;"),
