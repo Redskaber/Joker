@@ -135,6 +135,19 @@ impl Interpreter {
         }
         Ok(())
     }
+    pub fn value_or_raise(
+        &self,
+        token: &Token,
+        expr: &Expr,
+        msg: String,
+    ) -> Result<Object, JokerError> {
+        match self.evaluate(expr)? {
+            Some(object) => Ok(object),
+            None => Err(JokerError::Interpreter(InterpreterError::report_error(
+                token, msg,
+            ))),
+        }
+    }
     pub fn println_local(&self) {
         println!("{:?}", self.run_env);
     }
@@ -260,7 +273,7 @@ impl StmtVisitor<()> for Interpreter {
     }
     fn visit_return(&self, stmt: &ReturnStmt) -> Result<(), JokerError> {
         let value: Option<Object> = match &stmt.value {
-            Some(expr) => Some(self.evaluate(expr)?.unwrap()),
+            Some(expr) => self.evaluate(expr)?,
             None => None,
         };
         Err(JokerError::Abort(AbortError::ControlFlow(
@@ -324,7 +337,11 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         Ok(Some(Object::new(expr.value.clone())))
     }
     fn visit_unary(&self, expr: &Unary) -> Result<Option<Object>, JokerError> {
-        let r_expr: Object = self.evaluate(&expr.r_expr)?.unwrap();
+        let r_expr: Object = self.value_or_raise(
+            &expr.l_opera,
+            &expr.r_expr,
+            String::from("unary object invalid value."),
+        )?;
         match expr.l_opera.ttype {
             TokenType::Minus => match &*r_expr.get() {
                 OEnum::Literal(literal) => match literal {
@@ -366,8 +383,16 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         }
     }
     fn visit_binary(&self, expr: &Binary) -> Result<Option<Object>, JokerError> {
-        let l_expr: Object = self.evaluate(&expr.l_expr)?.unwrap();
-        let r_expr: Object = self.evaluate(&expr.r_expr)?.unwrap();
+        let l_expr: Object = self.value_or_raise(
+            &expr.m_opera,
+            &expr.l_expr,
+            String::from("binary invalid left value."),
+        )?;
+        let r_expr: Object = self.value_or_raise(
+            &expr.m_opera,
+            &expr.r_expr,
+            String::from("binary invalid right value."),
+        )?;
         match expr.m_opera.ttype {
             TokenType::BangEqual => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
@@ -565,7 +590,11 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         self.look_up_variable(&expr.name, &Expr::Variable(expr.clone()))
     }
     fn visit_assign(&self, expr: &Assign) -> Result<Option<Object>, JokerError> {
-        let value: Object = self.evaluate(&expr.value)?.unwrap();
+        let value: Object = self.value_or_raise(
+            &expr.name,
+            &expr.value,
+            String::from("assign invalid value."),
+        )?;
         match self.local_resolve.borrow().get(&Expr::Assign(expr.clone())) {
             Some(depth) => self.run_env.borrow().borrow_mut().assign_with_depth(
                 *depth,
@@ -577,13 +606,21 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         Ok(Some(value))
     }
     fn visit_logical(&self, expr: &Logical) -> Result<Option<Object>, JokerError> {
-        let l_object: Object = self.evaluate(&expr.l_expr)?.unwrap();
+        let l_object: Object = self.value_or_raise(
+            &expr.m_opera,
+            &expr.l_expr,
+            String::from("logical invalid left value"),
+        )?;
         match expr.m_opera.ttype {
             TokenType::Or => {
                 if self.is_true(&l_object) {
                     Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true)))))
                 } else {
-                    let r_object: Object = self.evaluate(&expr.r_expr)?.unwrap();
+                    let r_object: Object = self.value_or_raise(
+                        &expr.m_opera,
+                        &expr.r_expr,
+                        String::from("logical invalid right value"),
+                    )?;
                     if self.is_true(&r_object) {
                         Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true)))))
                     } else {
@@ -595,7 +632,11 @@ impl ExprVisitor<Option<Object>> for Interpreter {
                 if !self.is_true(&l_object) {
                     Ok(Some(Object::new(OEnum::Literal(ObL::Bool(false)))))
                 } else {
-                    let r_object: Object = self.evaluate(&expr.r_expr)?.unwrap();
+                    let r_object: Object = self.value_or_raise(
+                        &expr.m_opera,
+                        &expr.r_expr,
+                        String::from("logical invalid right value"),
+                    )?;
                     if self.is_true(&r_object) {
                         Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true)))))
                     } else {
@@ -620,7 +661,11 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         }
     }
     fn visit_call(&self, expr: &Call) -> Result<Option<Object>, JokerError> {
-        let callee: Object = self.evaluate(&expr.callee)?.unwrap();
+        let callee: Object = self.value_or_raise(
+            &expr.paren,
+            &expr.callee,
+            String::from("call object invalid value."),
+        )?;
 
         let mut arguments: Vec<Object> = Vec::new();
         for arg in &expr.arguments {
@@ -665,11 +710,15 @@ impl ExprVisitor<Option<Object>> for Interpreter {
             "[{:>10}][{:>20}]:\t{:<5}: {:?}",
             "inter", "look_up_variable", "expr", expr
         );
-        let object: Object = self.evaluate(&expr.expr)?.unwrap();
-        let result: Result<Object, JokerError> =
+        let object: Object = self.value_or_raise(
+            &expr.name,
+            &expr.expr,
+            String::from("getter object invalid value."),
+        )?;
+        let result: Result<Option<Object>, JokerError> =
             if let OEnum::Instance(Instance::Class(class_instance)) = &*object.get() {
                 match class_instance.getter(&expr.name)? {
-                    Some(object) => Ok(object),
+                    Some(object) => Ok(Some(object)),
                     None => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.name,
                         format!("getter undefined attribute '{}'.", expr.name.lexeme),
@@ -682,19 +731,27 @@ impl ExprVisitor<Option<Object>> for Interpreter {
                 )))
             };
 
-        Ok(Some(result?))
+        result
     }
     fn visit_setter(&self, expr: &Setter) -> Result<Option<Object>, JokerError> {
         println!(
             "[{:>10}][{:>20}]:\t{:<5}: {:?}",
             "inter", "look_up_variable", "expr", expr
         );
-        let object: Object = self.evaluate(&expr.l_expr)?.unwrap();
-        let result =
+        let object: Object = self.value_or_raise(
+            &expr.name,
+            &expr.l_expr,
+            String::from("setter object invalid left value."),
+        )?;
+        let result: Result<Option<Object>, JokerError> =
             if let OEnum::Instance(Instance::Class(class_instance)) = &mut *object.get_mut() {
-                let value: Object = self.evaluate(&expr.r_expr)?.unwrap();
+                let value: Object = self.value_or_raise(
+                    &expr.name,
+                    &expr.r_expr,
+                    String::from("setter object invalid right value."),
+                )?;
                 class_instance.setter(&expr.name.lexeme, value.clone())?;
-                Ok(value)
+                Ok(Some(value))
             } else {
                 Err(JokerError::Interpreter(InterpreterError::report_error(
                     &expr.name,
@@ -702,7 +759,7 @@ impl ExprVisitor<Option<Object>> for Interpreter {
                 )))
             };
 
-        Ok(Some(result?))
+        result
     }
     fn visit_this(&self, expr: &This) -> Result<Option<Object>, JokerError> {
         self.look_up_variable(&expr.keyword, &Expr::This(expr.clone()))

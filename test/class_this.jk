@@ -121,10 +121,6 @@ class Foo {
 var f1 = Foo("Foo_0001", 100);
 f1.other();
 // -------------------------------------------------------
-fun demo() {}
-print demo();  // None
-*/
-
 class Foo {
   var cls_dec;
   fun init(name, age) {
@@ -141,3 +137,31 @@ class Foo {
 
 var f1 = Foo("Foo_0001", 100);
 f1.other();
+// -------------------------------------------------------
+fun demo() {
+  class Foo {
+    var lambda = |a, b| a + b;
+    var cls_dec;
+    var cls_name = "FooClassName";     // class variable
+    fun init(name, age) {
+      this.name = name;                // instance variable
+      this.age = age;
+    } 
+    fun other() {
+      print this.name;
+      print this.age;
+      print this.cls_name;
+      print "other.";
+      print this.lambda(1, 2);
+    }
+  }
+
+  var f1 = Foo("Foo_0001", 100);
+  f1.other();
+}
+
+demo();
+// -------------------------------------------------------
+*/
+
+
