@@ -5,3 +5,4 @@ pub mod automata;
 pub mod alias;
 pub mod resolve;
 pub mod types;
+pub mod interpreter;

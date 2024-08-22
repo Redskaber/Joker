@@ -108,22 +108,15 @@ impl Interpreter {
     }
     pub fn resolve(&self, expr: Expr, depth: usize) {
         println!(
-            "[{:>10}][{:>20}]:\texpr: {:?},\tdepth: {}",
-            "inter", "resolve", expr, depth
+            "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
+            "inter", "resolve", "expr", expr, depth
         );
         self.local_resolve.borrow_mut().insert(expr, depth);
     }
-    pub fn resolve_call(&self, name: &Token, expr: &Expr) -> Result<Object, JokerError> {
-        println!(
-            "[{:>10}][{:>20}]:\texpr: {:?},\tname: {}",
-            "inter", "resolve_call", expr, name
-        );
-        self.look_up_variable(name, expr)
-    }
     fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Object, JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\texpr: {:?},\tname: {}",
-            "inter", "look_up_variable", expr, name
+            "[{:>10}][{:>20}]:\t{:<5}: {:?},\tname: {:?}",
+            "inter", "look_up_variable", "expr", expr, name
         );
         match self.local_resolve.borrow().get(expr) {
             Some(depth) => self
@@ -162,7 +155,10 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
-        println!("[{:>10}][{:>20}]:\tstmt: {:?}", "inter", "visit_var", stmt);
+        println!(
+            "[{:>10}][{:>20}]:\t{:<5}: {:?}",
+            "inter", "visit_var", "stmt", stmt
+        );
         let value = match &stmt.value {
             Some(expr) => self.evaluate(expr)?,
             None => Object::new(literal_null()),
@@ -275,6 +271,23 @@ impl StmtVisitor<()> for Interpreter {
             .borrow_mut()
             .define(stmt.name.lexeme.clone(), Object::new(literal_null()));
 
+        let fields: Option<HashMap<String, Object>> = match &stmt.fields {
+            Some(stmts) => {
+                let mut vars: HashMap<String, Object> = HashMap::new();
+                for stmt in stmts {
+                    if let Stmt::VarStmt(var_stmt) = stmt {
+                        let value = match &var_stmt.value {
+                            Some(expr) => self.evaluate(expr)?,
+                            None => Object::new(literal_null()),
+                        };
+                        vars.insert(var_stmt.name.lexeme.clone(), value);
+                    }
+                }
+                Some(vars)
+            }
+            None => None,
+        };
+
         let methods: Option<HashMap<String, MethodFunction>> = match &stmt.methods {
             Some(stmts) => {
                 let mut methods: HashMap<String, MethodFunction> = HashMap::new();
@@ -293,6 +306,7 @@ impl StmtVisitor<()> for Interpreter {
 
         let class: Object = Object::new(OEnum::Caller(Caller::Class(Class::new(
             stmt.name.lexeme.clone(),
+            fields,
             methods,
         ))));
         self.run_env
@@ -644,12 +658,12 @@ impl ExprVisitor<Object> for Interpreter {
         Ok(lambda)
     }
     fn visit_getter(&self, expr: &Getter) -> Result<Object, JokerError> {
+        println!(
+            "[{:>10}][{:>20}]:\t{:<5}: {:?}",
+            "inter", "look_up_variable", "expr", expr
+        );
         let object: Object = self.evaluate(&expr.expr)?;
         let result = if let OEnum::Instance(Instance::Class(class_instance)) = &*object.get() {
-            println!(
-                "[{:>10}][{:>20}]:\tclass_instance: {:?},\tname: {}",
-                "inter", "visit_getter", class_instance, expr.name
-            );
             match class_instance.getter(&expr.name.lexeme) {
                 Some(object) => Ok(object),
                 None => Err(JokerError::Interpreter(InterpreterError::report_error(
@@ -668,18 +682,14 @@ impl ExprVisitor<Object> for Interpreter {
     }
     fn visit_setter(&self, expr: &Setter) -> Result<Object, JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\tl_expr: {:?},\tname: {},\tr_expr: {:?}",
-            "inter", "visit_setter", expr.l_expr, expr.name, expr.r_expr
+            "[{:>10}][{:>20}]:\t{:<5}: {:?}",
+            "inter", "look_up_variable", "expr", expr
         );
         let object: Object = self.evaluate(&expr.l_expr)?;
         let result =
             if let OEnum::Instance(Instance::Class(class_instance)) = &mut *object.get_mut() {
                 let value: Object = self.evaluate(&expr.r_expr)?;
                 class_instance.setter(&expr.name.lexeme, value.clone())?;
-                println!(
-                    "[{:>10}][{:>20}]:\tclass_instance: {:?}",
-                    "inter", "visit_setter", class_instance
-                );
                 Ok(value)
             } else {
                 Err(JokerError::Interpreter(InterpreterError::report_error(

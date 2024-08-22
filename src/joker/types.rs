@@ -6,12 +6,12 @@
 use crate::joker::object::Object as OEnum;
 use std::{
     cell::{Ref, RefCell, RefMut},
-    fmt::Display,
+    fmt::{Debug, Display},
     hash::Hash,
     rc::Rc,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Object {
     inner: Rc<RefCell<OEnum>>,
 }
@@ -40,6 +40,12 @@ impl Object {
 }
 
 impl Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.inner.borrow(), f)
+    }
+}
+
+impl Debug for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Object(inner: {})", self.inner.borrow())
     }

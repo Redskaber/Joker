@@ -22,6 +22,8 @@
 //!     declaration    → statement         (语句）            
 //!                     | var_declaration  (声明)
 //!                     | fun_declaration  (声明)
+//!                     | method_declaration  (声明)
+//!                     | instance_declaration  (声明)
 //!                     | class_declaration(声明)
 //!
 //!     var_decl       → "var" varStmt ;
@@ -50,9 +52,11 @@
 //!                      expression? ")" statement ;
 //!     
 //!     funStmt        → "fun" IDENTIFIER  "(" parameters? ")" statement ;
+//!     methodStmt     → "fun" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = cls
+//!     instanceStmt   → "fun" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = self
 //!     parameters     → IDENTIFIER  (, IDENTIFIER)*
 //!
-//!     classStmt      → "class" IDENTIFIER "{" fun_decl* "}" ;
+//!     classStmt      → "class" IDENTIFIER "{" var_decl* | fun_decl* | method_decl* | instance_decl*"}" ;
 //!
 //!
 //!      breakStmt      → "break" ";"
@@ -281,8 +285,9 @@ macro_rules! define_ast {
     (@impl_display ClassStmt, $($field:ident: $field_type: ty),*) => {
         impl Display for ClassStmt {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "ClassStmt(name: {}, methods: {:?})",
+                write!(f, "ClassStmt(name: {}, fields: {:?}, methods: {:?})",
                     self.name,
+                    self.fields,
                     self.methods,
                 )
             }
@@ -334,7 +339,7 @@ define_ast! {
         ContinueStmt{ name: Token },
         FunStmt     { name: Token, params: Vec<Token>, body: Vec<Stmt> },
         ReturnStmt  { keyword: Token, value: Option<Expr> },
-        ClassStmt   { name: Token, methods: Option<Vec<Stmt>> },
+        ClassStmt   { name: Token, fields: Option<Vec<Stmt>>, methods: Option<Vec<Stmt>> },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
                             visit_for, visit_break, visit_continue, visit_fun, visit_return, visit_class },

@@ -1,6 +1,12 @@
 // This is a test file for class_this.jk
 
 /*
+// ------------------------------------------------------
+class Foo {}
+
+var foo = Foo();
+print foo;
+// ------------------------------------------------------
 class Foo {
   fun init() {
     print this;
@@ -11,8 +17,7 @@ class Foo {
 var foo = Foo();
 print foo.init;
 print foo.init();
-*/
-
+// ------------------------------------------------------
 class Foo {
   fun init() {
     this.name = "FooName";
@@ -25,5 +30,98 @@ class Foo {
 
 var foo = Foo();
 print foo;
+print foo.name;
+print foo.age;
+foo.other();
+// ------------------------------------------------------
+class Foo {
+  fun init() {
+    this.name = "FooName";
+    this.age = 100;
+  }
+  fun other() {
+    print "other.";
+  }
+}
+
+var foo = Foo();
+// foo.new_prop = "new_prop";       // Error: Cannot add new property to object
+fun foo_fun() {
+  print "foo()";
+}
+// foo.other = foo_fun;          // Error: Cannot add new property to object
+// ------------------------------------------------------
+class Foo {
+  fun init() {
+    class Bar {}
+    var bar = Bar();
+    this.bar = bar;
+    this.name = "FooName";
+    this.age = 100;
+  } 
+  fun other() {
+    print "other."; 
+  }
+}
+
+var foo = Foo();
+print foo;      //   Foo { bar: Bar {}, name: "FooName", age: 100 }
+print foo.bar;  //   Bar {}
+// ------------------------------------------------------
+class Foo {
+  fun init() {
+    this.name = "FooName";
+    this.age = 100;
+  }
+  fun other() {
+    print "other.";
+  }
+}
+
+var foo = Foo();
+print foo;
+print foo.name;
+print foo.age;
+foo.other();
+// ------------------------------------------------------
+class Foo {
+  var cls_dec;
+  var cls_name = "FooClassName";     // class variable
+  fun init(name, age) {
+    this.name = name;                // instance variable
+    this.age = age;
+  } 
+}
+
+var f1 = Foo("Foo_0001", 100);
+print f1.cls_name;  // "FooClassName"
+print f1.name;      // "Foo_0001"
+print f1.age;       // 100
+
+var f2 = Foo("Foo_0002", 200);
+print f2.cls_name;  // "FooClassName"
+print f2.name;      // "Foo_0002"
+print f2.age;       // 200
+// ------------------------------------------------------
+
+*/
 
 
+class Foo {
+  var cls_dec;
+  var cls_name = "FooClassName";     // class variable
+  fun init(name, age) {
+    this.name = name;                // instance variable
+    this.age = age;
+  } 
+}
+
+var f1 = Foo("Foo_0001", 100);
+print f1.cls_name;  // "FooClassName"
+print f1.name;      // "Foo_0001"
+print f1.age;       // 100
+
+var f2 = Foo("Foo_0002", 200);
+print f2.cls_name;  // "FooClassName"
+print f2.name;      // "Foo_0002"
+print f2.age;       // 200

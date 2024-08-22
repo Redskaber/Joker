@@ -89,7 +89,7 @@ pub enum VarStatus {
 
 pub struct Resolver {
     interpreter: Rc<Interpreter>,
-    pub scopes_stack: RefCell<Vec<RefCell<HashMap<Key, VarStatus>>>>,
+    scopes_stack: RefCell<Vec<RefCell<HashMap<Key, VarStatus>>>>,
     context_status_stack: RefCell<Vec<ContextStatus>>,
 }
 
@@ -151,12 +151,11 @@ impl Resolver {
                     VarStatus::Define => "Variable defined but not used",
                     _ => unreachable!(),
                 };
-                Err(JokerError::Resolver(ResolverError::Var(VarError::Status(
-                    StatusError::report_error(name.token(), message.to_string()),
-                ))))
+                StatusError::report_error(name.token(), message.to_string());
             }
-            VarStatus::Used => Ok(()),
+            VarStatus::Used => {},
         }
+        Ok(())
     }
     fn check_vars_status(&self) -> Result<(), JokerError> {
         match self.scopes_stack.borrow().last() {
@@ -245,6 +244,11 @@ impl StmtResolver<()> for Resolver {
         self.context_status_stack
             .borrow_mut()
             .push(ContextStatus::Class(ClassStatus::Default));
+
+        println!(
+            "[{:>10}][{:>20}]:\tstmt: {:?}",
+            "resolve", "resolve_class", stmt.name
+        );
         self.begin_scope();
         self.scopes_stack
             .borrow()
@@ -253,6 +257,11 @@ impl StmtResolver<()> for Resolver {
             .borrow_mut()
             .insert(Key(Token::this(0)), VarStatus::Define);
 
+        if let Some(stmts) = &stmt.fields {
+            for stmt in stmts {
+                StmtResolver::resolve(self, stmt)?;
+            }
+        }
         if let Some(stmts) = &stmt.methods {
             for stmt in stmts {
                 if let Stmt::FunStmt(fun) = stmt {
@@ -260,6 +269,8 @@ impl StmtResolver<()> for Resolver {
                 }
             }
         }
+        // check local var used status
+        self.check_vars_status()?;
         self.end_scope();
         self.context_status_stack.borrow_mut().pop();
         Ok(())
@@ -273,8 +284,8 @@ impl ExprResolver<()> for Resolver {
     fn resolve_local(&self, expr: Expr, name: &Token) -> Result<(), JokerError> {
         for (layer, scope) in self.scopes_stack.borrow().iter().rev().enumerate() {
             println!(
-                "[{:>10}][{:>20}]:\tlayer: {},\tscope: {:?}",
-                "resolve", "resolve_local", layer, scope
+                "[{:>10}][{:>20}]:\tname: {},\tlayer: {},\tscope: {:?}",
+                "resolve", "resolve_local", name, layer, scope
             );
             if let Entry::Occupied(mut entry) = scope.borrow_mut().entry(Key(name.clone())) {
                 self.interpreter.resolve(expr, layer);
@@ -485,7 +496,7 @@ impl StmtVisitor<()> for Resolver {
     }
     fn visit_continue(&self, stmt: &ContinueStmt) -> Result<(), JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\tstack: {:?}\n",
+            "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "visit_continue", self.context_status_stack
         );
         if matches!(
@@ -510,7 +521,7 @@ impl ExprVisitor<()> for Resolver {
     }
     fn visit_getter(&self, expr: &Getter) -> Result<(), JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\tstack: {:?}\n",
+            "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "visit_getter", self.context_status_stack
         );
         ExprResolver::resolve(self, &expr.expr)?;
@@ -518,7 +529,7 @@ impl ExprVisitor<()> for Resolver {
     }
     fn visit_setter(&self, expr: &Setter) -> Result<(), JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\tstack: {:?}\n",
+            "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "visit_setter", self.context_status_stack
         );
         if matches!(
@@ -539,7 +550,7 @@ impl ExprVisitor<()> for Resolver {
     }
     fn visit_this(&self, expr: &This) -> Result<(), JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\tstack: {:?}\n",
+            "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "visit_this", self.context_status_stack
         );
         if self
@@ -656,7 +667,6 @@ impl ReportError for ResolverError {
 pub enum VarError {
     Init(InitError),
     Redefine(RedefineError),
-    Status(StatusError),
 }
 
 impl Display for VarError {
@@ -664,7 +674,6 @@ impl Display for VarError {
         match self {
             VarError::Init(init) => Display::fmt(init, f),
             VarError::Redefine(redefine) => Display::fmt(redefine, f),
-            VarError::Status(status) => Display::fmt(status, f),
         }
     }
 }
@@ -676,7 +685,6 @@ impl ReportError for VarError {
         match self {
             VarError::Init(init) => ReportError::report(init),
             VarError::Redefine(redefine) => ReportError::report(redefine),
-            VarError::Status(status) => ReportError::report(status),
         }
     }
 }

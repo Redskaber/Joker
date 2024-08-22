@@ -33,6 +33,7 @@ impl Display for Instance {
 pub struct ClassInstance {
     class: Class,
     fields: HashMap<String, Object>,
+    // methods: Option<HashMap<String, InstanceFunction>>
 }
 
 impl Hash for ClassInstance {
@@ -53,14 +54,16 @@ impl ClassInstance {
         }
     }
     pub fn getter(&self, name: &str) -> Option<Object> {
-        if let Some(object) = self.fields.get(name) {
-            Some(object.clone())
-        } else {
-            self.class.get_method(name).map(|method| {
-                Object::new(OEnum::Caller(Caller::Func(Function::Method(
-                    method.bind(self.clone()),
-                ))))
-            })
+        match self.fields.get(name) {
+            Some(ins_value) => Some(ins_value.clone()),
+            None => match self.class.get_field(name) {
+                Some(cls_value) => Some(cls_value.clone()),
+                None => self.class.get_method(name).map(|method| {
+                    Object::new(OEnum::Caller(Caller::Func(Function::Method(
+                        method.bind(self.clone()),
+                    ))))
+                }),
+            },
         }
     }
     pub fn setter(&mut self, name: &str, value: Object) -> Result<(), JokerError> {

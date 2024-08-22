@@ -95,7 +95,7 @@ impl Parser {
         self.statement()
     }
     // class_declaration      → "class" classStmt ;
-    // classStmt      → IDENTIFIER "{" funStmt* "}" ;
+    // classStmt      → "class" IDENTIFIER "{" var_decl* | fun_decl* | method_decl* | instance_decl*"}" ;
     fn class_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token =
             self.consume(TokenType::Identifier, String::from("expect class name."))?;
@@ -104,29 +104,44 @@ impl Parser {
             String::from("expect '{' before class body."),
         )?;
 
-        let methods: Option<Vec<Stmt>> = if self.check(&TokenType::RightBrace) {
-            None
-        } else if self.is_match(&[TokenType::Fun]) {
-            let mut methods: Vec<Stmt> = vec![self.fun_declaration()?];
-            while !self.check(&TokenType::RightBrace)
-                && !self.is_at_end()
-                && self.is_match(&[TokenType::Fun])
-            {
-                methods.push(self.fun_declaration()?);
-            }
-            Some(methods)
+        let (fields, methods) = if self.check(&TokenType::RightBrace) {
+            (None, None)
         } else {
-            return Err(JokerError::Parser(ParserError::report_error(
-                &self.peek(),
-                String::from("class methods need fun keyword start."),
-            )));
+            let mut fields = Vec::new();
+            let mut methods = Vec::new();
+            loop {
+                if self.is_match(&[TokenType::Var]) {
+                    fields.push(self.var_declaration()?);
+                } else if self.is_match(&[TokenType::Fun]) {
+                    methods.push(self.fun_declaration()?);
+                } else {
+                    return Err(JokerError::Parser(ParserError::report_error(
+                        &self.peek(),
+                        String::from("class inside only have var and fun."),
+                    )));
+                }
+                if self.check(&TokenType::RightBrace) {
+                    break;
+                }
+            }
+            (
+                if fields.is_empty() {
+                    None
+                } else {
+                    Some(fields)
+                },
+                if methods.is_empty() {
+                    None
+                } else {
+                    Some(methods)
+                },
+            )
         };
-
         self.consume(
             TokenType::RightBrace,
             String::from("expect '}' after class body."),
         )?;
-        Ok(ClassStmt::upcast(name, methods))
+        Ok(ClassStmt::upcast(name, fields, methods))
     }
     // fun_declaration        → "fun" funStmt ;
     // funStmt        → IDENTIFIER "(" parameters? ")" blockStmt ;
@@ -179,6 +194,10 @@ impl Parser {
             Err(err) => Err(err),
         }
     }
+
+    // methodStmt     → "fun" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = cls
+    // fn method_declaration(&mut self) -> Result<Stmt, JokerError> {
+    // }
 
     // varStmt → "var" IDENTIFIER ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {

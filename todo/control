@@ -19,7 +19,10 @@ TODO:
       - [v] add class statement.
       - [v] add caller object class struct.
       - [v] add instance object class instance strcut.
-      - [v] add class attribute and method.
+      - [v] add class attribute and class method.
+      - [v/] add class instance attribute and class instance method.
+      - [] add class static attribute and class static method.
+      - [] add class constructor and destructor.
       - [] add class inheritance.
       - [] wait update code...
       - [] 我们的解析器会计算出变量是在哪个环境中找到的, 但是它仍然需要根据名称在对应的map中查找。

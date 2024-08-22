@@ -137,8 +137,16 @@ impl StmtVisitor<String> for AstPrinter {
     }
     fn visit_class(&self, stmt: &ClassStmt) -> Result<String, JokerError> {
         Ok(format!(
-            "ClassStmt(name: {}, methods: {:?}",
+            "ClassStmt(name: {}, fields: {:?}, methods: {:?}",
             stmt.name.lexeme,
+            match &stmt.fields {
+                Some(fields) => fields
+                    .iter()
+                    .map(|fd| -> String { fd.accept(self).unwrap() })
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+                None => String::from("None"),
+            },
             match &stmt.methods {
                 Some(methods) => methods
                     .iter()
@@ -146,7 +154,7 @@ impl StmtVisitor<String> for AstPrinter {
                     .collect::<Vec<String>>()
                     .join("\n"),
                 None => String::from("None"),
-            }
+            },
         ))
     }
 }

@@ -57,8 +57,8 @@ impl Env {
     }
     pub fn get_with_depth(&self, depth: usize, name: &Token) -> Result<Object, JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\tname: {},\tdepth: {}",
-            "env", "get_with_depth", name, depth
+            "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
+            "env", "get_with_depth", "name", name, depth
         );
 
         match depth {

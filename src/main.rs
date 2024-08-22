@@ -10,4 +10,5 @@ fn main() {
     // idea::alias::d();
     // idea::resolve::resolve_main();
     // idea::types::types_main();
+    // idea::interpreter::interpreter_main();
 }
