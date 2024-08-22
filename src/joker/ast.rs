@@ -322,7 +322,8 @@ define_ast! {
         This        { keyword: Token },
     },
     ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable,
-                            visit_assign, visit_logical, visit_trinomial, visit_call, visit_lambda, visit_getter, visit_setter, visit_this },
+                            visit_assign, visit_logical, visit_trinomial, visit_call, visit_lambda,
+                            visit_getter, visit_setter, visit_this },
     ExprAcceptor,
 }
 
@@ -337,7 +338,7 @@ define_ast! {
         ForStmt     { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Expr> , body: Box<Stmt> },
         BreakStmt   { name: Token },
         ContinueStmt{ name: Token },
-        FunStmt     { name: Token, params: Vec<Token>, body: Vec<Stmt> },
+        FunStmt     { name: Token, params: Option<Vec<Token>>, body: Vec<Stmt> },
         ReturnStmt  { keyword: Token, value: Option<Expr> },
         ClassStmt   { name: Token, fields: Option<Vec<Stmt>>, methods: Option<Vec<Stmt>> },
     },

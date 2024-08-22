@@ -147,13 +147,13 @@ impl Resolver {
         match value_status {
             VarStatus::Declare | VarStatus::Define => {
                 let message = match value_status {
-                    VarStatus::Declare => "Variable declared but not used",
+                    VarStatus::Declare => "Variable declared but not define",
                     VarStatus::Define => "Variable defined but not used",
                     _ => unreachable!(),
                 };
                 StatusError::report_error(name.token(), message.to_string());
             }
-            VarStatus::Used => {},
+            VarStatus::Used => {}
         }
         Ok(())
     }
@@ -210,9 +210,11 @@ impl StmtResolver<()> for Resolver {
         );
 
         self.begin_scope();
-        for param in &stmt.params {
-            self.declare(param)?;
-            self.define(param)?;
+        if let Some(tokens) = &stmt.params {
+            for param in tokens {
+                self.declare(param)?;
+                self.define(param)?;
+            }
         }
         StmtResolver::resolve_block(self, &stmt.body)?;
 

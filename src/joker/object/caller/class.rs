@@ -17,7 +17,7 @@ use super::{Caller, MethodFunction};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Class {
     name: String,
-    fields: Option<HashMap<String, Object>>,
+    fields: Option<HashMap<String, Option<Object>>>,
     methods: Option<HashMap<String, MethodFunction>>,
 }
 
@@ -33,7 +33,7 @@ impl UpCast<OEnum> for Class {
 impl Class {
     pub fn new(
         name: String,
-        fields: Option<HashMap<String, Object>>,
+        fields: Option<HashMap<String, Option<Object>>>,
         methods: Option<HashMap<String, MethodFunction>>,
     ) -> Class {
         Class {
@@ -42,7 +42,7 @@ impl Class {
             methods,
         }
     }
-    pub fn get_field(&self, name: &str) -> Option<&Object> {
+    pub fn get_field(&self, name: &str) -> Option<&Option<Object>> {
         match &self.fields {
             Some(fields) => fields.get(name),
             None => None,

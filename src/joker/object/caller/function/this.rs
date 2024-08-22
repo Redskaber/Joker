@@ -183,7 +183,7 @@ impl UserFunction {
         )));
         instance_env.borrow_mut().define(
             String::from("this"),
-            Object::new(OEnum::Instance(Instance::Class(instance))),
+            Some(Object::new(OEnum::Instance(Instance::Class(instance)))),
         );
         UserFunction::new(&self.stmt, instance_env)
     }
@@ -197,8 +197,10 @@ impl Callable for UserFunction {
     ) -> Result<Option<Object>, JokerError> {
         let mut fun_env: Env = Env::new_with_enclosing(self.closure.clone());
 
-        for (name, value) in self.stmt.params.iter().zip(arguments) {
-            fun_env.define(name.lexeme.clone(), value.clone());
+        if let Some(params) = &self.stmt.params {
+            for (name, value) in params.iter().zip(arguments) {
+                fun_env.define(name.lexeme.clone(), Some(value.clone()));
+            }
         }
         if let Err(err) = interpreter.execute_block(&self.stmt.body, fun_env) {
             match err {
@@ -213,7 +215,7 @@ impl Callable for UserFunction {
         Ok(None)
     }
     fn arity(&self) -> usize {
-        self.stmt.params.len()
+        self.stmt.params.as_ref().map_or(0, |params| params.len())
     }
 }
 

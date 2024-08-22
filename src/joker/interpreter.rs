@@ -18,8 +18,8 @@ use super::{
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
     object::{
-        literal_null, Caller, Class, Function, Instance, Literal as ObL, MethodFunction,
-        NativeFunction, Object as OEnum, UserFunction,
+        Caller, Class, Function, Instance, Literal as ObL, MethodFunction, NativeFunction,
+        Object as OEnum, UserFunction,
     },
     token::{Token, TokenType},
     types::Object,
@@ -37,7 +37,7 @@ impl Interpreter {
         let global: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new()));
         global.borrow_mut().define(
             String::from("clock"),
-            Object::new(OEnum::Caller(Caller::Func(Function::Native(
+            Some(Object::new(OEnum::Caller(Caller::Func(Function::Native(
                 NativeFunction::new(|| {
                     use std::time::SystemTime;
 
@@ -76,7 +76,7 @@ impl Interpreter {
                         fun: Rc::new(NativeClock {}),
                     }
                 }),
-            )))),
+            ))))),
         );
 
         Interpreter {
@@ -97,10 +97,10 @@ impl Interpreter {
         self.run_env.replace(previous);
         result
     }
-    pub fn evaluate(&self, expr: &Expr) -> Result<Object, JokerError> {
+    pub fn evaluate(&self, expr: &Expr) -> Result<Option<Object>, JokerError> {
         expr.accept(self)
     }
-    pub fn evaluate_local(&self, expr: &Expr, env: Env) -> Result<Object, JokerError> {
+    pub fn evaluate_local(&self, expr: &Expr, env: Env) -> Result<Option<Object>, JokerError> {
         let previous = self.run_env.replace(Rc::new(RefCell::new(env)));
         let result = expr.accept(self);
         self.run_env.replace(previous);
@@ -113,7 +113,7 @@ impl Interpreter {
         );
         self.local_resolve.borrow_mut().insert(expr, depth);
     }
-    fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Object, JokerError> {
+    fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Option<Object>, JokerError> {
         println!(
             "[{:>10}][{:>20}]:\t{:<5}: {:?},\tname: {:?}",
             "inter", "look_up_variable", "expr", expr, name
@@ -148,7 +148,9 @@ impl StmtVisitor<()> for Interpreter {
     fn visit_print(&self, stmt: &PrintStmt) -> Result<(), JokerError> {
         match self.evaluate(&stmt.expr) {
             Ok(value) => {
-                println!("{value}");
+                if let Some(value) = value {
+                    println!("{value}")
+                }
                 Ok(())
             }
             Err(err) => Err(err),
@@ -161,7 +163,7 @@ impl StmtVisitor<()> for Interpreter {
         );
         let value = match &stmt.value {
             Some(expr) => self.evaluate(expr)?,
-            None => Object::new(literal_null()),
+            None => None,
         };
         self.run_env
             .borrow()
@@ -174,7 +176,7 @@ impl StmtVisitor<()> for Interpreter {
         self.execute_block(&stmt.stmts, block_env)
     }
     fn visit_if(&self, stmt: &IfStmt) -> Result<(), JokerError> {
-        if self.is_true(&self.evaluate(&stmt.condition)?) {
+        if self.is_true(&self.evaluate(&stmt.condition)?.unwrap()) {
             self.execute(&stmt.then_branch)?;
         } else if let Some(box_stmt) = &stmt.else_branch {
             self.execute(box_stmt)?;
@@ -182,7 +184,7 @@ impl StmtVisitor<()> for Interpreter {
         Ok(())
     }
     fn visit_while(&self, stmt: &WhileStmt) -> Result<(), JokerError> {
-        while self.is_true(&self.evaluate(&stmt.condition)?) {
+        while self.is_true(&self.evaluate(&stmt.condition)?.unwrap()) {
             if let Err(err) = self.execute(&stmt.body) {
                 match err {
                     JokerError::Abort(AbortError::ControlFlow(control_flow)) => {
@@ -207,7 +209,7 @@ impl StmtVisitor<()> for Interpreter {
         if let Some(initializer) = &stmt.initializer {
             self.execute(initializer)?
         }
-        while self.is_true(&self.evaluate(&stmt.condition)?) {
+        while self.is_true(&self.evaluate(&stmt.condition)?.unwrap()) {
             if let Err(err) = self.execute(&stmt.body) {
                 match err {
                     JokerError::Abort(AbortError::ControlFlow(control_flow)) => {
@@ -247,18 +249,18 @@ impl StmtVisitor<()> for Interpreter {
         )))
     }
     fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        let fun = Object::new(OEnum::Caller(Caller::Func(Function::User(
+        let fun: Object = Object::new(OEnum::Caller(Caller::Func(Function::User(
             UserFunction::new(stmt, Rc::clone(&self.run_env.borrow())),
         ))));
         self.run_env
             .borrow()
             .borrow_mut()
-            .define(stmt.name.lexeme.clone(), fun);
+            .define(stmt.name.lexeme.clone(), Some(fun));
         Ok(())
     }
     fn visit_return(&self, stmt: &ReturnStmt) -> Result<(), JokerError> {
         let value: Option<Object> = match &stmt.value {
-            Some(expr) => Some(self.evaluate(expr)?),
+            Some(expr) => Some(self.evaluate(expr)?.unwrap()),
             None => None,
         };
         Err(JokerError::Abort(AbortError::ControlFlow(
@@ -269,16 +271,16 @@ impl StmtVisitor<()> for Interpreter {
         self.run_env
             .borrow()
             .borrow_mut()
-            .define(stmt.name.lexeme.clone(), Object::new(literal_null()));
+            .define(stmt.name.lexeme.clone(), None);
 
-        let fields: Option<HashMap<String, Object>> = match &stmt.fields {
+        let fields: Option<HashMap<String, Option<Object>>> = match &stmt.fields {
             Some(stmts) => {
-                let mut vars: HashMap<String, Object> = HashMap::new();
+                let mut vars: HashMap<String, Option<Object>> = HashMap::new();
                 for stmt in stmts {
                     if let Stmt::VarStmt(var_stmt) = stmt {
                         let value = match &var_stmt.value {
                             Some(expr) => self.evaluate(expr)?,
-                            None => Object::new(literal_null()),
+                            None => None,
                         };
                         vars.insert(var_stmt.name.lexeme.clone(), value);
                     }
@@ -317,17 +319,17 @@ impl StmtVisitor<()> for Interpreter {
     }
 }
 
-impl ExprVisitor<Object> for Interpreter {
-    fn visit_literal(&self, expr: &Literal) -> Result<Object, JokerError> {
-        Ok(Object::new(expr.value.clone()))
+impl ExprVisitor<Option<Object>> for Interpreter {
+    fn visit_literal(&self, expr: &Literal) -> Result<Option<Object>, JokerError> {
+        Ok(Some(Object::new(expr.value.clone())))
     }
-    fn visit_unary(&self, expr: &Unary) -> Result<Object, JokerError> {
-        let r_expr: Object = self.evaluate(&expr.r_expr)?;
+    fn visit_unary(&self, expr: &Unary) -> Result<Option<Object>, JokerError> {
+        let r_expr: Object = self.evaluate(&expr.r_expr)?.unwrap();
         match expr.l_opera.ttype {
             TokenType::Minus => match &*r_expr.get() {
                 OEnum::Literal(literal) => match literal {
-                    ObL::I32(i32_) => Ok(Object::new(OEnum::Literal(ObL::I32(-i32_)))),
-                    ObL::F64(f64_) => Ok(Object::new(OEnum::Literal(ObL::F64(-f64_)))),
+                    ObL::I32(i32_) => Ok(Some(Object::new(OEnum::Literal(ObL::I32(-i32_))))),
+                    ObL::F64(f64_) => Ok(Some(Object::new(OEnum::Literal(ObL::F64(-f64_))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.l_opera,
                         format!(
@@ -343,7 +345,7 @@ impl ExprVisitor<Object> for Interpreter {
             },
             TokenType::Bang => match &*r_expr.get() {
                 OEnum::Literal(ref literal) => match literal {
-                    ObL::Bool(bool_) => Ok(Object::new(OEnum::Literal(ObL::Bool(!bool_)))),
+                    ObL::Bool(bool_) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(!bool_))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.l_opera,
                         format!(
@@ -363,18 +365,18 @@ impl ExprVisitor<Object> for Interpreter {
             ))),
         }
     }
-    fn visit_binary(&self, expr: &Binary) -> Result<Object, JokerError> {
-        let l_expr: Object = self.evaluate(&expr.l_expr)?;
-        let r_expr: Object = self.evaluate(&expr.r_expr)?;
+    fn visit_binary(&self, expr: &Binary) -> Result<Option<Object>, JokerError> {
+        let l_expr: Object = self.evaluate(&expr.l_expr)?.unwrap();
+        let r_expr: Object = self.evaluate(&expr.r_expr)?.unwrap();
         match expr.m_opera.ttype {
             TokenType::BangEqual => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 != r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 != r_f64)))),
-                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_bool != r_bool)))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str != r_str)))),
-                    (ObL::Null, ObL::Null) => Ok(Object::new(OEnum::Literal(ObL::Bool(false)))),
-                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::new(OEnum::Literal(ObL::Bool(true)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_i32 != r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_f64 != r_f64))))),
+                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_bool != r_bool))))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_str != r_str))))),
+                    (ObL::Null, ObL::Null) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(false))))),
+                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[BangEqual]] The literal cannot take bang equal values. !({l_literal} != {r_literal})")
@@ -387,12 +389,12 @@ impl ExprVisitor<Object> for Interpreter {
             },
             TokenType::EqualEqual => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 == r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 == r_f64)))),
-                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_bool == r_bool)))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str == r_str)))),
-                    (ObL::Null, ObL::Null) => Ok(Object::new(OEnum::Literal(ObL::Bool(true)))),
-                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Object::new(OEnum::Literal(ObL::Bool(false)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_i32 == r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_f64 == r_f64))))),
+                    (ObL::Bool(l_bool), ObL::Bool(r_bool)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_bool == r_bool))))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_str == r_str))))),
+                    (ObL::Null, ObL::Null) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true))))),
+                    (ObL::Null, _) | (_, ObL::Null)=> Ok(Some(Object::new(OEnum::Literal(ObL::Bool(false))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[EqualEqual]] The literal cannot take equal values. !({l_literal} == {r_literal})")
@@ -405,9 +407,9 @@ impl ExprVisitor<Object> for Interpreter {
             },
             TokenType::Greater => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 > r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 > r_f64)))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str > r_str)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_i32 > r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_f64 > r_f64))))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_str > r_str))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Greater]] The literal cannot take greater values. !({l_literal} > {r_literal})")
@@ -420,9 +422,9 @@ impl ExprVisitor<Object> for Interpreter {
             },
             TokenType::GreaterEqual => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 >= r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 >= r_f64)))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str >= r_str)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_i32 >= r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_f64 >= r_f64))))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_str >= r_str))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[GreaterEqual]] The literal cannot take greater equal values. !({l_literal} >= {r_literal})")
@@ -435,9 +437,9 @@ impl ExprVisitor<Object> for Interpreter {
             },
             TokenType::Less => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 < r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 < r_f64)))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str < r_str)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_i32 < r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_f64 < r_f64))))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_str < r_str))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Less]] The literal cannot take less values. !({l_literal} < {r_literal})")
@@ -450,9 +452,9 @@ impl ExprVisitor<Object> for Interpreter {
             },
             TokenType::LessEqual => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_i32 <= r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_f64 <= r_f64)))),
-                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Object::new(OEnum::Literal(ObL::Bool(l_str <= r_str)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_i32 <= r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_f64 <= r_f64))))),
+                    (ObL::Str(l_str), ObL::Str(r_str)) => Ok(Some(Object::new(OEnum::Literal(ObL::Bool(l_str <= r_str))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[LessEqual]] The literal cannot take less equal values. !({l_literal} <= {r_literal})")
@@ -465,10 +467,10 @@ impl ExprVisitor<Object> for Interpreter {
             },
             TokenType::Plus => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 + r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 + r_f64)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::I32(l_i32 + r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::F64(l_f64 + r_f64))))),
                     (ObL::Str(l_str), ObL::Str(r_str)) => {
-                        Ok(Object::new(OEnum::Literal(ObL::Str(format!("{l_str}{r_str}")))))
+                        Ok(Some(Object::new(OEnum::Literal(ObL::Str(format!("{l_str}{r_str}"))))))
                     },
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
@@ -482,8 +484,8 @@ impl ExprVisitor<Object> for Interpreter {
             }
             TokenType::Minus => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 - r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 - r_f64)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::I32(l_i32 - r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::F64(l_f64 - r_f64))))),
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
                         format!("[[Minus]] The literal cannot take minus values. !({l_literal} - {r_literal})")
@@ -498,7 +500,7 @@ impl ExprVisitor<Object> for Interpreter {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
                     (ObL::I32(l_i32), ObL::I32(r_i32)) => {
                         if r_i32 != &0 {
-                            Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 / r_i32))))
+                            Ok(Some(Object::new(OEnum::Literal(ObL::I32(l_i32 / r_i32)))))
                         } else {
                             Err(JokerError::Interpreter(InterpreterError::report_error(
                                 &expr.m_opera,
@@ -508,7 +510,7 @@ impl ExprVisitor<Object> for Interpreter {
                     },
                     (ObL::F64(l_f64), ObL::F64(r_f64)) => {
                         if r_f64 != &0f64 {
-                            Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 / r_f64))))
+                            Ok(Some(Object::new(OEnum::Literal(ObL::F64(l_f64 / r_f64)))))
                         } else {
                             Err(JokerError::Interpreter(InterpreterError::report_error(
                                 &expr.m_opera,
@@ -528,8 +530,8 @@ impl ExprVisitor<Object> for Interpreter {
             }
             TokenType::Star => match (&*l_expr.get(), &*r_expr.get()) {
                 (OEnum::Literal(l_literal), OEnum::Literal(r_literal)) => match (l_literal, r_literal) {
-                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Object::new(OEnum::Literal(ObL::I32(l_i32 * r_i32)))),
-                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Object::new(OEnum::Literal(ObL::F64(l_f64 * r_f64)))),
+                    (ObL::I32(l_i32), ObL::I32(r_i32)) => Ok(Some(Object::new(OEnum::Literal(ObL::I32(l_i32 / r_i32))))),
+                    (ObL::F64(l_f64), ObL::F64(r_f64)) => Ok(Some(Object::new(OEnum::Literal(ObL::F64(l_f64 * r_f64))))),
                     (ObL::Str(str_), ObL::I32(i32_))
                     | (ObL::I32(i32_), ObL::Str(str_)) => {
                         let mut count = *i32_;
@@ -538,7 +540,7 @@ impl ExprVisitor<Object> for Interpreter {
                             r_str.push_str(str_);
                             count -= 1;
                         }
-                        Ok(Object::new(OEnum::Literal(ObL::Str(r_str))))
+                        Ok(Some(Object::new(OEnum::Literal(ObL::Str(r_str)))))
                     },
                     _ => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.m_opera,
@@ -550,17 +552,20 @@ impl ExprVisitor<Object> for Interpreter {
                         format!("not impl Star! (l_expr: {}, r_expr: {})", l_expr, r_expr),
                     ))),
             }
-            _ => Err(JokerError::Interpreter(InterpreterError::report_error(&expr.m_opera, String::from("Unreachable according other type!"))))
+            _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                &expr.m_opera,
+                String::from("Unreachable according other type!")
+            )))
         }
     }
-    fn visit_grouping(&self, expr: &Grouping) -> Result<Object, JokerError> {
+    fn visit_grouping(&self, expr: &Grouping) -> Result<Option<Object>, JokerError> {
         self.evaluate(&expr.expr)
     }
-    fn visit_variable(&self, expr: &Variable) -> Result<Object, JokerError> {
+    fn visit_variable(&self, expr: &Variable) -> Result<Option<Object>, JokerError> {
         self.look_up_variable(&expr.name, &Expr::Variable(expr.clone()))
     }
-    fn visit_assign(&self, expr: &Assign) -> Result<Object, JokerError> {
-        let value: Object = self.evaluate(&expr.value)?;
+    fn visit_assign(&self, expr: &Assign) -> Result<Option<Object>, JokerError> {
+        let value: Object = self.evaluate(&expr.value)?.unwrap();
         match self.local_resolve.borrow().get(&Expr::Assign(expr.clone())) {
             Some(depth) => self.run_env.borrow().borrow_mut().assign_with_depth(
                 *depth,
@@ -569,32 +574,32 @@ impl ExprVisitor<Object> for Interpreter {
             )?,
             None => self.global.borrow_mut().assign(&expr.name, value.clone())?,
         }
-        Ok(value)
+        Ok(Some(value))
     }
-    fn visit_logical(&self, expr: &Logical) -> Result<Object, JokerError> {
-        let l_object: Object = self.evaluate(&expr.l_expr)?;
+    fn visit_logical(&self, expr: &Logical) -> Result<Option<Object>, JokerError> {
+        let l_object: Object = self.evaluate(&expr.l_expr)?.unwrap();
         match expr.m_opera.ttype {
             TokenType::Or => {
                 if self.is_true(&l_object) {
-                    Ok(Object::new(OEnum::Literal(ObL::Bool(true))))
+                    Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true)))))
                 } else {
-                    let r_object: Object = self.evaluate(&expr.r_expr)?;
+                    let r_object: Object = self.evaluate(&expr.r_expr)?.unwrap();
                     if self.is_true(&r_object) {
-                        Ok(Object::new(OEnum::Literal(ObL::Bool(true))))
+                        Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true)))))
                     } else {
-                        Ok(Object::new(OEnum::Literal(ObL::Bool(false))))
+                        Ok(Some(Object::new(OEnum::Literal(ObL::Bool(false)))))
                     }
                 }
             }
             TokenType::And => {
                 if !self.is_true(&l_object) {
-                    Ok(Object::new(OEnum::Literal(ObL::Bool(false))))
+                    Ok(Some(Object::new(OEnum::Literal(ObL::Bool(false)))))
                 } else {
-                    let r_object: Object = self.evaluate(&expr.r_expr)?;
+                    let r_object: Object = self.evaluate(&expr.r_expr)?.unwrap();
                     if self.is_true(&r_object) {
-                        Ok(Object::new(OEnum::Literal(ObL::Bool(true))))
+                        Ok(Some(Object::new(OEnum::Literal(ObL::Bool(true)))))
                     } else {
-                        Ok(Object::new(OEnum::Literal(ObL::Bool(false))))
+                        Ok(Some(Object::new(OEnum::Literal(ObL::Bool(false)))))
                     }
                 }
             }
@@ -604,8 +609,8 @@ impl ExprVisitor<Object> for Interpreter {
             ))),
         }
     }
-    fn visit_trinomial(&self, expr: &Trinomial) -> Result<Object, JokerError> {
-        let condition = expr.condition.accept(self)?;
+    fn visit_trinomial(&self, expr: &Trinomial) -> Result<Option<Object>, JokerError> {
+        let condition = expr.condition.accept(self)?.unwrap();
         if self.is_true(&condition) {
             let l_object = expr.l_expr.accept(self)?;
             Ok(l_object)
@@ -614,81 +619,80 @@ impl ExprVisitor<Object> for Interpreter {
             Ok(r_object)
         }
     }
-    fn visit_call(&self, expr: &Call) -> Result<Object, JokerError> {
-        let callee: Object = self.evaluate(&expr.callee)?;
+    fn visit_call(&self, expr: &Call) -> Result<Option<Object>, JokerError> {
+        let callee: Object = self.evaluate(&expr.callee)?.unwrap();
 
         let mut arguments: Vec<Object> = Vec::new();
         for arg in &expr.arguments {
-            arguments.push(self.evaluate(arg)?);
+            arguments.push(self.evaluate(arg)?.unwrap());
         }
 
-        let result = if let OEnum::Caller(caller) = &*callee.get() {
-            if arguments.len() != caller.arity() {
-                return Err(JokerError::Call(CallError::Argument(
-                    ArgumentError::report_error(
-                        &expr.paren,
-                        format!(
-                            "call expected {} arguments but got {}.",
-                            caller.arity(),
-                            arguments.len()
+        let result: Result<Option<Object>, JokerError> =
+            if let OEnum::Caller(caller) = &*callee.get() {
+                if arguments.len() != caller.arity() {
+                    return Err(JokerError::Call(CallError::Argument(
+                        ArgumentError::report_error(
+                            &expr.paren,
+                            format!(
+                                "call expected {} arguments but got {}.",
+                                caller.arity(),
+                                arguments.len()
+                            ),
                         ),
+                    )));
+                }
+                caller.call(self, &arguments)
+            } else {
+                Err(JokerError::Call(CallError::NonCallable(
+                    NonCallError::report_error(
+                        &expr.paren,
+                        String::from("Can only call functions and classes."),
                     ),
-                )));
-            }
-            match caller.call(self, &arguments)? {
-                Some(value) => Ok(value),
-                None => Ok(Object::new(literal_null())),
-            }
-        } else {
-            Err(JokerError::Call(CallError::NonCallable(
-                NonCallError::report_error(
-                    &expr.paren,
-                    String::from("Can only call functions and classes."),
-                ),
-            )))
-        };
+                )))
+            };
 
         result
     }
-    fn visit_lambda(&self, expr: &LambdaExpr) -> Result<Object, JokerError> {
+    fn visit_lambda(&self, expr: &LambdaExpr) -> Result<Option<Object>, JokerError> {
         let lambda: Object = Object::new(OEnum::Caller(Caller::Lambda(Lambda::new(
             expr,
             Rc::clone(&self.run_env.borrow()),
         ))));
-        Ok(lambda)
+        Ok(Some(lambda))
     }
-    fn visit_getter(&self, expr: &Getter) -> Result<Object, JokerError> {
+    fn visit_getter(&self, expr: &Getter) -> Result<Option<Object>, JokerError> {
         println!(
             "[{:>10}][{:>20}]:\t{:<5}: {:?}",
             "inter", "look_up_variable", "expr", expr
         );
-        let object: Object = self.evaluate(&expr.expr)?;
-        let result = if let OEnum::Instance(Instance::Class(class_instance)) = &*object.get() {
-            match class_instance.getter(&expr.name.lexeme) {
-                Some(object) => Ok(object),
-                None => Err(JokerError::Interpreter(InterpreterError::report_error(
+        let object: Object = self.evaluate(&expr.expr)?.unwrap();
+        let result: Result<Object, JokerError> =
+            if let OEnum::Instance(Instance::Class(class_instance)) = &*object.get() {
+                match class_instance.getter(&expr.name)? {
+                    Some(object) => Ok(object),
+                    None => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        &expr.name,
+                        format!("getter undefined attribute '{}'.", expr.name.lexeme),
+                    ))),
+                }
+            } else {
+                Err(JokerError::Interpreter(InterpreterError::report_error(
                     &expr.name,
-                    format!("getter undefined attribute '{}'.", expr.name.lexeme),
-                ))),
-            }
-        } else {
-            Err(JokerError::Interpreter(InterpreterError::report_error(
-                &expr.name,
-                String::from("getter only instance have attribute."),
-            )))
-        };
+                    String::from("getter only instance have attribute."),
+                )))
+            };
 
-        result
+        Ok(Some(result?))
     }
-    fn visit_setter(&self, expr: &Setter) -> Result<Object, JokerError> {
+    fn visit_setter(&self, expr: &Setter) -> Result<Option<Object>, JokerError> {
         println!(
             "[{:>10}][{:>20}]:\t{:<5}: {:?}",
             "inter", "look_up_variable", "expr", expr
         );
-        let object: Object = self.evaluate(&expr.l_expr)?;
+        let object: Object = self.evaluate(&expr.l_expr)?.unwrap();
         let result =
             if let OEnum::Instance(Instance::Class(class_instance)) = &mut *object.get_mut() {
-                let value: Object = self.evaluate(&expr.r_expr)?;
+                let value: Object = self.evaluate(&expr.r_expr)?.unwrap();
                 class_instance.setter(&expr.name.lexeme, value.clone())?;
                 Ok(value)
             } else {
@@ -698,9 +702,9 @@ impl ExprVisitor<Object> for Interpreter {
                 )))
             };
 
-        result
+        Ok(Some(result?))
     }
-    fn visit_this(&self, expr: &This) -> Result<Object, JokerError> {
+    fn visit_this(&self, expr: &This) -> Result<Option<Object>, JokerError> {
         self.look_up_variable(&expr.keyword, &Expr::This(expr.clone()))
     }
 }
@@ -825,7 +829,7 @@ mod tests {
 
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::I32(-12300)))),
+            Ok(value) => assert_eq!(value, Some(Object::new(OEnum::Literal(ObL::I32(-12300))))),
             Err(err) => err.report(),
         };
     }
@@ -835,7 +839,7 @@ mod tests {
         let expr = maker_literal_i32_expr(32);
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::I32(32)))),
+            Ok(value) => assert_eq!(value, Some(Object::new(OEnum::Literal(ObL::I32(32))))),
             Err(err) => err.report(),
         };
     }
@@ -845,7 +849,7 @@ mod tests {
         let expr = maker_literal_f64_expr(320.0);
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::F64(320.0)))),
+            Ok(value) => assert_eq!(value, Some(Object::new(OEnum::Literal(ObL::F64(320.0))))),
             Err(err) => err.report(),
         };
     }
@@ -857,7 +861,9 @@ mod tests {
         match interpreter.evaluate(&expr) {
             Ok(value) => assert_eq!(
                 value,
-                Object::new(OEnum::Literal(ObL::Str(String::from("string"))))
+                Some(Object::new(OEnum::Literal(ObL::Str(String::from(
+                    "string"
+                )))))
             ),
             Err(err) => err.report(),
         };
@@ -868,7 +874,7 @@ mod tests {
         let expr = maker_literal_bool_expr(true);
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::Bool(true)))),
+            Ok(value) => assert_eq!(value, Some(Object::new(OEnum::Literal(ObL::Bool(true))))),
             Err(err) => err.report(),
         };
     }
@@ -878,7 +884,7 @@ mod tests {
         let expr = maker_literal_null_expr();
         let interpreter: Interpreter = Interpreter::new();
         match interpreter.evaluate(&expr) {
-            Ok(value) => assert_eq!(value, Object::new(OEnum::Literal(ObL::Null))),
+            Ok(value) => assert_eq!(value, Some(Object::new(OEnum::Literal(ObL::Null)))),
             Err(err) => err.report(),
         };
     }

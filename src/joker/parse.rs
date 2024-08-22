@@ -154,28 +154,28 @@ impl Parser {
             String::from("Expect '(' after function name."),
         )?;
 
-        let mut params: Vec<Token> = Vec::new();
-        if !self.check(&TokenType::RightParen) {
-            loop {
-                if params.len() >= 255 {
-                    // warning:?
-                    return Err(JokerError::Abort(AbortError::Argument(
-                        ArgumentAbort::Limit(ArgLimitAbort::report_error(
-                            &self.peek(),
-                            String::from("Can't have more than 255 parameters."),
-                        )),
-                    )));
-                }
+        let params: Option<Vec<Token>> = if self.check(&TokenType::RightParen) {
+            None
+        } else {
+            let mut params: Vec<Token> = vec![self.consume(
+                TokenType::Identifier,
+                String::from("Expect parameter name."),
+            )?];
+            while self.is_match(&[TokenType::Comma]) {
                 params.push(self.consume(
                     TokenType::Identifier,
                     String::from("Expect parameter name."),
                 )?);
-
-                if !self.is_match(&[TokenType::Comma]) {
-                    break;
-                }
             }
-        }
+            if params.len() >= 255 {
+                // TODO: warning
+                ArgLimitAbort::report_error(
+                    &self.peek(),
+                    String::from("Can't have more than 255 parameters."),
+                );
+            }
+            Some(params)
+        };
         self.consume(
             TokenType::RightParen,
             String::from("Expect ')' after parameters."),

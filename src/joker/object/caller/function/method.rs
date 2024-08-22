@@ -66,7 +66,7 @@ impl MethodFunction {
         )));
         instance_env.borrow_mut().define(
             String::from("this"),
-            Object::new(OEnum::Instance(Instance::Class(instance))),
+            Some(Object::new(OEnum::Instance(Instance::Class(instance)))),
         );
         MethodFunction::new(&self.stmt, instance_env)
     }
@@ -80,14 +80,16 @@ impl Callable for MethodFunction {
     ) -> Result<Option<Object>, JokerError> {
         let mut method_env: Env = Env::new_with_enclosing(self.closure.clone());
 
-        for (name, value) in self.stmt.params.iter().zip(arguments) {
-            method_env.define(name.lexeme.clone(), value.clone());
+        if let Some(params) = &self.stmt.params {
+            for (name, value) in params.iter().zip(arguments) {
+                method_env.define(name.lexeme.clone(), Some(value.clone()));
+            }
         }
         match interpreter.execute_block(&self.stmt.body, method_env) {
             Ok(_) => {
                 if self.stmt.name.lexeme.eq("init") {
                     if let Some(this) = self.closure.borrow().symbol.get("this") {
-                        return Ok(Some(this.clone()));
+                        return Ok(this.clone());
                     } else {
                         eprintln!("class init method return instance error.")
                     }
@@ -99,7 +101,7 @@ impl Callable for MethodFunction {
                 ))) => {
                     if self.stmt.name.lexeme.eq("init") {
                         if let Some(this) = self.closure.borrow().symbol.get("this") {
-                            return Ok(Some(this.clone()));
+                            return Ok(this.clone());
                         } else {
                             eprintln!("class init method return instance error.")
                         }
@@ -114,7 +116,7 @@ impl Callable for MethodFunction {
         Ok(None)
     }
     fn arity(&self) -> usize {
-        self.stmt.params.len()
+        self.stmt.params.as_ref().map_or(0, |params| params.len())
     }
 }
 

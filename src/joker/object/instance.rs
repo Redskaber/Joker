@@ -12,7 +12,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use crate::joker::{error::JokerError, types::Object};
+use crate::joker::{error::JokerError, interpreter::InterpreterError, token::Token, types::Object};
 
 use super::{Caller, Class, Function, Object as OEnum};
 
@@ -53,16 +53,28 @@ impl ClassInstance {
             fields: HashMap::new(),
         }
     }
-    pub fn getter(&self, name: &str) -> Option<Object> {
-        match self.fields.get(name) {
-            Some(ins_value) => Some(ins_value.clone()),
-            None => match self.class.get_field(name) {
-                Some(cls_value) => Some(cls_value.clone()),
-                None => self.class.get_method(name).map(|method| {
-                    Object::new(OEnum::Caller(Caller::Func(Function::Method(
-                        method.bind(self.clone()),
-                    ))))
-                }),
+    pub fn getter(&self, name: &Token) -> Result<Option<Object>, JokerError> {
+        match self.fields.get(&name.lexeme) {
+            Some(ins_value) => Ok(Some(ins_value.clone())),
+            None => match self.class.get_field(&name.lexeme) {
+                Some(cls_value) => match cls_value {
+                    Some(value) => Ok(Some(value.clone())),
+                    None => Err(JokerError::Interpreter(InterpreterError::report_error(
+                        name,
+                        format!(
+                            "class attribute '{}' is declared, but not define.",
+                            name.lexeme
+                        ),
+                    ))),
+                },
+                None => {
+                    if let Some(method) = self.class.get_method(&name.lexeme) {
+                        return Ok(Some(Object::new(OEnum::Caller(Caller::Func(
+                            Function::Method(method.bind(self.clone())),
+                        )))));
+                    }
+                    Ok(None)
+                }
             },
         }
     }

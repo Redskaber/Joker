@@ -69,7 +69,7 @@ impl Callable for Lambda {
         let mut lambda_env: Env = Env::new_with_enclosing(self.closure.clone());
 
         for (name, value) in self.expr.params.iter().zip(arguments) {
-            lambda_env.define(name.lexeme.clone(), value.clone());
+            lambda_env.define(name.lexeme.clone(), Some(value.clone()));
         }
         match &*self.expr.body {
             Stmt::BlockStmt(block) => {
@@ -85,7 +85,7 @@ impl Callable for Lambda {
                 }
             }
             Stmt::ExprStmt(ExprStmt { expr }) => {
-                return Ok(Some(interpreter.evaluate_local(expr, lambda_env)?))
+                return interpreter.evaluate_local(expr, lambda_env)
             }
             _ => {
                 return Err(JokerError::Call(CallError::Struct(

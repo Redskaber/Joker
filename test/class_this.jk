@@ -103,10 +103,6 @@ print f2.cls_name;  // "FooClassName"
 print f2.name;      // "Foo_0002"
 print f2.age;       // 200
 // ------------------------------------------------------
-
-*/
-
-
 class Foo {
   var cls_dec;
   var cls_name = "FooClassName";     // class variable
@@ -114,14 +110,34 @@ class Foo {
     this.name = name;                // instance variable
     this.age = age;
   } 
+  fun other() {
+    print this.name;
+    print this.age;
+    print this.cls_name;
+    print "other.";
+  }
 }
 
 var f1 = Foo("Foo_0001", 100);
-print f1.cls_name;  // "FooClassName"
-print f1.name;      // "Foo_0001"
-print f1.age;       // 100
+f1.other();
+// -------------------------------------------------------
+fun demo() {}
+print demo();  // None
+*/
 
-var f2 = Foo("Foo_0002", 200);
-print f2.cls_name;  // "FooClassName"
-print f2.name;      // "Foo_0002"
-print f2.age;       // 200
+class Foo {
+  var cls_dec;
+  fun init(name, age) {
+    this.name = name;                // instance variable
+    this.age = age;
+  } 
+  fun other() {
+    print this.name;
+    print this.age;
+
+    print this.cls_dec;    // Error: class attribute 'cls_dec' is declared, but not define.
+  }
+}
+
+var f1 = Foo("Foo_0001", 100);
+f1.other();

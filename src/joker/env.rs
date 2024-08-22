@@ -23,7 +23,7 @@ use super::{
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Env {
-    pub symbol: HashMap<String, Object>,
+    pub symbol: HashMap<String, Option<Object>>,
     pub enclosing: Option<Rc<RefCell<Env>>>, // rc: 引用计数， RefCell: 运行时管理生命周期
 }
 
@@ -40,7 +40,7 @@ impl Env {
             enclosing: Some(enclosing),
         }
     }
-    pub fn define(&mut self, name: String, value: Object) {
+    pub fn define(&mut self, name: String, value: Option<Object>) {
         self.symbol.insert(name, value);
     }
     pub fn ancestor(&self, distance: usize) -> Option<Rc<RefCell<Env>>> {
@@ -55,7 +55,7 @@ impl Env {
         }
         current_env
     }
-    pub fn get_with_depth(&self, depth: usize, name: &Token) -> Result<Object, JokerError> {
+    pub fn get_with_depth(&self, depth: usize, name: &Token) -> Result<Option<Object>, JokerError> {
         println!(
             "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
             "env", "get_with_depth", "name", name, depth
@@ -83,7 +83,7 @@ impl Env {
             ),
         )))
     }
-    pub fn get(&self, name: &Token) -> Result<Object, JokerError> {
+    pub fn get(&self, name: &Token) -> Result<Option<Object>, JokerError> {
         match self.symbol.get(&name.lexeme) {
             Some(value) => Ok(value.clone()),
             None => match &self.enclosing {
@@ -108,12 +108,14 @@ impl Env {
 
         match depth {
             0 => {
-                self.symbol.insert(name.lexeme.clone(), value);
+                self.symbol.insert(name.lexeme.clone(), Some(value));
                 return Ok(());
             }
             1.. => {
                 if let Some(env) = &self.ancestor(depth) {
-                    env.borrow_mut().symbol.insert(name.lexeme.clone(), value);
+                    env.borrow_mut()
+                        .symbol
+                        .insert(name.lexeme.clone(), Some(value));
                     return Ok(());
                 }
             }
@@ -128,7 +130,7 @@ impl Env {
     }
     pub fn assign(&mut self, name: &Token, value: Object) -> Result<(), JokerError> {
         if let Entry::Occupied(mut entry) = self.symbol.entry(name.lexeme.clone()) {
-            entry.insert(value);
+            entry.insert(Some(value));
             Ok(())
         } else {
             match &self.enclosing {
@@ -213,7 +215,7 @@ mod tests {
         let mut env = Env::new();
         env.define(
             String::from("name"),
-            Object::new(literal_str(String::from("reds"))),
+            Some(Object::new(literal_str(String::from("reds")))),
         );
         assert!(env.symbol.contains_key("name"));
         assert_eq!(
@@ -224,7 +226,7 @@ mod tests {
                 0
             ))
             .unwrap(),
-            Object::new(literal_str(String::from("reds")))
+            Some(Object::new(literal_str(String::from("reds"))))
         );
     }
 
@@ -244,13 +246,13 @@ mod tests {
         sub.enclosing
             .unwrap()
             .borrow_mut()
-            .define(String::from("sub_key"), Object::new(literal_i32(100)));
-        let parent_get: Object = parent
+            .define(String::from("sub_key"), Some(Object::new(literal_i32(100))));
+        let parent_get: Option<Object> = parent
             .borrow()
             .get(&maker_token(String::from("sub_key")))
             .unwrap();
 
-        assert_eq!(parent_get, Object::new(literal_i32(100)));
+        assert_eq!(parent_get, Some(Object::new(literal_i32(100))));
     }
 
     #[test]
@@ -260,10 +262,10 @@ mod tests {
 
         parent
             .borrow_mut()
-            .define(String::from("sub_key"), Object::new(literal_i32(100)));
-        let sub_get: Object = sub.get(&maker_token(String::from("sub_key"))).unwrap();
+            .define(String::from("sub_key"), Some(Object::new(literal_i32(100))));
+        let sub_get: Option<Object> = sub.get(&maker_token(String::from("sub_key"))).unwrap();
 
-        assert_eq!(sub_get, Object::new(literal_i32(100)));
+        assert_eq!(sub_get, Some(Object::new(literal_i32(100))));
     }
 
     #[test]
@@ -272,8 +274,8 @@ mod tests {
         let parent: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new()));
         let sub: Env = Env::new_with_enclosing(Rc::clone(&parent));
 
-        let sub_get: Object = sub.get(&maker_token(String::from("sub_key"))).unwrap();
+        let sub_get: Option<Object> = sub.get(&maker_token(String::from("sub_key"))).unwrap();
 
-        assert_eq!(sub_get, Object::new(literal_i32(100)));
+        assert_eq!(sub_get, Some(Object::new(literal_i32(100))));
     }
 }
