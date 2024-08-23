@@ -1,7 +1,7 @@
 //! This file is instance rs
 //!
 //! - Instance
-//!     - ClassInstance
+//!     - Instance
 //!
 //!
 //!
@@ -14,29 +14,15 @@ use std::{
 
 use crate::joker::{error::JokerError, interpreter::InterpreterError, token::Token, types::Object};
 
-use super::{Caller, Class, Function, Object as OEnum};
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Instance {
-    Class(ClassInstance),
-}
-
-impl Display for Instance {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Instance::Class(class_instance) => Display::fmt(class_instance, f),
-        }
-    }
-}
+use super::{Binder, Caller, Class, Object as OEnum};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClassInstance {
-    class: Class,
+pub struct Instance {
+    class: Box<Class>,
     fields: HashMap<String, Object>,
-    // methods: Option<HashMap<String, InstanceFunction>>
 }
 
-impl Hash for ClassInstance {
+impl Hash for Instance {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.class.hash(state);
         for (key, value) in &self.fields {
@@ -46,9 +32,9 @@ impl Hash for ClassInstance {
     }
 }
 
-impl ClassInstance {
-    pub fn new(class: Class) -> ClassInstance {
-        ClassInstance {
+impl Instance {
+    pub fn new(class: Box<Class>) -> Instance {
+        Instance {
             class,
             fields: HashMap::new(),
         }
@@ -70,7 +56,7 @@ impl ClassInstance {
                 None => {
                     if let Some(method) = self.class.get_method(&name.lexeme) {
                         return Ok(Some(Object::new(OEnum::Caller(Caller::Func(
-                            Function::Method(method.bind(self.clone())),
+                            method.bind(self.clone()),
                         )))));
                     }
                     Ok(None)
@@ -84,11 +70,11 @@ impl ClassInstance {
     }
 }
 
-impl Display for ClassInstance {
+impl Display for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "ClassInstance(class: {}, fields: {:?})",
+            "Instance(class: {}, fields: {:?})",
             self.class, self.fields
         )
     }

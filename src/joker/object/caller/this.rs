@@ -10,6 +10,7 @@
 use std::fmt::Display;
 
 use crate::joker::{
+    ast::Stmt,
     callable::Callable,
     error::JokerError,
     interpreter::Interpreter,
@@ -19,11 +20,17 @@ use crate::joker::{
 
 use super::{Class, Function, Lambda};
 
+pub enum FuncType {
+    Method(Stmt),
+    Instance(Stmt),
+    Static(Stmt),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Caller {
     Func(Function),
     Lambda(Lambda),
-    Class(Class),
+    Class(Box<Class>),
 }
 
 impl UpCast<OEnum> for Caller {

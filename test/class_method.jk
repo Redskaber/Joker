@@ -1,0 +1,26 @@
+// this file is joker language file test for class method
+
+class Person {
+    var p_name = "per_name";
+    var p_age = 0;
+    fun init(this, name, age) {
+        this.name = name;
+        this.age = age;
+        print this;
+    }
+
+    fun cls_method(cls) {
+        print "This is a class method";
+        print cls;
+    }
+
+    fun static_method() {
+        print "This is a static method";
+    }
+}
+
+var p = Person("Jane", 30);
+print p.p_name;
+print p.p_age;
+print p.name;
+print p.age;

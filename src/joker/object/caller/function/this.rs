@@ -21,17 +21,22 @@ use crate::joker::{
     env::Env,
     error::JokerError,
     interpreter::Interpreter,
-    object::{Caller, ClassInstance, Instance, Object as OEnum, UpCast},
+    object::{Caller, Instance, Object as OEnum, UpCast},
     types::Object,
 };
 
-use super::MethodFunction;
+use super::{InstanceFunction, MethodFunction};
+
+pub trait Binder {
+    fn bind(&self, instance: Instance) -> Function;
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Function {
     Native(NativeFunction),
     User(UserFunction),
     Method(MethodFunction),
+    Instance(InstanceFunction),
 }
 
 impl UpCast<OEnum> for Function {
@@ -40,6 +45,7 @@ impl UpCast<OEnum> for Function {
             Function::Native(native) => UpCast::upcast(native),
             Function::User(user) => UpCast::upcast(user),
             Function::Method(method) => UpCast::upcast(method),
+            Function::Instance(instance) => UpCast::upcast(instance),
         }
     }
     fn upcast_into(self) -> OEnum {
@@ -47,6 +53,7 @@ impl UpCast<OEnum> for Function {
             Function::Native(native) => UpCast::upcast_into(native),
             Function::User(user) => UpCast::upcast_into(user),
             Function::Method(method) => UpCast::upcast_into(method),
+            Function::Instance(instance) => UpCast::upcast_into(instance),
         }
     }
 }
@@ -57,6 +64,7 @@ impl Display for Function {
             Function::Native(native) => Display::fmt(native, f),
             Function::User(user) => Display::fmt(user, f),
             Function::Method(method) => Display::fmt(method, f),
+            Function::Instance(instance) => Display::fmt(instance, f),
         }
     }
 }
@@ -71,6 +79,7 @@ impl Callable for Function {
             Function::Native(native) => Callable::call(native, interpreter, arguments),
             Function::User(user) => Callable::call(user, interpreter, arguments),
             Function::Method(method) => Callable::call(method, interpreter, arguments),
+            Function::Instance(instance) => Callable::call(instance, interpreter, arguments),
         }
     }
     fn arity(&self) -> usize {
@@ -78,6 +87,7 @@ impl Callable for Function {
             Function::Native(native) => Callable::arity(native),
             Function::User(user) => Callable::arity(user),
             Function::Method(method) => Callable::arity(method),
+            Function::Instance(instance) => Callable::arity(instance),
         }
     }
 }
@@ -176,16 +186,19 @@ impl UserFunction {
             closure,
         }
     }
+}
+
+impl Binder for UserFunction {
     // TODO: static function ?
-    pub fn bind(&self, instance: ClassInstance) -> UserFunction {
+    fn bind(&self, instance: Instance) -> Function {
         let instance_env: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new_with_enclosing(
             Rc::clone(&self.closure),
         )));
         instance_env.borrow_mut().define(
             String::from("this"),
-            Some(Object::new(OEnum::Instance(Instance::Class(instance)))),
+            Some(Object::new(OEnum::Instance(Box::new(instance)))),
         );
-        UserFunction::new(&self.stmt, instance_env)
+        Function::User(UserFunction::new(&self.stmt, instance_env))
     }
 }
 
@@ -228,6 +241,54 @@ impl Display for UserFunction {
 impl Debug for UserFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "UserFun(<callable>)")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BinderFunction {
+    User(UserFunction),
+    Method(MethodFunction),
+    Instance(InstanceFunction),
+}
+
+impl Callable for BinderFunction {
+    fn call(
+        &self,
+        interpreter: &Interpreter,
+        arguments: &[Object],
+    ) -> Result<Option<Object>, JokerError> {
+        match self {
+            BinderFunction::User(user) => Callable::call(user, interpreter, arguments),
+            BinderFunction::Method(method) => Callable::call(method, interpreter, arguments),
+            BinderFunction::Instance(instance) => Callable::call(instance, interpreter, arguments),
+        }
+    }
+    fn arity(&self) -> usize {
+        match self {
+            BinderFunction::User(user) => Callable::arity(user),
+            BinderFunction::Method(method) => Callable::arity(method),
+            BinderFunction::Instance(instance) => Callable::arity(instance),
+        }
+    }
+}
+
+impl Binder for BinderFunction {
+    fn bind(&self, instance: Instance) -> Function {
+        match self {
+            BinderFunction::User(user) => Binder::bind(user, instance),
+            BinderFunction::Method(method) => Binder::bind(method, instance),
+            BinderFunction::Instance(ins) => Binder::bind(ins, instance),
+        }
+    }
+}
+
+impl Display for BinderFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinderFunction::User(user) => Display::fmt(user, f),
+            BinderFunction::Method(method) => Display::fmt(method, f),
+            BinderFunction::Instance(instance) => Display::fmt(instance, f),
+        }
     }
 }
 

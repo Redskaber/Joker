@@ -8,4 +8,4 @@ class Person {
 
 print Person;       // Class(Person)
 var p = Person();
-print p;            // ClassInstance(Person) 
+print p;            // Instance(Person) 

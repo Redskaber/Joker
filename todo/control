@@ -24,6 +24,8 @@ TODO:
       - [v] update function statement parameter type to option<vec<type>>.
       - [v] update lambda function parameter type to option<vec<type>>.
       - [v] update function not return value Option::None.
+      - [v] class [cls, ins, sta] funtion.
+      - [] wait handler init this same init before and after.
       - [] class attribute set and get, update and delete.
       - [] add class static attribute and class static method.
       - [] add class constructor and destructor.

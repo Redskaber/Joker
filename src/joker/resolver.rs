@@ -34,6 +34,8 @@ pub trait StmtResolver<T> {
     fn resolve_function(&self, stmt: &FunStmt) -> Result<T, JokerError>;
     fn resolve_lambda(&self, pipe: &Token, stmt: &Stmt) -> Result<T, JokerError>;
     fn resolve_class(&self, stmt: &ClassStmt) -> Result<T, JokerError>;
+    fn resolve_method(&self, stmt: &FunStmt) -> Result<T, JokerError>;
+    fn resolve_instance(&self, stmt: &FunStmt) -> Result<T, JokerError>;
 }
 
 pub trait ExprResolver<T> {
@@ -55,6 +57,8 @@ pub enum ClassStatus {
     Default,
     Init,
     Method,
+    Instance,
+    Fun,
 }
 
 #[derive(Debug)]
@@ -185,19 +189,14 @@ impl StmtResolver<()> for Resolver {
         Ok(())
     }
     fn resolve_function(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        if matches!(
-            self.context_status_stack.borrow().last(),
-            Some(ContextStatus::Class(ClassStatus::Default))
-        ) {
-            if stmt.name.lexeme == "init" {
-                self.context_status_stack
-                    .borrow_mut()
-                    .push(ContextStatus::Class(ClassStatus::Init));
-            } else {
-                self.context_status_stack
-                    .borrow_mut()
-                    .push(ContextStatus::Class(ClassStatus::Method));
-            }
+        if self
+            .context_status_stack
+            .borrow()
+            .contains(&ContextStatus::Class(ClassStatus::Default))
+        {
+            self.context_status_stack
+                .borrow_mut()
+                .push(ContextStatus::Class(ClassStatus::Fun));
         } else {
             self.context_status_stack
                 .borrow_mut()
@@ -264,7 +263,21 @@ impl StmtResolver<()> for Resolver {
                 StmtResolver::resolve(self, stmt)?;
             }
         }
-        if let Some(stmts) = &stmt.methods {
+        if let Some(stmts) = &stmt.class_methods {
+            for stmt in stmts {
+                if let Stmt::FunStmt(fun) = stmt {
+                    StmtResolver::resolve_method(self, fun)?;
+                }
+            }
+        }
+        if let Some(stmts) = &stmt.instance_methods {
+            for stmt in stmts {
+                if let Stmt::FunStmt(fun) = stmt {
+                    StmtResolver::resolve_instance(self, fun)?;
+                }
+            }
+        }
+        if let Some(stmts) = &stmt.static_methods {
             for stmt in stmts {
                 if let Stmt::FunStmt(fun) = stmt {
                     StmtResolver::resolve_function(self, fun)?;
@@ -276,6 +289,98 @@ impl StmtResolver<()> for Resolver {
         self.end_scope();
         self.context_status_stack.borrow_mut().pop();
         Ok(())
+    }
+    fn resolve_method(&self, stmt: &FunStmt) -> Result<(), JokerError> {
+        if self
+            .context_status_stack
+            .borrow()
+            .contains(&ContextStatus::Class(ClassStatus::Default))
+        {
+            self.context_status_stack
+                .borrow_mut()
+                .push(ContextStatus::Class(ClassStatus::Method));
+            println!(
+                "[{:>10}][{:>20}]:\tstack: {:?}",
+                "resolve", "resolve_function", self.context_status_stack
+            );
+
+            self.begin_scope();
+            if let Some(params) = &stmt.params {
+                for param in params {
+                    self.declare(param)?;
+                    self.define(param)?;
+                }
+            }
+            StmtResolver::resolve_block(self, &stmt.body)?;
+
+            // check local var used status
+            self.check_vars_status()?;
+            self.end_scope();
+
+            self.context_status_stack.borrow_mut().pop();
+
+            println!(
+                "[{:>10}][{:>20}]:\tstack: {:?}",
+                "resolve", "resolve_function", self.context_status_stack
+            );
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Env(
+                EnvError::report_error(
+                    &stmt.name,
+                    String::from("class method is need inside class."),
+                ),
+            )))
+        }
+    }
+    fn resolve_instance(&self, stmt: &FunStmt) -> Result<(), JokerError> {
+        if self
+            .context_status_stack
+            .borrow()
+            .contains(&ContextStatus::Class(ClassStatus::Default))
+        {
+            if stmt.name.lexeme == "init" {
+                self.context_status_stack
+                    .borrow_mut()
+                    .push(ContextStatus::Class(ClassStatus::Init));
+            } else {
+                self.context_status_stack
+                    .borrow_mut()
+                    .push(ContextStatus::Class(ClassStatus::Instance));
+            }
+            println!(
+                "[{:>10}][{:>20}]:\tstack: {:?}",
+                "resolve", "resolve_function", self.context_status_stack
+            );
+
+            self.begin_scope();
+            if let Some(params) = &stmt.params {
+                for param in params {
+                    self.declare(param)?;
+                    self.define(param)?;
+                }
+            }
+            StmtResolver::resolve_block(self, &stmt.body)?;
+
+            // check local var used status
+            self.check_vars_status()?;
+            self.end_scope();
+
+            self.context_status_stack.borrow_mut().pop();
+
+            println!(
+                "[{:>10}][{:>20}]:\tstack: {:?}",
+                "resolve", "resolve_function", self.context_status_stack
+            );
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Env(
+                EnvError::report_error(
+                    &stmt.name,
+                    String::from("class instance method is need inside class."),
+                ),
+            )))
+        }
     }
 }
 impl ExprResolver<()> for Resolver {

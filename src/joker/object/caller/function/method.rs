@@ -18,11 +18,11 @@ use crate::joker::{
     env::Env,
     error::JokerError,
     interpreter::Interpreter,
-    object::{Caller, ClassInstance, Instance, Object as OEnum, UpCast},
+    object::{Caller, Instance, Object as OEnum, UpCast},
     types::Object,
 };
 
-use super::Function;
+use super::{Binder, Function};
 
 #[derive(Clone)]
 pub struct MethodFunction {
@@ -59,16 +59,19 @@ impl MethodFunction {
             closure,
         }
     }
+}
+
+impl Binder for MethodFunction {
     // TODO: method function ?
-    pub fn bind(&self, instance: ClassInstance) -> MethodFunction {
+    fn bind(&self, instance: Instance) -> Function {
         let instance_env: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new_with_enclosing(
             Rc::clone(&self.closure),
         )));
         instance_env.borrow_mut().define(
             String::from("this"),
-            Some(Object::new(OEnum::Instance(Instance::Class(instance)))),
+            Some(Object::new(OEnum::Instance(Box::new(instance)))),
         );
-        MethodFunction::new(&self.stmt, instance_env)
+        Function::Method(MethodFunction::new(&self.stmt, instance_env))
     }
 }
 
@@ -81,42 +84,27 @@ impl Callable for MethodFunction {
         let mut method_env: Env = Env::new_with_enclosing(self.closure.clone());
 
         if let Some(params) = &self.stmt.params {
-            for (name, value) in params.iter().zip(arguments) {
+            // cls
+            for (name, value) in params[1..].iter().zip(arguments) {
                 method_env.define(name.lexeme.clone(), Some(value.clone()));
             }
         }
-        match interpreter.execute_block(&self.stmt.body, method_env) {
-            Ok(_) => {
-                if self.stmt.name.lexeme.eq("init") {
-                    if let Some(this) = self.closure.borrow().symbol.get("this") {
-                        return Ok(this.clone());
-                    } else {
-                        eprintln!("class init method return instance error.")
-                    }
-                }
-            }
-            Err(err) => match err {
+        if let Err(err) = interpreter.execute_block(&self.stmt.body, method_env) {
+            match err {
                 JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
                     return_value,
-                ))) => {
-                    if self.stmt.name.lexeme.eq("init") {
-                        if let Some(this) = self.closure.borrow().symbol.get("this") {
-                            return Ok(this.clone());
-                        } else {
-                            eprintln!("class init method return instance error.")
-                        }
-                    } else {
-                        return Ok(return_value);
-                    }
-                }
+                ))) => return Ok(return_value),
                 _ => return Err(err),
-            },
+            }
         };
 
         Ok(None)
     }
     fn arity(&self) -> usize {
-        self.stmt.params.as_ref().map_or(0, |params| params.len())
+        self.stmt
+            .params
+            .as_ref()
+            .map_or(0, |params| params.len() - 1)
     }
 }
 

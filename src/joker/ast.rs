@@ -285,10 +285,12 @@ macro_rules! define_ast {
     (@impl_display ClassStmt, $($field:ident: $field_type: ty),*) => {
         impl Display for ClassStmt {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "ClassStmt(name: {}, fields: {:?}, methods: {:?})",
+                write!(f, "ClassStmt(name: {}, fields: {:?}, class_methods: {:?}, instance_methods: {:?}, static_methods: {:?})",
                     self.name,
                     self.fields,
-                    self.methods,
+                    self.class_methods,
+                    self.instance_methods,
+                    self.static_methods,
                 )
             }
         }
@@ -340,7 +342,8 @@ define_ast! {
         ContinueStmt{ name: Token },
         FunStmt     { name: Token, params: Option<Vec<Token>>, body: Vec<Stmt> },
         ReturnStmt  { keyword: Token, value: Option<Expr> },
-        ClassStmt   { name: Token, fields: Option<Vec<Stmt>>, methods: Option<Vec<Stmt>> },
+        ClassStmt   { name: Token, fields: Option<Vec<Stmt>>, class_methods: Option<Vec<Stmt>>, instance_methods: Option<Vec<Stmt>>,
+                        static_methods: Option<Vec<Stmt>> },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
                             visit_for, visit_break, visit_continue, visit_fun, visit_return, visit_class },

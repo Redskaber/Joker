@@ -18,7 +18,7 @@ use super::{
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
     object::{
-        Caller, Class, Function, Instance, Literal as ObL, MethodFunction, NativeFunction,
+        Caller, Class, Function, InstanceFunction, Literal as ObL, MethodFunction, NativeFunction,
         Object as OEnum, UserFunction,
     },
     token::{Token, TokenType},
@@ -171,7 +171,7 @@ impl StmtVisitor<()> for Interpreter {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {:?}",
+            "[{:>10}][{:>20}]:\t{:<5}: {}",
             "inter", "visit_var", "stmt", stmt
         );
         let value = match &stmt.value {
@@ -303,7 +303,7 @@ impl StmtVisitor<()> for Interpreter {
             None => None,
         };
 
-        let methods: Option<HashMap<String, MethodFunction>> = match &stmt.methods {
+        let class_methods: Option<HashMap<String, MethodFunction>> = match &stmt.class_methods {
             Some(stmts) => {
                 let mut methods: HashMap<String, MethodFunction> = HashMap::new();
                 for stmt in stmts {
@@ -319,11 +319,47 @@ impl StmtVisitor<()> for Interpreter {
             None => None,
         };
 
-        let class: Object = Object::new(OEnum::Caller(Caller::Class(Class::new(
+        let instance_methods: Option<HashMap<String, InstanceFunction>> =
+            match &stmt.instance_methods {
+                Some(stmts) => {
+                    let mut methods: HashMap<String, InstanceFunction> = HashMap::new();
+                    for stmt in stmts {
+                        if let Stmt::FunStmt(fun_stmt) = stmt {
+                            methods.insert(
+                                fun_stmt.name.lexeme.clone(),
+                                InstanceFunction::new(fun_stmt, Rc::clone(&self.run_env.borrow())),
+                            );
+                        }
+                    }
+                    Some(methods)
+                }
+                None => None,
+            };
+
+        let static_methods: Option<HashMap<String, UserFunction>> = match &stmt.static_methods {
+            Some(stmts) => {
+                let mut methods: HashMap<String, UserFunction> = HashMap::new();
+                for stmt in stmts {
+                    if let Stmt::FunStmt(fun_stmt) = stmt {
+                        methods.insert(
+                            fun_stmt.name.lexeme.clone(),
+                            UserFunction::new(fun_stmt, Rc::clone(&self.run_env.borrow())),
+                        );
+                    }
+                }
+                Some(methods)
+            }
+            None => None,
+        };
+
+        let class: Object = Object::new(OEnum::Caller(Caller::Class(Box::new(Class::new(
             stmt.name.lexeme.clone(),
             fields,
-            methods,
-        ))));
+            class_methods,
+            instance_methods,
+            static_methods,
+        )))));
+
         self.run_env
             .borrow()
             .borrow_mut()
@@ -707,8 +743,8 @@ impl ExprVisitor<Option<Object>> for Interpreter {
     }
     fn visit_getter(&self, expr: &Getter) -> Result<Option<Object>, JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {:?}",
-            "inter", "look_up_variable", "expr", expr
+            "[{:>10}][{:>20}]:\t{:<5}: {}",
+            "inter", "visit_getter", "expr", expr
         );
         let object: Object = self.value_or_raise(
             &expr.name,
@@ -716,8 +752,8 @@ impl ExprVisitor<Option<Object>> for Interpreter {
             String::from("getter object invalid value."),
         )?;
         let result: Result<Option<Object>, JokerError> =
-            if let OEnum::Instance(Instance::Class(class_instance)) = &*object.get() {
-                match class_instance.getter(&expr.name)? {
+            if let OEnum::Instance(instance) = &*object.get() {
+                match instance.getter(&expr.name)? {
                     Some(object) => Ok(Some(object)),
                     None => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.name,
@@ -735,8 +771,8 @@ impl ExprVisitor<Option<Object>> for Interpreter {
     }
     fn visit_setter(&self, expr: &Setter) -> Result<Option<Object>, JokerError> {
         println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {:?}",
-            "inter", "look_up_variable", "expr", expr
+            "[{:>10}][{:>20}]:\t{:<5}: {}",
+            "inter", "visit_setter", "expr", expr
         );
         let object: Object = self.value_or_raise(
             &expr.name,
@@ -744,13 +780,13 @@ impl ExprVisitor<Option<Object>> for Interpreter {
             String::from("setter object invalid left value."),
         )?;
         let result: Result<Option<Object>, JokerError> =
-            if let OEnum::Instance(Instance::Class(class_instance)) = &mut *object.get_mut() {
+            if let OEnum::Instance(instance) = &mut *object.get_mut() {
                 let value: Object = self.value_or_raise(
                     &expr.name,
                     &expr.r_expr,
                     String::from("setter object invalid right value."),
                 )?;
-                class_instance.setter(&expr.name.lexeme, value.clone())?;
+                instance.setter(&expr.name.lexeme, value.clone())?;
                 Ok(Some(value))
             } else {
                 Err(JokerError::Interpreter(InterpreterError::report_error(

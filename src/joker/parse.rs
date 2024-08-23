@@ -13,7 +13,7 @@ use super::{
         ReturnStmt, Setter, Stmt, This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
-    object::literal_bool,
+    object::{literal_bool, FuncType},
     token::{Token, TokenType},
 };
 
@@ -98,59 +98,98 @@ impl Parser {
     // classStmt      → "class" IDENTIFIER "{" var_decl* | fun_decl* | method_decl* | instance_decl*"}" ;
     fn class_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token =
-            self.consume(TokenType::Identifier, String::from("expect class name."))?;
+            self.consume(&[TokenType::Identifier], String::from("expect class name."))?;
         self.consume(
-            TokenType::LeftBrace,
+            &[TokenType::LeftBrace],
             String::from("expect '{' before class body."),
         )?;
 
-        let (fields, methods) = if self.check(&TokenType::RightBrace) {
-            (None, None)
-        } else {
-            let mut fields = Vec::new();
-            let mut methods = Vec::new();
-            loop {
-                if self.is_match(&[TokenType::Var]) {
-                    fields.push(self.var_declaration()?);
-                } else if self.is_match(&[TokenType::Fun]) {
-                    methods.push(self.fun_declaration()?);
-                } else {
-                    return Err(JokerError::Parser(ParserError::report_error(
-                        &self.peek(),
-                        String::from("class inside only have var and fun."),
-                    )));
+        let (fields, class_methods, instance_methods, static_methods) =
+            if self.check(&TokenType::RightBrace) {
+                (None, None, None, None)
+            } else {
+                let mut fields = Vec::new();
+                let mut class_methods = Vec::new();
+                let mut instance_methods = Vec::new();
+                let mut static_methods = Vec::new();
+                loop {
+                    if self.is_match(&[TokenType::Var]) {
+                        fields.push(self.var_declaration()?);
+                    } else if self.is_match(&[TokenType::Fun]) {
+                        match self.class_fun_declaration()? {
+                            FuncType::Method(method) => class_methods.push(method),
+                            FuncType::Instance(instance) => instance_methods.push(instance),
+                            FuncType::Static(static_) => static_methods.push(static_),
+                        }
+                    } else {
+                        return Err(JokerError::Parser(ParserError::report_error(
+                            &self.peek(),
+                            String::from("class inside only have var and fun."),
+                        )));
+                    }
+                    if self.check(&TokenType::RightBrace) {
+                        break;
+                    }
                 }
-                if self.check(&TokenType::RightBrace) {
-                    break;
-                }
-            }
-            (
-                if fields.is_empty() {
-                    None
-                } else {
-                    Some(fields)
-                },
-                if methods.is_empty() {
-                    None
-                } else {
-                    Some(methods)
-                },
-            )
-        };
+                (
+                    if fields.is_empty() {
+                        None
+                    } else {
+                        Some(fields)
+                    },
+                    if class_methods.is_empty() {
+                        None
+                    } else {
+                        Some(class_methods)
+                    },
+                    if instance_methods.is_empty() {
+                        None
+                    } else {
+                        Some(instance_methods)
+                    },
+                    if static_methods.is_empty() {
+                        None
+                    } else {
+                        Some(static_methods)
+                    },
+                )
+            };
         self.consume(
-            TokenType::RightBrace,
+            &[TokenType::RightBrace],
             String::from("expect '}' after class body."),
         )?;
-        Ok(ClassStmt::upcast(name, fields, methods))
+        Ok(ClassStmt::upcast(
+            name,
+            fields,
+            class_methods,
+            instance_methods,
+            static_methods,
+        ))
+    }
+    fn class_fun_declaration(&mut self) -> Result<FuncType, JokerError> {
+        if let Stmt::FunStmt(fun_stmt) = self.fun_declaration()? {
+            match &fun_stmt.params {
+                Some(params) => match params[0].lexeme.as_str() {
+                    "cls" => Ok(FuncType::Method(Stmt::FunStmt(fun_stmt))),
+                    "this" => Ok(FuncType::Instance(Stmt::FunStmt(fun_stmt))),
+                    _ => Ok(FuncType::Static(Stmt::FunStmt(fun_stmt))),
+                },
+                None => Ok(FuncType::Static(Stmt::FunStmt(fun_stmt))),
+            }
+        } else {
+            unreachable!("fun_declaration return Stmt::FunStmt, unreachable this.")
+        }
     }
     // fun_declaration        → "fun" funStmt ;
     // funStmt        → IDENTIFIER "(" parameters? ")" blockStmt ;
     // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
     fn fun_declaration(&mut self) -> Result<Stmt, JokerError> {
-        let name: Token =
-            self.consume(TokenType::Identifier, String::from("Expect function name."))?;
+        let name: Token = self.consume(
+            &[TokenType::Identifier],
+            String::from("Expect function name."),
+        )?;
         self.consume(
-            TokenType::LeftParen,
+            &[TokenType::LeftParen],
             String::from("Expect '(' after function name."),
         )?;
 
@@ -158,12 +197,12 @@ impl Parser {
             None
         } else {
             let mut params: Vec<Token> = vec![self.consume(
-                TokenType::Identifier,
+                &[TokenType::Identifier, TokenType::This],
                 String::from("Expect parameter name."),
             )?];
             while self.is_match(&[TokenType::Comma]) {
                 params.push(self.consume(
-                    TokenType::Identifier,
+                    &[TokenType::Identifier],
                     String::from("Expect parameter name."),
                 )?);
             }
@@ -177,11 +216,11 @@ impl Parser {
             Some(params)
         };
         self.consume(
-            TokenType::RightParen,
+            &[TokenType::RightParen],
             String::from("Expect ')' after parameters."),
         )?;
         self.consume(
-            TokenType::LeftBrace,
+            &[TokenType::LeftBrace],
             String::from("Expect '{' before body."),
         )?;
 
@@ -201,15 +240,17 @@ impl Parser {
 
     // varStmt → "var" IDENTIFIER ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
-        let name: Token =
-            self.consume(TokenType::Identifier, String::from("Expect variable name."))?;
+        let name: Token = self.consume(
+            &[TokenType::Identifier],
+            String::from("Expect variable name."),
+        )?;
         let value: Option<Expr> = if self.is_match(&[TokenType::Equal]) {
             Some(self.expression()?)
         } else {
             None
         };
         self.consume(
-            TokenType::Semicolon,
+            &[TokenType::Semicolon],
             String::from("Expect ';' after variable declaration."),
         )?;
         Ok(VarStmt::upcast(name, value))
@@ -259,7 +300,7 @@ impl Parser {
             None
         };
         self.consume(
-            TokenType::Semicolon,
+            &[TokenType::Semicolon],
             String::from("Expect ';' after return statement value."),
         )?;
         Ok(ReturnStmt::upcast(keyword, value))
@@ -268,7 +309,7 @@ impl Parser {
     fn continue_statement(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.previous();
         self.consume(
-            TokenType::Semicolon,
+            &[TokenType::Semicolon],
             String::from("Expect ';' after 'continue' statement."),
         )?;
         Ok(ContinueStmt::upcast(name))
@@ -277,7 +318,7 @@ impl Parser {
     fn break_statement(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.previous();
         self.consume(
-            TokenType::Semicolon,
+            &[TokenType::Semicolon],
             String::from("Expect ';' after 'break' statement."),
         )?;
         Ok(BreakStmt::upcast(name))
@@ -294,7 +335,7 @@ impl Parser {
     // }
     fn for_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
-            TokenType::LeftParen,
+            &[TokenType::LeftParen],
             String::from("Expect '(' after 'for'."),
         )?;
 
@@ -312,7 +353,7 @@ impl Parser {
             Literal::upcast(literal_bool(true))
         };
         self.consume(
-            TokenType::Semicolon,
+            &[TokenType::Semicolon],
             String::from("Expect ';' after for loop condition."),
         )?;
 
@@ -322,7 +363,7 @@ impl Parser {
             None
         };
         self.consume(
-            TokenType::RightParen,
+            &[TokenType::RightParen],
             String::from("Expect ')' after for loop clauses."),
         )?;
 
@@ -338,12 +379,12 @@ impl Parser {
     // whileStmt      → "while" "(" expression ")" statement ;
     fn while_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
-            TokenType::LeftParen,
+            &[TokenType::LeftParen],
             String::from("Expect '(' after 'while'."),
         )?;
         let condition: Expr = self.expression()?;
         self.consume(
-            TokenType::RightParen,
+            &[TokenType::RightParen],
             String::from("Expect ')' after while condition."),
         )?;
         let body: Stmt = self.statement()?;
@@ -352,12 +393,12 @@ impl Parser {
     // if stmt  -> "if" "(" expression ")" statement ( "else" statement )?
     fn if_statement(&mut self) -> Result<Stmt, JokerError> {
         self.consume(
-            TokenType::LeftParen,
+            &[TokenType::LeftParen],
             String::from("Expect '(' after 'if' statement."),
         )?;
         let condition: Expr = self.expression()?;
         self.consume(
-            TokenType::RightParen,
+            &[TokenType::RightParen],
             String::from("Expect ')' after if condition."),
         )?;
         let then_branch: Stmt = self.statement()?;
@@ -375,7 +416,7 @@ impl Parser {
     fn print_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;
         self.consume(
-            TokenType::Semicolon,
+            &[TokenType::Semicolon],
             String::from("Expect ';' after value."),
         )?;
         Ok(PrintStmt::upcast(expr))
@@ -387,7 +428,7 @@ impl Parser {
             stmts.push(self.declaration()?);
         }
         self.consume(
-            TokenType::RightBrace,
+            &[TokenType::RightBrace],
             String::from("Expect '}' after block statement."),
         )?;
         Ok(BlockStmt::upcast(stmts))
@@ -396,7 +437,7 @@ impl Parser {
     fn expr_statement(&mut self) -> Result<Stmt, JokerError> {
         let expr: Expr = self.expression()?;
         self.consume(
-            TokenType::Semicolon,
+            &[TokenType::Semicolon],
             String::from("Expect ';' after value."),
         )?;
         Ok(ExprStmt::upcast(expr))
@@ -449,7 +490,7 @@ impl Parser {
                         )));
                     }
                     params.push(self.consume(
-                        TokenType::Identifier,
+                        &[TokenType::Identifier],
                         String::from("Expect parameter name."),
                     )?);
                     if !self.is_match(&[TokenType::Comma]) {
@@ -459,7 +500,7 @@ impl Parser {
             }
 
             self.consume(
-                TokenType::Pipeline,
+                &[TokenType::Pipeline],
                 String::from("Expect '|' after parameters."),
             )?;
 
@@ -581,7 +622,7 @@ impl Parser {
                 expr = self.finish_call(expr)?;
             } else if self.is_match(&[TokenType::Dot]) {
                 let name: Token = self.consume(
-                    TokenType::Identifier,
+                    &[TokenType::Identifier],
                     String::from("expect attribute name after '.'."),
                 )?;
                 expr = Getter::upcast(Box::new(expr), name);
@@ -609,7 +650,7 @@ impl Parser {
             }
         }
         let paren = self.consume(
-            TokenType::RightParen,
+            &[TokenType::RightParen],
             String::from("Expect ')' after arguments."),
         )?;
         Ok(Call::upcast(Box::new(callee), paren, arguments))
@@ -620,7 +661,7 @@ impl Parser {
         if self.is_match(&[TokenType::LeftParen]) {
             let expr: Expr = self.expression()?;
             self.consume(
-                TokenType::RightParen,
+                &[TokenType::RightParen],
                 String::from("Expect ')' after expression."),
             )?;
             return Ok(Grouping::upcast(Box::new(expr)));
@@ -651,15 +692,16 @@ impl Parser {
             ))), // jump
         }
     }
-    fn consume(&mut self, expected: TokenType, msg: String) -> Result<Token, JokerError> {
-        if self.check(&expected) {
-            Ok(self.advance())
-        } else {
-            Err(JokerError::Parser(ParserError::report_error(
-                &self.peek(),
-                msg,
-            )))
+    fn consume(&mut self, expected: &[TokenType], msg: String) -> Result<Token, JokerError> {
+        for exp in expected {
+            if self.check(exp) {
+                return Ok(self.advance());
+            }
         }
+        Err(JokerError::Parser(ParserError::report_error(
+            &self.peek(),
+            msg,
+        )))
     }
     fn synchronize(&mut self) {
         self.advance();

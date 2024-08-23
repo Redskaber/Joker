@@ -1,4 +1,4 @@
-use obj_enum::{Class, ClassInstance};
+use obj_enum::{Class, Instance};
 
 
 mod obj_enum {
@@ -47,11 +47,11 @@ mod obj_enum {
 
     #[derive(Debug)]
     pub(super) enum Instance {
-        Class(ClassInstance),
+        Class(Instance),
     }
 
     #[derive(Debug)]
-    pub(super) struct  ClassInstance {
+    pub(super) struct  Instance {
         pub(super) class: Class,
         pub(super) fields: Option<HashMap<String, Object>>
     }
@@ -99,7 +99,7 @@ pub fn types_main() {
     println!("obj get: {:?}", obj.get());
     println!("obj get_mut: {:?}", obj.get_mut());
 
-    obj.set(OEnum::Instance(obj_enum::Instance::Class(ClassInstance { 
+    obj.set(OEnum::Instance(obj_enum::Instance::Class(Instance { 
         class: Class { name: String::from("Demo"), methods: None }, 
         fields: None,
     })));

@@ -40,7 +40,7 @@ pub trait UpCast<T> {
 pub enum Object {
     Literal(Literal),
     Caller(Caller),
-    Instance(Instance),
+    Instance(Box<Instance>),
 }
 
 impl Display for Object {
