@@ -4,14 +4,21 @@ class Person {
     var p_name = "per_name";
     var p_age = 0;
     fun init(this, name, age) {
+        print this;                 // print the object itself
         this.name = name;
         this.age = age;
-        print this;
+        print this;                 // print the object itself
+    }
+
+    fun call_method(this) {
+        print this;                 // print the object itself
+        this.cls_method();          // call class method
+        this.static_method();       // call static method
     }
 
     fun cls_method(cls) {
         print "This is a class method";
-        print cls;
+        // print cls;
     }
 
     fun static_method() {
@@ -20,7 +27,6 @@ class Person {
 }
 
 var p = Person("Jane", 30);
-print p.p_name;
-print p.p_age;
-print p.name;
-print p.age;
+print p.call_method();
+print p.cls_method();
+print p.static_method();

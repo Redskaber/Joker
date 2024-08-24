@@ -306,7 +306,9 @@ impl StmtResolver<()> for Resolver {
 
             self.begin_scope();
             if let Some(params) = &stmt.params {
-                for param in params {
+                // resolve fun init(cls, ...) {...}
+                // this 'cls' can shadow outer cls.
+                for param in params[1..].iter() {
                     self.declare(param)?;
                     self.define(param)?;
                 }
@@ -355,7 +357,9 @@ impl StmtResolver<()> for Resolver {
 
             self.begin_scope();
             if let Some(params) = &stmt.params {
-                for param in params {
+                // resolve fun init(this, ...) {...}
+                // this 'this' can shadow outer this.
+                for param in params[1..].iter() {
                     self.declare(param)?;
                     self.define(param)?;
                 }

@@ -55,28 +55,25 @@ impl Class {
         }
     }
     pub fn get_method(&self, name: &str) -> Option<BinderFunction> {
-        match &self.instance_methods {
-            Some(instances) => instances
-                .get(name)
-                .map(|instance| BinderFunction::Instance(instance.clone())),
-            None => match &self.class_methods {
-                Some(methods) => methods
-                    .get(name)
-                    .map(|method| BinderFunction::Method(method.clone())),
-                None => {
-                    if name.eq("init") {
-                        None
-                    } else {
-                        match &self.static_methods {
-                            Some(statics) => statics
-                                .get(name)
-                                .map(|static_| BinderFunction::User(static_.clone())),
-                            None => None,
-                        }
-                    }
-                }
-            },
+        if let Some(instances) = &self.instance_methods {
+            if let Some(instance) = instances.get(name) {
+                return Some(BinderFunction::Instance(instance.clone()));
+            }
         }
+        if let Some(methods) = &self.class_methods {
+            if let Some(method) = methods.get(name) {
+                return Some(BinderFunction::Method(method.clone()));
+            }
+        }
+        if name.eq("init") {
+            return None;
+        }
+        if let Some(statics) = &self.static_methods {
+            if let Some(static_) = statics.get(name) {
+                return Some(BinderFunction::User(static_.clone()));
+            }
+        }
+        None
     }
 }
 

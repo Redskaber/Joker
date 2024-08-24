@@ -68,7 +68,7 @@ impl Binder for MethodFunction {
             Rc::clone(&self.closure),
         )));
         instance_env.borrow_mut().define(
-            String::from("this"),
+            String::from("cls"),
             Some(Object::new(OEnum::Instance(Box::new(instance)))),
         );
         Function::Method(MethodFunction::new(&self.stmt, instance_env))

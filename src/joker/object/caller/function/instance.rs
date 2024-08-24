@@ -15,7 +15,7 @@ use crate::joker::{
     abort::{AbortError, ControlFlowAbort},
     ast::FunStmt,
     callable::Callable,
-    env::{Env, EnvError},
+    env::Env,
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Instance, Object as OEnum, UpCast},
@@ -84,19 +84,6 @@ impl Callable for InstanceFunction {
         let mut instance_env: Env = Env::new_with_enclosing(Rc::clone(&self.closure));
 
         if let Some(params) = &self.stmt.params {
-            // get this before determine execute function bind this(self.closure),
-            // so: normal execute determine success unwrap: have value, next unwrap: Object | None
-            let value: Option<Object> = self
-                .closure
-                .borrow()
-                .symbol
-                .get("this")
-                .ok_or(JokerError::Env(EnvError::report_error(
-                    &params[0],
-                    String::from("failed to retrieve 'this' from closure"),
-                )))?
-                .clone();
-            instance_env.define(params[0].lexeme.clone(), value);
             for (name, value) in params[1..].iter().zip(arguments) {
                 instance_env.define(name.lexeme.clone(), Some(value.clone()));
             }

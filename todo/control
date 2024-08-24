@@ -20,12 +20,13 @@ TODO:
       - [v] add caller object class struct.
       - [v] add instance object class instance strcut.
       - [v] add class attribute and class method.
-      - [v/] add class instance attribute and class instance method.
+      - [v] add class instance attribute and class instance method.
       - [v] update function statement parameter type to option<vec<type>>.
       - [v] update lambda function parameter type to option<vec<type>>.
       - [v] update function not return value Option::None.
       - [v] class [cls, ins, sta] funtion.
-      - [] wait handler init this same init before and after.
+      - [] class method cls param used ?
+      - [v] wait handler init this same init before and after.
       - [] class attribute set and get, update and delete.
       - [] add class static attribute and class static method.
       - [] add class constructor and destructor.
