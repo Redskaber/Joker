@@ -4,7 +4,7 @@
 
 use std::{cell::RefCell, collections::HashMap, error::Error, fmt::Display, hash::Hash, rc::Rc};
 
-use crate::joker::object::Lambda;
+use crate::joker::{object::Lambda, types::DeepClone};
 
 use super::{
     abort::{AbortError, ControlFlowAbort},
@@ -174,8 +174,8 @@ impl StmtVisitor<()> for Interpreter {
             "[{:>10}][{:>20}]:\t{:<5}: {}",
             "inter", "visit_var", "stmt", stmt
         );
-        let value = match &stmt.value {
-            Some(expr) => self.evaluate(expr)?,
+        let value: Option<Object> = match &stmt.value {
+            Some(expr) => self.evaluate(expr)?.map(|value: Object| value.deep_clone()),
             None => None,
         };
         self.run_env
@@ -185,7 +185,7 @@ impl StmtVisitor<()> for Interpreter {
         Ok(())
     }
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
-        let block_env = Env::new_with_enclosing(Rc::clone(&self.run_env.borrow()));
+        let block_env: Env = Env::new_with_enclosing(Rc::clone(&self.run_env.borrow()));
         self.execute_block(&stmt.stmts, block_env)
     }
     fn visit_if(&self, stmt: &IfStmt) -> Result<(), JokerError> {

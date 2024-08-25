@@ -55,10 +55,9 @@ pub enum ContextStatus {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClassStatus {
     Default,
-    Init,
     Method,
     Instance,
-    Fun,
+    Static,
 }
 
 #[derive(Debug)]
@@ -196,7 +195,7 @@ impl StmtResolver<()> for Resolver {
         {
             self.context_status_stack
                 .borrow_mut()
-                .push(ContextStatus::Class(ClassStatus::Fun));
+                .push(ContextStatus::Class(ClassStatus::Static));
         } else {
             self.context_status_stack
                 .borrow_mut()
@@ -257,6 +256,12 @@ impl StmtResolver<()> for Resolver {
             .unwrap()
             .borrow_mut()
             .insert(Key(Token::this(0)), VarStatus::Define);
+        self.scopes_stack
+            .borrow()
+            .last()
+            .unwrap()
+            .borrow_mut()
+            .insert(Key(Token::cls(0)), VarStatus::Define);
 
         if let Some(stmts) = &stmt.fields {
             for stmt in stmts {
@@ -341,15 +346,9 @@ impl StmtResolver<()> for Resolver {
             .borrow()
             .contains(&ContextStatus::Class(ClassStatus::Default))
         {
-            if stmt.name.lexeme == "init" {
-                self.context_status_stack
-                    .borrow_mut()
-                    .push(ContextStatus::Class(ClassStatus::Init));
-            } else {
-                self.context_status_stack
-                    .borrow_mut()
-                    .push(ContextStatus::Class(ClassStatus::Instance));
-            }
+            self.context_status_stack
+                .borrow_mut()
+                .push(ContextStatus::Class(ClassStatus::Instance));
             println!(
                 "[{:>10}][{:>20}]:\tstack: {:?}",
                 "resolve", "resolve_function", self.context_status_stack
@@ -585,7 +584,7 @@ impl StmtVisitor<()> for Resolver {
         if matches!(
             self.context_status_stack.borrow().last(),
             Some(&ContextStatus::Fun)
-                | Some(&ContextStatus::Class(ClassStatus::Init))
+                | Some(&ContextStatus::Class(ClassStatus::Instance))
                 | Some(&ContextStatus::Class(ClassStatus::Method))
         ) || self
             .context_status_stack
@@ -645,7 +644,8 @@ impl ExprVisitor<()> for Resolver {
         );
         if matches!(
             self.context_status_stack.borrow().last(),
-            Some(&ContextStatus::Class(ClassStatus::Init))
+            Some(&ContextStatus::Class(ClassStatus::Instance))
+                | Some(&ContextStatus::Class(ClassStatus::Method))
         ) {
             ExprResolver::resolve(self, &expr.r_expr)?;
             ExprResolver::resolve(self, &expr.l_expr)?;

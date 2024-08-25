@@ -156,6 +156,14 @@ impl Token {
     pub fn this(line: usize) -> Token {
         Token::new(TokenType::This, String::from("this"), literal_null(), line)
     }
+    pub fn cls(line: usize) -> Token {
+        Token::new(
+            TokenType::Identifier,
+            String::from("cls"),
+            literal_null(),
+            line,
+        )
+    }
 }
 
 impl Display for Token {

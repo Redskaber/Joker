@@ -22,7 +22,7 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Instance, Object as OEnum, UpCast},
-    types::Object,
+    types::{DeepClone, Object},
 };
 
 use super::{InstanceFunction, MethodFunction};
@@ -37,6 +37,17 @@ pub enum Function {
     User(UserFunction),
     Method(MethodFunction),
     Instance(InstanceFunction),
+}
+
+impl DeepClone for Function {
+    fn deep_clone(&self) -> Self {
+        match self {
+            Function::Native(native) => Function::Native(DeepClone::deep_clone(native)),
+            Function::User(user) => Function::User(DeepClone::deep_clone(user)),
+            Function::Method(method) => Function::Method(DeepClone::deep_clone(method)),
+            Function::Instance(instance) => Function::Instance(DeepClone::deep_clone(instance)),
+        }
+    }
 }
 
 impl UpCast<OEnum> for Function {
@@ -95,6 +106,12 @@ impl Callable for Function {
 #[derive(Clone)]
 pub struct NativeFunction {
     pub fun: Rc<dyn Callable>,
+}
+
+impl DeepClone for NativeFunction {
+    fn deep_clone(&self) -> Self {
+        self.clone()
+    }
 }
 
 impl UpCast<OEnum> for NativeFunction {
@@ -157,6 +174,15 @@ pub struct UserFunction {
     closure: Rc<RefCell<Env>>,
 }
 
+impl DeepClone for UserFunction {
+    fn deep_clone(&self) -> Self {
+        UserFunction {
+            stmt: Rc::clone(&self.stmt),
+            closure: Rc::new(RefCell::new((*self.closure.borrow()).clone())),
+        }
+    }
+}
+
 impl UpCast<OEnum> for UserFunction {
     fn upcast(&self) -> OEnum {
         OEnum::Caller(Caller::Func(Function::User(self.clone())))
@@ -190,14 +216,11 @@ impl UserFunction {
 
 impl Binder for UserFunction {
     // TODO: static function ?
-    fn bind(&self, instance: Instance) -> Function {
+    // class static function inner, not have this.
+    fn bind(&self, _instance: Instance) -> Function {
         let instance_env: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new_with_enclosing(
             Rc::clone(&self.closure),
         )));
-        instance_env.borrow_mut().define(
-            String::from("this"),
-            Some(Object::new(OEnum::Instance(Box::new(instance)))),
-        );
         Function::User(UserFunction::new(&self.stmt, instance_env))
     }
 }
@@ -249,6 +272,23 @@ pub enum BinderFunction {
     User(UserFunction),
     Method(MethodFunction),
     Instance(InstanceFunction),
+}
+
+impl UpCast<OEnum> for BinderFunction {
+    fn upcast(&self) -> OEnum {
+        match self {
+            BinderFunction::User(user) => UpCast::upcast(user),
+            BinderFunction::Method(method) => UpCast::upcast(method),
+            BinderFunction::Instance(instance) => UpCast::upcast(instance),
+        }
+    }
+    fn upcast_into(self) -> OEnum {
+        match self {
+            BinderFunction::User(user) => UpCast::upcast_into(user),
+            BinderFunction::Method(method) => UpCast::upcast_into(method),
+            BinderFunction::Instance(instance) => UpCast::upcast_into(instance),
+        }
+    }
 }
 
 impl Callable for BinderFunction {

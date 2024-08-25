@@ -19,7 +19,7 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Instance, Object as OEnum, UpCast},
-    types::Object,
+    types::{DeepClone, Object},
 };
 
 use super::{Binder, Function};
@@ -28,6 +28,15 @@ use super::{Binder, Function};
 pub struct InstanceFunction {
     stmt: Rc<FunStmt>,
     closure: Rc<RefCell<Env>>,
+}
+
+impl DeepClone for InstanceFunction {
+    fn deep_clone(&self) -> Self {
+        InstanceFunction {
+            stmt: Rc::clone(&self.stmt),
+            closure: Rc::new(RefCell::new((*self.closure.borrow()).clone())),
+        }
+    }
 }
 
 impl UpCast<OEnum> for InstanceFunction {

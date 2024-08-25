@@ -15,7 +15,7 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Object as OEnum, UpCast},
-    types::Object,
+    types::{DeepClone, Object},
 };
 
 use super::{Class, Function, Lambda};
@@ -31,6 +31,16 @@ pub enum Caller {
     Func(Function),
     Lambda(Lambda),
     Class(Box<Class>),
+}
+
+impl DeepClone for Caller {
+    fn deep_clone(&self) -> Self {
+        match self {
+            Caller::Func(func) => Caller::Func(DeepClone::deep_clone(func)),
+            Caller::Lambda(lambda) => Caller::Lambda(DeepClone::deep_clone(lambda)),
+            Caller::Class(class) => Caller::Class(DeepClone::deep_clone(class)),
+        }
+    }
 }
 
 impl UpCast<OEnum> for Caller {

@@ -19,13 +19,22 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Object as OEnum, UpCast},
-    types::Object,
+    types::{DeepClone, Object},
 };
 
 #[derive(Clone)]
 pub struct Lambda {
     expr: Rc<LambdaExpr>,
     closure: Rc<RefCell<Env>>,
+}
+
+impl DeepClone for Lambda {
+    fn deep_clone(&self) -> Self {
+        Lambda {
+            expr: Rc::clone(&self.expr),
+            closure: Rc::new(RefCell::new((*self.closure.borrow()).clone())),
+        }
+    }
 }
 
 impl UpCast<OEnum> for Lambda {
@@ -66,7 +75,7 @@ impl Callable for Lambda {
         interpreter: &Interpreter,
         arguments: &[Object],
     ) -> Result<Option<Object>, JokerError> {
-        let mut lambda_env: Env = Env::new_with_enclosing(self.closure.clone());
+        let mut lambda_env: Env = Env::new_with_enclosing(Rc::clone(&self.closure));
 
         for (name, value) in self.expr.params.iter().zip(arguments) {
             lambda_env.define(name.lexeme.clone(), Some(value.clone()));

@@ -29,6 +29,8 @@ use std::{
     hash::Hash,
 };
 
+use crate::joker::types::DeepClone;
+
 use super::{Caller, Instance, Literal};
 
 pub trait UpCast<T> {
@@ -41,6 +43,16 @@ pub enum Object {
     Literal(Literal),
     Caller(Caller),
     Instance(Box<Instance>),
+}
+
+impl DeepClone for Object {
+    fn deep_clone(&self) -> Self {
+        match self {
+            Object::Literal(_) => self.clone(),
+            Object::Caller(caller) => Object::Caller(DeepClone::deep_clone(caller)),
+            Object::Instance(instance) => Object::Instance(DeepClone::deep_clone(instance)),
+        }
+    }
 }
 
 impl Display for Object {

@@ -25,6 +25,9 @@ TODO:
       - [v] update lambda function parameter type to option<vec<type>>.
       - [v] update function not return value Option::None.
       - [v] class [cls, ins, sta] funtion.
+      - [v] type object default clone is shadow clone, add deep clone.
+      - [v] modify class instance getter, not new instance to get rc instance.
+      - [v] var statement set value is deep copy.
       - [] class method cls param used ?
       - [v] wait handler init this same init before and after.
       - [] class attribute set and get, update and delete.

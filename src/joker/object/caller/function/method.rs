@@ -19,7 +19,7 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Instance, Object as OEnum, UpCast},
-    types::Object,
+    types::{DeepClone, Object},
 };
 
 use super::{Binder, Function};
@@ -28,6 +28,15 @@ use super::{Binder, Function};
 pub struct MethodFunction {
     stmt: Rc<FunStmt>,
     closure: Rc<RefCell<Env>>,
+}
+
+impl DeepClone for MethodFunction {
+    fn deep_clone(&self) -> Self {
+        MethodFunction {
+            stmt: Rc::clone(&self.stmt),
+            closure: Rc::new(RefCell::new((*self.closure.borrow()).clone())),
+        }
+    }
 }
 
 impl UpCast<OEnum> for MethodFunction {
@@ -63,13 +72,16 @@ impl MethodFunction {
 
 impl Binder for MethodFunction {
     // TODO: method function ?
+    // class method not have instance object, but have class.
     fn bind(&self, instance: Instance) -> Function {
         let instance_env: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new_with_enclosing(
             Rc::clone(&self.closure),
         )));
         instance_env.borrow_mut().define(
             String::from("cls"),
-            Some(Object::new(OEnum::Instance(Box::new(instance)))),
+            Some(Object::new(OEnum::Caller(Caller::Class(
+                instance.class.borrow().clone(),
+            )))),
         );
         Function::Method(MethodFunction::new(&self.stmt, instance_env))
     }

@@ -1,13 +1,16 @@
 // this file is joker language file test for class method
 
+/*
+//--------------------------------------------------------------------------------------------
 class Person {
     var p_name = "per_name";
     var p_age = 0;
     fun init(this, name, age) {
-        print this;                 // print the object itself
+        // print this;                 // print the object itself
         this.name = name;
         this.age = age;
-        print this;                 // print the object itself
+        // print this;                 // print the object itself
+        // print cls;                 // error: class method cannot access class instance
     }
 
     fun call_method(this) {
@@ -18,15 +21,42 @@ class Person {
 
     fun cls_method(cls) {
         print "This is a class method";
-        // print cls;
+        print cls;                  // print the class itself
+        // print this;              // error: class method cannot access object instance
     }
 
     fun static_method() {
         print "This is a static method";
+        // print cls;               // error: static method cannot access class instance
+        // print this;              // error: static method cannot access object instance
     }
 }
 
 var p = Person("Jane", 30);
-print p.call_method();
-print p.cls_method();
-print p.static_method();
+print p.call_method();          // have this
+print p.cls_method();           // not this, but cls
+print p.static_method();        // not this 
+//--------------------------------------------------------------------------------------------
+class Person {
+    var p_name = "per_name";
+    fun init(this, name, age) {
+        this.name = name;
+        this.age = age;
+    }
+    fun set_age(this, age) {
+        print this;
+        this.age = age;
+        print this;
+    }
+}
+
+var p = Person("Jane", 30);
+print p;                        // print the object itself
+p.set_age(10000);
+print p;                        // print the object itself
+var c = p;                      // deep copy the object
+c.set_age(20000);
+print p;                        // print the object itself 10000
+//--------------------------------------------------------------------------------------------
+*/
+

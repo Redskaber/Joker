@@ -11,9 +11,22 @@ use std::{
     rc::Rc,
 };
 
+pub trait DeepClone {
+    fn deep_clone(&self) -> Self;
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Object {
     inner: Rc<RefCell<OEnum>>,
+}
+
+impl DeepClone for Object {
+    fn deep_clone(&self) -> Self {
+        let new_ref_cell = RefCell::new((*self.inner.borrow()).deep_clone());
+        Object {
+            inner: Rc::new(new_ref_cell),
+        }
+    }
 }
 
 impl Hash for Object {
@@ -57,18 +70,132 @@ mod tests {
     #[test]
     fn test_object_inner_change() {
         let obj = Object::new(OEnum::Literal(crate::joker::object::Literal::I32(100)));
-        println!("Object: {:#?}", obj);
+        println!("Object: obj {:#?}", obj);
         *obj.inner.borrow_mut() = OEnum::Literal(crate::joker::object::Literal::Bool(false));
-        println!("Object: {:#?}", obj);
+        println!("Object: obj {:#?}", obj);
         obj.set(OEnum::Literal(crate::joker::object::Literal::Bool(true)));
-        println!("Object: {:#?}", obj);
+        println!("Object: obj {:#?}", obj);
 
         let en: Ref<OEnum> = obj.get();
         fn p(en: &OEnum) {
-            println!("OEnum:{}", en);
+            println!("OEnum: en {}", en);
         }
         p(&en);
-        // *obj.get_mut() = OEnum::Literal(super::super::object::Literal::Null);
-        // println!("Object: {:#?}", obj);
+    }
+
+    #[test]
+    fn test_object_inner_ref() {
+        let obj = Object::new(OEnum::Literal(crate::joker::object::Literal::I32(100)));
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 1
+        let ref_obj = obj.clone(); // Rc::clone
+        println!(
+            "Object: ref_obj {:#?}, count: {}",
+            ref_obj,
+            Rc::strong_count(&ref_obj.inner)
+        ); // 2
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 2
+        assert_eq!(obj.inner, ref_obj.inner); // good
+    }
+
+    #[test]
+    fn test_object_clone() {
+        let obj = Object::new(OEnum::Literal(crate::joker::object::Literal::I32(100)));
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 100 1
+
+        let ref_obj = obj.clone(); // Rc::clone
+        println!(
+            "Object: ref_obj {:#?}, count: {}",
+            ref_obj,
+            Rc::strong_count(&ref_obj.inner)
+        ); // 100 2
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 100 2
+
+        ref_obj.set(OEnum::Literal(crate::joker::object::Literal::Bool(false)));
+        println!(
+            "Object: ref_obj {:#?}, count: {}",
+            ref_obj,
+            Rc::strong_count(&ref_obj.inner)
+        ); // false 2
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // false 2
+    }
+
+    #[test]
+    fn test_object_clone_ptr() {
+        let obj = Object::new(OEnum::Literal(crate::joker::object::Literal::I32(100)));
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 100 1
+
+        let ref_obj = obj.clone(); // Rc::clone
+        println!(
+            "Object: ref_obj {:#?}, count: {}",
+            ref_obj,
+            Rc::strong_count(&ref_obj.inner)
+        ); // 100 2
+
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 100 2
+        println!(
+            "Object: std::ptr::addr_eq(obj, &ref_obj): {}",
+            std::ptr::addr_eq(&obj, &ref_obj)
+        ); // false
+    }
+
+    #[test]
+    fn test_object_deep_clone() {
+        let obj = Object::new(OEnum::Literal(crate::joker::object::Literal::I32(100)));
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 100 1
+
+        let deep_obj = obj.deep_clone();
+        println!(
+            "Object: deep_obj {:#?}, count: {}",
+            deep_obj,
+            Rc::strong_count(&deep_obj.inner)
+        ); // 100 1
+        deep_obj.set(OEnum::Literal(crate::joker::object::Literal::I32(10000)));
+        println!(
+            "Object: deep_obj {:#?}, count: {}",
+            deep_obj,
+            Rc::strong_count(&deep_obj.inner)
+        ); // 100 1
+
+        println!(
+            "Object: obj {:#?}, count: {}",
+            obj,
+            Rc::strong_count(&obj.inner)
+        ); // 100 1
+        println!(
+            "Object: std::ptr::addr_eq(obj, &deep_obj): {}",
+            std::ptr::addr_eq(&obj, &deep_obj)
+        ); // false
     }
 }

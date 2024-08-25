@@ -9,7 +9,7 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Instance, Object as OEnum, UpCast},
-    types::Object,
+    types::{DeepClone, Object},
 };
 
 use super::{Binder, BinderFunction, Caller, InstanceFunction, MethodFunction, UserFunction};
@@ -21,6 +21,18 @@ pub struct Class {
     class_methods: Option<HashMap<String, MethodFunction>>,
     instance_methods: Option<HashMap<String, InstanceFunction>>,
     static_methods: Option<HashMap<String, UserFunction>>,
+}
+
+impl DeepClone for Class {
+    fn deep_clone(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl DeepClone for Box<Class> {
+    fn deep_clone(&self) -> Self {
+        self.clone()
+    }
 }
 
 impl UpCast<OEnum> for Box<Class> {
