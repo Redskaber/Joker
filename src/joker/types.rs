@@ -50,6 +50,14 @@ impl Object {
     pub fn get_mut(&self) -> RefMut<OEnum> {
         self.inner.borrow_mut()
     }
+    pub fn parse<F: FromObject>(&self) -> Result<F, F::Err> {
+        FromObject::from_object(self)
+    }
+}
+
+pub trait FromObject: Sized {
+    type Err;
+    fn from_object(obj: &Object) -> Result<Self, Self::Err>;
 }
 
 impl Display for Object {

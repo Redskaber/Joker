@@ -7,12 +7,15 @@ use std::{
 use crate::joker::{
     callable::Callable,
     error::JokerError,
-    interpreter::Interpreter,
+    interpreter::{Interpreter, InterpreterError},
     object::{Instance, Object as OEnum, UpCast},
+    token::Token,
     types::{DeepClone, Object},
 };
 
-use super::{Binder, BinderFunction, Caller, InstanceFunction, MethodFunction, UserFunction};
+use super::{
+    Binder, BinderFunction, Caller, Function, InstanceFunction, MethodFunction, UserFunction,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Class {
@@ -66,6 +69,7 @@ impl Class {
             None => None,
         }
     }
+    // get instance used
     pub fn get_method(&self, name: &str) -> Option<BinderFunction> {
         if let Some(instances) = &self.instance_methods {
             if let Some(instance) = instances.get(name) {
@@ -86,6 +90,46 @@ impl Class {
             }
         }
         None
+    }
+    // used class find
+    pub fn getter(&self, name: &Token) -> Result<Option<Object>, JokerError> {
+        if let Some(fields) = &self.fields {
+            if let Some(object) = fields.get(&name.lexeme) {
+                match object {
+                    Some(_) => return Ok(object.clone()),
+                    None => {
+                        return Err(JokerError::Interpreter(InterpreterError::report_error(
+                            name,
+                            format!(
+                                "Error: class attribute '{}' is declared, but not define.",
+                                name.lexeme
+                            ),
+                        )))
+                    }
+                }
+            }
+        }
+
+        if let Some(class_methods) = &self.class_methods {
+            if class_methods.contains_key(&name.lexeme) {
+                return Err(JokerError::Interpreter(InterpreterError::report_error(
+                    name,
+                    format!(
+                        "Error: class method '{}' is exist, but outside not visited.",
+                        name.lexeme
+                    ),
+                )));
+            }
+        }
+
+        if let Some(static_methods) = &self.static_methods {
+            if let Some(static_) = static_methods.get(&name.lexeme) {
+                return Ok(Some(Object::new(OEnum::Caller(Caller::Func(
+                    Function::User(static_.clone()),
+                )))));
+            }
+        }
+        Ok(None)
     }
 }
 

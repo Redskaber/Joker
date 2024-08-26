@@ -56,10 +56,10 @@ impl Env {
         current_env
     }
     pub fn get_with_depth(&self, depth: usize, name: &Token) -> Result<Option<Object>, JokerError> {
-        println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
-            "env", "get_with_depth", "name", name, depth
-        );
+        // println!(
+        //     "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
+        //     "env", "get_with_depth", "name", name, depth
+        // );
 
         match depth {
             0 => {
@@ -101,10 +101,10 @@ impl Env {
         name: &Token,
         value: Object,
     ) -> Result<(), JokerError> {
-        println!(
-            "[{:>10}][{:>20}]:\tname: {},\tvalue: {:?},\tdepth: {}",
-            "env", "get_with_depth", name, value, depth
-        );
+        // println!(
+        //     "[{:>10}][{:>20}]:\tname: {},\tvalue: {:?},\tdepth: {}",
+        //     "env", "get_with_depth", name, value, depth
+        // );
 
         match depth {
             0 => {

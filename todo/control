@@ -30,6 +30,7 @@ TODO:
       - [v] var statement set value is deep copy.
       - [] class method cls param used ?
       - [v] wait handler init this same init before and after.
+      - [v] localvariable check status in class.
       - [] class attribute set and get, update and delete.
       - [] add class static attribute and class static method.
       - [] add class constructor and destructor.

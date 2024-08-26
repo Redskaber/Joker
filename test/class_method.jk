@@ -60,3 +60,78 @@ print p;                        // print the object itself 10000
 //--------------------------------------------------------------------------------------------
 */
 
+class Person {
+    var declare_name;
+    var p_name = "per_name";
+    fun init(this, name, age) {
+        this.name = name;
+        this.age = age;
+    }
+    fun set_age(this, age) {
+        this.age = age;
+    }
+    fun set_name(this, name) {
+        this.name = name;
+    }
+    fun print_info(this) {
+        print this.p_name;
+        this.declare_name = "test";     // define
+        print this.declare_name;        // used 
+
+        var start_time = clock();
+        var sum = 0;
+        for(var i = 0; i < 10000; i = i + 1) {
+            sum = i > 5000 ? sum - 1 : sum + 1;
+        }
+        var end_time = clock();
+        print "time elapsed: ";
+        print end_time - start_time;
+    }
+
+    fun cls_method(cls) {
+        print "This is a class method";
+        print cls;                  // print the class itself
+    }
+    fun static_method() {
+        print "This is a static method";
+    }
+}
+
+var p1 = Person("Jane", 30);
+print p1;
+p1.set_age(10000);
+p1.set_name("alex");
+print p1;
+
+var p2 = Person("Tom", 25);
+print p2;
+p2.set_age(20000);
+p2.set_name("jack");
+print p2;
+
+print p1.print_info();
+print p2.p_name;
+
+// Person.cls_method();          // error: class method cannot access class
+// p1.cls_method();              // success: class method can access object instance
+
+Person.static_method();          // success: static method can access class
+p1.static_method();              // success: static method can access object instance
+
+print Person.p_name;             // success: can access class variable
+// Person.p_name = "test";       // error: cannot access class variable
+
+p1.p_name = "test";              // error: cannot access object variable
+print p1.p_name;
+
+var outer = 100;
+var demo = |outer|{
+    print outer;    // 200
+    print "hello world";
+};
+demo(200);
+
+// outer.demo = || {
+//     print "hello world";
+// };      //  error: cannot access outer variable
+// outer.demo();

@@ -107,17 +107,17 @@ impl Interpreter {
         result
     }
     pub fn resolve(&self, expr: Expr, depth: usize) {
-        println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
-            "inter", "resolve", "expr", expr, depth
-        );
+        // println!(
+        //     "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
+        //     "inter", "resolve", "expr", expr, depth
+        // );
         self.local_resolve.borrow_mut().insert(expr, depth);
     }
     fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Option<Object>, JokerError> {
-        println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {:?},\tname: {:?}",
-            "inter", "look_up_variable", "expr", expr, name
-        );
+        // println!(
+        //     "[{:>10}][{:>20}]:\t{:<5}: {:?},\tname: {:?}",
+        //     "inter", "look_up_variable", "expr", expr, name
+        // );
         match self.local_resolve.borrow().get(expr) {
             Some(depth) => self
                 .run_env
@@ -170,10 +170,10 @@ impl StmtVisitor<()> for Interpreter {
         }
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
-        println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {}",
-            "inter", "visit_var", "stmt", stmt
-        );
+        // println!(
+        //     "[{:>10}][{:>20}]:\t{:<5}: {}",
+        //     "inter", "visit_var", "stmt", stmt
+        // );
         let value: Option<Object> = match &stmt.value {
             Some(expr) => self.evaluate(expr)?.map(|value: Object| value.deep_clone()),
             None => None,
@@ -742,45 +742,61 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         Ok(Some(lambda))
     }
     fn visit_getter(&self, expr: &Getter) -> Result<Option<Object>, JokerError> {
-        println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {}",
-            "inter", "visit_getter", "expr", expr
-        );
+        // println!(
+        //     "[{:>10}][{:>20}]:\t{:<5}: {}",
+        //     "inter", "visit_getter", "expr", expr
+        // );
         let object: Object = self.value_or_raise(
             &expr.name,
             &expr.expr,
             String::from("getter object invalid value."),
         )?;
-        let result: Result<Option<Object>, JokerError> =
-            if let OEnum::Instance(instance) = &*object.get() {
-                match instance.getter(&expr.name)? {
+        let result: Result<Option<Object>, JokerError> = match &*object.get() {
+            OEnum::Instance(instance) => match instance.getter(&expr.name)? {
+                Some(object) => Ok(Some(object)),
+                None => Err(JokerError::Interpreter(InterpreterError::report_error(
+                    &expr.name,
+                    format!(
+                        "instance getter undefined attribute '{}'.",
+                        expr.name.lexeme
+                    ),
+                ))),
+            },
+            OEnum::Caller(caller) => match caller {
+                Caller::Class(class) => match class.getter(&expr.name)? {
                     Some(object) => Ok(Some(object)),
                     None => Err(JokerError::Interpreter(InterpreterError::report_error(
                         &expr.name,
-                        format!("getter undefined attribute '{}'.", expr.name.lexeme),
+                        format!("class getter undefined attribute '{}'.", expr.name.lexeme),
                     ))),
-                }
-            } else {
+                },
+                _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                    &expr.name,
+                    String::from("this caller not getter attribute."),
+                ))),
+            },
+            OEnum::Literal(literal) => {
                 Err(JokerError::Interpreter(InterpreterError::report_error(
                     &expr.name,
-                    String::from("getter only instance have attribute."),
+                    format!("literal '{}' not getter attribute.", literal),
                 )))
-            };
+            }
+        };
 
         result
     }
     fn visit_setter(&self, expr: &Setter) -> Result<Option<Object>, JokerError> {
-        println!(
-            "[{:>10}][{:>20}]:\t{:<5}: {}",
-            "inter", "visit_setter", "expr", expr
-        );
+        // println!(
+        //     "[{:>10}][{:>20}]:\t{:<5}: {}",
+        //     "inter", "visit_setter", "expr", expr
+        // );
         let object: Object = self.value_or_raise(
             &expr.name,
             &expr.l_expr,
             String::from("setter object invalid left value."),
         )?;
-        let result: Result<Option<Object>, JokerError> =
-            if let OEnum::Instance(instance) = &mut *object.get_mut() {
+        let result: Result<Option<Object>, JokerError> = match &mut *object.get_mut() {
+            OEnum::Instance(instance) => {
                 let value: Object = self.value_or_raise(
                     &expr.name,
                     &expr.r_expr,
@@ -788,12 +804,12 @@ impl ExprVisitor<Option<Object>> for Interpreter {
                 )?;
                 instance.setter(&expr.name.lexeme, value.clone())?;
                 Ok(Some(value))
-            } else {
-                Err(JokerError::Interpreter(InterpreterError::report_error(
-                    &expr.name,
-                    String::from("setter only instance have attribute."),
-                )))
-            };
+            }
+            _ => Err(JokerError::Interpreter(InterpreterError::report_error(
+                &expr.name,
+                String::from("setter only instance have attribute."),
+            ))),
+        };
 
         result
     }
