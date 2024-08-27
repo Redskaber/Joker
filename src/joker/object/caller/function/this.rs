@@ -25,7 +25,7 @@ use crate::joker::{
     types::{DeepClone, Object},
 };
 
-use super::{InstanceFunction, MethodFunction};
+use super::MethodFunction;
 
 pub trait Binder {
     fn bind(&self, instance: Instance) -> Function;
@@ -36,7 +36,6 @@ pub enum Function {
     Native(NativeFunction),
     User(UserFunction),
     Method(MethodFunction),
-    Instance(InstanceFunction),
 }
 
 impl DeepClone for Function {
@@ -45,7 +44,6 @@ impl DeepClone for Function {
             Function::Native(native) => Function::Native(DeepClone::deep_clone(native)),
             Function::User(user) => Function::User(DeepClone::deep_clone(user)),
             Function::Method(method) => Function::Method(DeepClone::deep_clone(method)),
-            Function::Instance(instance) => Function::Instance(DeepClone::deep_clone(instance)),
         }
     }
 }
@@ -56,7 +54,6 @@ impl UpCast<OEnum> for Function {
             Function::Native(native) => UpCast::upcast(native),
             Function::User(user) => UpCast::upcast(user),
             Function::Method(method) => UpCast::upcast(method),
-            Function::Instance(instance) => UpCast::upcast(instance),
         }
     }
     fn upcast_into(self) -> OEnum {
@@ -64,7 +61,6 @@ impl UpCast<OEnum> for Function {
             Function::Native(native) => UpCast::upcast_into(native),
             Function::User(user) => UpCast::upcast_into(user),
             Function::Method(method) => UpCast::upcast_into(method),
-            Function::Instance(instance) => UpCast::upcast_into(instance),
         }
     }
 }
@@ -75,7 +71,6 @@ impl Display for Function {
             Function::Native(native) => Display::fmt(native, f),
             Function::User(user) => Display::fmt(user, f),
             Function::Method(method) => Display::fmt(method, f),
-            Function::Instance(instance) => Display::fmt(instance, f),
         }
     }
 }
@@ -90,7 +85,6 @@ impl Callable for Function {
             Function::Native(native) => Callable::call(native, interpreter, arguments),
             Function::User(user) => Callable::call(user, interpreter, arguments),
             Function::Method(method) => Callable::call(method, interpreter, arguments),
-            Function::Instance(instance) => Callable::call(instance, interpreter, arguments),
         }
     }
     fn arity(&self) -> usize {
@@ -98,7 +92,6 @@ impl Callable for Function {
             Function::Native(native) => Callable::arity(native),
             Function::User(user) => Callable::arity(user),
             Function::Method(method) => Callable::arity(method),
-            Function::Instance(instance) => Callable::arity(instance),
         }
     }
 }
@@ -271,7 +264,6 @@ impl Debug for UserFunction {
 pub enum BinderFunction {
     User(UserFunction),
     Method(MethodFunction),
-    Instance(InstanceFunction),
 }
 
 impl UpCast<OEnum> for BinderFunction {
@@ -279,14 +271,12 @@ impl UpCast<OEnum> for BinderFunction {
         match self {
             BinderFunction::User(user) => UpCast::upcast(user),
             BinderFunction::Method(method) => UpCast::upcast(method),
-            BinderFunction::Instance(instance) => UpCast::upcast(instance),
         }
     }
     fn upcast_into(self) -> OEnum {
         match self {
             BinderFunction::User(user) => UpCast::upcast_into(user),
             BinderFunction::Method(method) => UpCast::upcast_into(method),
-            BinderFunction::Instance(instance) => UpCast::upcast_into(instance),
         }
     }
 }
@@ -300,14 +290,12 @@ impl Callable for BinderFunction {
         match self {
             BinderFunction::User(user) => Callable::call(user, interpreter, arguments),
             BinderFunction::Method(method) => Callable::call(method, interpreter, arguments),
-            BinderFunction::Instance(instance) => Callable::call(instance, interpreter, arguments),
         }
     }
     fn arity(&self) -> usize {
         match self {
             BinderFunction::User(user) => Callable::arity(user),
             BinderFunction::Method(method) => Callable::arity(method),
-            BinderFunction::Instance(instance) => Callable::arity(instance),
         }
     }
 }
@@ -317,7 +305,6 @@ impl Binder for BinderFunction {
         match self {
             BinderFunction::User(user) => Binder::bind(user, instance),
             BinderFunction::Method(method) => Binder::bind(method, instance),
-            BinderFunction::Instance(ins) => Binder::bind(ins, instance),
         }
     }
 }
@@ -327,7 +314,6 @@ impl Display for BinderFunction {
         match self {
             BinderFunction::User(user) => Display::fmt(user, f),
             BinderFunction::Method(method) => Display::fmt(method, f),
-            BinderFunction::Instance(instance) => Display::fmt(instance, f),
         }
     }
 }

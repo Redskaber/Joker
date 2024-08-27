@@ -22,8 +22,7 @@ use super::{Class, Function, Lambda};
 
 pub enum FuncType {
     Method(Stmt),
-    Instance(Stmt),
-    Static(Stmt),
+    Function(Stmt),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -11,16 +11,17 @@ use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
         ExprStmt, ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda as LambdaExpr,
-        Literal, Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, This,
-        Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        Literal, Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super,
+        This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     callable::{ArgumentError, CallError, Callable, NonCallError},
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
     object::{
-        Caller, Class, Function, InstanceFunction, Literal as ObL, MethodFunction, NativeFunction,
+        Binder, Caller, Class, Function, Literal as ObL, MethodFunction, NativeFunction,
         Object as OEnum, UserFunction,
     },
+    parse::ParserError,
     token::{Token, TokenType},
     types::Object,
 };
@@ -286,6 +287,50 @@ impl StmtVisitor<()> for Interpreter {
             .borrow_mut()
             .define(stmt.name.lexeme.clone(), None);
 
+        let super_class: Option<Box<Class>> = match &stmt.super_class {
+            Some(super_expr) => {
+                if let Expr::Variable(super_var) = super_expr {
+                    if let Some(obj) = &self.evaluate(super_expr)? {
+                        match &*obj.get() {
+                            OEnum::Caller(Caller::Class(class)) => Some(class.clone()),
+                            _ => {
+                                return Err(JokerError::Interpreter(
+                                    InterpreterError::report_error(
+                                        &super_var.name,
+                                        String::from("super class must be a class."),
+                                    ),
+                                ))
+                            }
+                        }
+                    } else {
+                        return Err(JokerError::Interpreter(InterpreterError::report_error(
+                            &super_var.name,
+                            String::from("variable is declare, but not define."),
+                        )));
+                    }
+                } else {
+                    unreachable!("class super must variable, but is not variable.")
+                }
+            }
+            None => None,
+        };
+
+        // run_env -> super
+        let previous = if let Some(super_class) = &super_class {
+            let super_env: Rc<RefCell<Env>> = Rc::new(RefCell::new(Env::new_with_enclosing(
+                Rc::clone(&self.run_env.borrow()),
+            )));
+            let previous: Rc<RefCell<Env>> = self.run_env.replace(super_env);
+            let super_obj: Object = Object::new(OEnum::Caller(Caller::Class(super_class.clone())));
+            self.run_env
+                .borrow()
+                .borrow_mut()
+                .define(String::from("super"), Some(super_obj));
+            Some(previous)
+        } else {
+            None
+        };
+
         let fields: Option<HashMap<String, Option<Object>>> = match &stmt.fields {
             Some(stmts) => {
                 let mut vars: HashMap<String, Option<Object>> = HashMap::new();
@@ -303,7 +348,7 @@ impl StmtVisitor<()> for Interpreter {
             None => None,
         };
 
-        let class_methods: Option<HashMap<String, MethodFunction>> = match &stmt.class_methods {
+        let methods: Option<HashMap<String, MethodFunction>> = match &stmt.methods {
             Some(stmts) => {
                 let mut methods: HashMap<String, MethodFunction> = HashMap::new();
                 for stmt in stmts {
@@ -319,24 +364,7 @@ impl StmtVisitor<()> for Interpreter {
             None => None,
         };
 
-        let instance_methods: Option<HashMap<String, InstanceFunction>> =
-            match &stmt.instance_methods {
-                Some(stmts) => {
-                    let mut methods: HashMap<String, InstanceFunction> = HashMap::new();
-                    for stmt in stmts {
-                        if let Stmt::FunStmt(fun_stmt) = stmt {
-                            methods.insert(
-                                fun_stmt.name.lexeme.clone(),
-                                InstanceFunction::new(fun_stmt, Rc::clone(&self.run_env.borrow())),
-                            );
-                        }
-                    }
-                    Some(methods)
-                }
-                None => None,
-            };
-
-        let static_methods: Option<HashMap<String, UserFunction>> = match &stmt.static_methods {
+        let functions: Option<HashMap<String, UserFunction>> = match &stmt.functions {
             Some(stmts) => {
                 let mut methods: HashMap<String, UserFunction> = HashMap::new();
                 for stmt in stmts {
@@ -354,11 +382,16 @@ impl StmtVisitor<()> for Interpreter {
 
         let class: Object = Object::new(OEnum::Caller(Caller::Class(Box::new(Class::new(
             stmt.name.lexeme.clone(),
+            super_class,
             fields,
-            class_methods,
-            instance_methods,
-            static_methods,
+            methods,
+            functions,
         )))));
+
+        // super -> run_env
+        if let Some(previous) = previous {
+            self.run_env.replace(previous);
+        }
 
         self.run_env
             .borrow()
@@ -815,6 +848,63 @@ impl ExprVisitor<Option<Object>> for Interpreter {
     }
     fn visit_this(&self, expr: &This) -> Result<Option<Object>, JokerError> {
         self.look_up_variable(&expr.keyword, &Expr::This(expr.clone()))
+    }
+    fn visit_super(&self, expr: &Super) -> Result<Option<Object>, JokerError> {
+        let binding: std::cell::Ref<HashMap<Expr, usize>> = self.local_resolve.borrow();
+        if let Some(depth) = binding.get(&Expr::Super(expr.clone())) {
+            if let Some(super_obj) = self
+                .run_env
+                .borrow()
+                .borrow()
+                .get_with_depth(*depth, &expr.keyword)?
+            {
+                if let Some(this_instance) = self
+                    .run_env
+                    .borrow()
+                    .borrow()
+                    .get_with_depth(*depth - 1, &Token::this(0))?
+                {
+                    let super_class: Class =
+                        super_obj.parse::<Class>().map_err(|_err| -> JokerError {
+                            JokerError::Parser(ParserError::report_error(
+                                &expr.keyword,
+                                String::from("This object is not class object, parse error."),
+                            ))
+                        })?;
+                    match super_class.get_method(&expr.method.lexeme) {
+                        Some(method) => {
+                            if let OEnum::Instance(instance) = &*this_instance.get() {
+                                return Ok(Some(Object::new(OEnum::Caller(Caller::Func(
+                                    method.bind(*instance.clone()),
+                                )))));
+                            }
+                        }
+                        None => {
+                            return Err(JokerError::Interpreter(InterpreterError::report_error(
+                                &expr.method,
+                                format!(
+                                    "super class undefined method '{}'.",
+                                    expr.method.lexeme
+                                ),
+                            )))
+                        }
+                    }
+                };
+                return Err(JokerError::Interpreter(InterpreterError::report_error(
+                    &expr.keyword,
+                    String::from("super object need class instance, but not find this instance."),
+                )));
+            };
+            Err(JokerError::Interpreter(InterpreterError::report_error(
+                &expr.keyword,
+                String::from("super object is declared, but not define."),
+            )))
+        } else {
+            Err(JokerError::Interpreter(InterpreterError::report_error(
+                &expr.keyword,
+                String::from("env not have super pos info."),
+            )))
+        }
     }
 }
 

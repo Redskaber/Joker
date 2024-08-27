@@ -29,6 +29,7 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("Getter    : expr Box<Expr>, name Token"),
             String::from("Setter    : l_expr Box<Expr>, name Token, r_expr Box<Expr>"),
             String::from("This      : keyword Token"),
+            String::from("Super     : keyword Token, method Token"),
         ],
         &[
             String::from("use super::object::Object;"),
@@ -53,7 +54,8 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("ContinueStmt: name Token"),
             String::from("FunStmt   : name Token, params Vec<Token>, body Vec<Stmt>"),
             String::from("ReturnStmt: keyword Token, value Expr"),
-            String::from("ClassStmt : name Token, methods Vec<FunStmt>"),
+            String::from("ClassStmt : name Token, super_class Option<Variable>, fields Option<Vec<Stmt>>, 
+                            class_methods Option<Vec<Stmt>>, instance_methods Option<Vec<Stmt>>, static_methods Option<Vec<Stmt>>"),
         ],
         &[
             String::from("use super::ast::Expr;"),

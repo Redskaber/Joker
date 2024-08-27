@@ -18,8 +18,8 @@ use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
         ExprStmt, ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal,
-        Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, This, Trinomial,
-        Unary, VarStmt, Variable, WhileStmt,
+        Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super, This,
+        Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     callable::StructError,
     env::EnvError,
@@ -35,7 +35,6 @@ pub trait StmtResolver<T> {
     fn resolve_lambda(&self, pipe: &Token, stmt: &Stmt) -> Result<T, JokerError>;
     fn resolve_class(&self, stmt: &ClassStmt) -> Result<T, JokerError>;
     fn resolve_method(&self, stmt: &FunStmt) -> Result<T, JokerError>;
-    fn resolve_instance(&self, stmt: &FunStmt) -> Result<T, JokerError>;
 }
 
 pub trait ExprResolver<T> {
@@ -54,10 +53,10 @@ pub enum ContextStatus {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ClassStatus {
-    Default,
+    Class,
+    SuperClass,
     Method,
-    Instance,
-    Static,
+    Function,
 }
 
 #[derive(Debug)]
@@ -179,6 +178,19 @@ impl Resolver {
             .iter()
             .any(|item| self.context_status_stack.borrow().contains(item))
     }
+    fn last_previous_any(&self, items: &[ContextStatus]) -> bool {
+        let stack = self.context_status_stack.borrow();
+        if stack.len() < 2 {
+            false
+        } else {
+            items.iter().any(|item| stack[stack.len() - 2].eq(item))
+        }
+    }
+    fn last_any(&self, items: &[ContextStatus]) -> bool {
+        items
+            .iter()
+            .any(|item| self.context_status_stack.borrow().last().eq(&Some(item)))
+    }
 }
 
 // Resolver
@@ -193,10 +205,13 @@ impl StmtResolver<()> for Resolver {
         Ok(())
     }
     fn resolve_function(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        if self.contains_any(&[ContextStatus::Class(ClassStatus::Default)]) {
+        if self.contains_any(&[
+            ContextStatus::Class(ClassStatus::Class),
+            ContextStatus::Class(ClassStatus::SuperClass),
+        ]) {
             self.context_status_stack
                 .borrow_mut()
-                .push(ContextStatus::Class(ClassStatus::Static));
+                .push(ContextStatus::Class(ClassStatus::Function));
         } else {
             self.context_status_stack
                 .borrow_mut()
@@ -242,47 +257,62 @@ impl StmtResolver<()> for Resolver {
         }
     }
     fn resolve_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
-        self.context_status_stack
-            .borrow_mut()
-            .push(ContextStatus::Class(ClassStatus::Default));
-
         // println!(
         //     "[{:>10}][{:>20}]:\tstmt: {:?}",
         //     "resolve", "resolve_class", stmt.name
         // );
+        let exist_super = if let Some(super_expr) = &stmt.super_class {
+            if let Expr::Variable(super_variable) = super_expr {
+                if super_variable.name.lexeme.eq(&stmt.name.lexeme) {
+                    return Err(JokerError::Resolver(ResolverError::Env(
+                        EnvError::report_error(
+                            &stmt.name,
+                            String::from("a class can't inherit from itself."),
+                        ),
+                    )));
+                }
+            }
+            ExprResolver::resolve(self, super_expr)?;
+            // local -> this(instance) -> >super class< -> global
+            self.begin_scope();
+            self.scopes_stack
+                .borrow()
+                .last()
+                .unwrap()
+                .borrow_mut()
+                .insert(Key(Token::super_(0)), VarStatus::Used);
+
+            true
+        } else {
+            false
+        };
+
+        self.context_status_stack.borrow_mut().push(if exist_super {
+            ContextStatus::Class(ClassStatus::SuperClass)
+        } else {
+            ContextStatus::Class(ClassStatus::Class)
+        });
+
         self.begin_scope();
         if let Some(stmts) = &stmt.fields {
             for stmt in stmts {
                 StmtResolver::resolve(self, stmt)?;
             }
         }
-        if let Some(stmts) = &stmt.class_methods {
+        if let Some(stmts) = &stmt.methods {
             self.scopes_stack
                 .borrow()
                 .last()
                 .unwrap()
                 .borrow_mut()
-                .insert(Key(Token::cls(0)), VarStatus::Define);
+                .insert(Key(Token::this(0)), VarStatus::Used);
             for stmt in stmts {
                 if let Stmt::FunStmt(fun) = stmt {
                     StmtResolver::resolve_method(self, fun)?;
                 }
             }
         }
-        if let Some(stmts) = &stmt.instance_methods {
-            self.scopes_stack
-                .borrow()
-                .last()
-                .unwrap()
-                .borrow_mut()
-                .insert(Key(Token::this(0)), VarStatus::Define);
-            for stmt in stmts {
-                if let Stmt::FunStmt(fun) = stmt {
-                    StmtResolver::resolve_instance(self, fun)?;
-                }
-            }
-        }
-        if let Some(stmts) = &stmt.static_methods {
+        if let Some(stmts) = &stmt.functions {
             for stmt in stmts {
                 if let Stmt::FunStmt(fun) = stmt {
                     StmtResolver::resolve_function(self, fun)?;
@@ -292,55 +322,22 @@ impl StmtResolver<()> for Resolver {
         // check local var used status
         self.check_vars_status()?;
         self.end_scope();
+        // super
+        if stmt.super_class.is_some() {
+            self.end_scope();
+        }
+
         self.context_status_stack.borrow_mut().pop();
         Ok(())
     }
     fn resolve_method(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        if self.contains_any(&[ContextStatus::Class(ClassStatus::Default)]) {
+        if self.contains_any(&[
+            ContextStatus::Class(ClassStatus::Class),
+            ContextStatus::Class(ClassStatus::SuperClass),
+        ]) {
             self.context_status_stack
                 .borrow_mut()
                 .push(ContextStatus::Class(ClassStatus::Method));
-            // println!(
-            //     "[{:>10}][{:>20}]:\tstack: {:?}",
-            //     "resolve", "resolve_function", self.context_status_stack
-            // );
-
-            self.begin_scope();
-            if let Some(params) = &stmt.params {
-                // resolve fun init(cls, ...) {...}
-                // this 'cls' can shadow outer cls.
-                for param in params[1..].iter() {
-                    self.declare(param)?;
-                    self.define(param)?;
-                }
-            }
-            StmtResolver::resolve_block(self, &stmt.body)?;
-
-            // check local var used status
-            self.check_vars_status()?;
-            self.end_scope();
-
-            self.context_status_stack.borrow_mut().pop();
-
-            // println!(
-            //     "[{:>10}][{:>20}]:\tstack: {:?}",
-            //     "resolve", "resolve_function", self.context_status_stack
-            // );
-            Ok(())
-        } else {
-            Err(JokerError::Resolver(ResolverError::Env(
-                EnvError::report_error(
-                    &stmt.name,
-                    String::from("class method is need inside class."),
-                ),
-            )))
-        }
-    }
-    fn resolve_instance(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        if self.contains_any(&[ContextStatus::Class(ClassStatus::Default)]) {
-            self.context_status_stack
-                .borrow_mut()
-                .push(ContextStatus::Class(ClassStatus::Instance));
             // println!(
             //     "[{:>10}][{:>20}]:\tstack: {:?}",
             //     "resolve", "resolve_function", self.context_status_stack
@@ -454,12 +451,25 @@ impl StmtVisitor<()> for Resolver {
         Ok(())
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
-        self.declare(&stmt.name)?;
-        if let Some(expr) = &stmt.value {
-            ExprResolver::resolve(self, expr)?;
-            self.define(&stmt.name)?;
+        if self.contains_any(&[
+            ContextStatus::Fun,
+            ContextStatus::Loop,
+            ContextStatus::Class(ClassStatus::Class),
+            ContextStatus::Class(ClassStatus::SuperClass),
+            ContextStatus::Class(ClassStatus::Method),
+            ContextStatus::Class(ClassStatus::Function),
+        ]) {
+            self.declare(&stmt.name)?;
+            if let Some(expr) = &stmt.value {
+                ExprResolver::resolve(self, expr)?;
+                self.define(&stmt.name)?;
+            }
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Env(
+                EnvError::report_error(&stmt.name, String::from("var need in block.")),
+            )))
         }
-        Ok(())
     }
     fn visit_for(&self, stmt: &ForStmt) -> Result<(), JokerError> {
         if let Some(initializer) = &stmt.initializer {
@@ -515,9 +525,8 @@ impl StmtVisitor<()> for Resolver {
         // );
         if self.contains_any(&[
             ContextStatus::Fun,
-            ContextStatus::Class(ClassStatus::Instance),
             ContextStatus::Class(ClassStatus::Method),
-            ContextStatus::Class(ClassStatus::Static),
+            ContextStatus::Class(ClassStatus::Function),
         ]) {
             self.begin_scope();
             self.resolve_block(&stmt.stmts)?;
@@ -575,12 +584,11 @@ impl StmtVisitor<()> for Resolver {
         //     "[{:>10}][{:>20}]:\tstack: {:?}",
         //     "resolve", "visit_return", self.context_status_stack
         // );
-        if matches!(
-            self.context_status_stack.borrow().last(),
-            Some(&ContextStatus::Fun)
-                | Some(&ContextStatus::Class(ClassStatus::Instance))
-                | Some(&ContextStatus::Class(ClassStatus::Method))
-        ) || self.contains_any(&[ContextStatus::Fun])
+        if self.last_any(&[
+            ContextStatus::Fun,
+            ContextStatus::Class(ClassStatus::Method),
+            ContextStatus::Class(ClassStatus::Function),
+        ]) || self.contains_any(&[ContextStatus::Fun])
         {
             if let Some(expr) = &stmt.value {
                 ExprResolver::resolve(self, expr)?;
@@ -600,18 +608,16 @@ impl StmtVisitor<()> for Resolver {
         //     "[{:>10}][{:>20}]:\tstack: {:?}",
         //     "resolve", "visit_continue", self.context_status_stack
         // );
-        if matches!(
-            self.context_status_stack.borrow().last(),
-            Some(&ContextStatus::Loop)
-        ) {
-            return Ok(());
+        if self.last_any(&[ContextStatus::Loop]) {
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::KeyWord(
+                KeyWordError::Pos(PosError::report_error(
+                    &stmt.name,
+                    String::from("Cannot use 'continue' outside of a loop statement."),
+                )),
+            )))
         }
-        Err(JokerError::Resolver(ResolverError::KeyWord(
-            KeyWordError::Pos(PosError::report_error(
-                &stmt.name,
-                String::from("Cannot use 'continue' outside of a loop statement."),
-            )),
-        )))
     }
 }
 
@@ -634,11 +640,8 @@ impl ExprVisitor<()> for Resolver {
         //     "[{:>10}][{:>20}]:\tstack: {:?}",
         //     "resolve", "visit_setter", self.context_status_stack
         // );
-        if matches!(
-            self.context_status_stack.borrow().last(),
-            Some(&ContextStatus::Class(ClassStatus::Instance))
-                | Some(&ContextStatus::Class(ClassStatus::Method))
-        ) | matches!(*expr.l_expr, Expr::Variable(_))
+        if self.last_any(&[ContextStatus::Class(ClassStatus::Method)])
+            || matches!(*expr.l_expr, Expr::Variable(_))
         {
             ExprResolver::resolve(self, &expr.r_expr)?;
             ExprResolver::resolve(self, &expr.l_expr)?;
@@ -658,10 +661,10 @@ impl ExprVisitor<()> for Resolver {
         //     "[{:>10}][{:>20}]:\tstack: {:?}",
         //     "resolve", "visit_this", self.context_status_stack
         // );
-        if self
-            .context_status_stack
-            .borrow()
-            .contains(&ContextStatus::Class(ClassStatus::Default))
+        if self.last_previous_any(&[
+            ContextStatus::Class(ClassStatus::Class),
+            ContextStatus::Class(ClassStatus::SuperClass),
+        ]) && self.last_any(&[ContextStatus::Class(ClassStatus::Method)])
         {
             ExprResolver::resolve_local(self, Expr::This(expr.clone()), &expr.keyword)?;
             Ok(())
@@ -733,6 +736,21 @@ impl ExprVisitor<()> for Resolver {
         //     "resolve", "visit_trinomial", self.context_status_stack
         // );
         Ok(())
+    }
+    fn visit_super(&self, expr: &Super) -> Result<(), JokerError> {
+        if self.last_previous_any(&[ContextStatus::Class(ClassStatus::SuperClass)])
+            && self.last_any(&[ContextStatus::Class(ClassStatus::Method)])
+        {
+            ExprResolver::resolve_local(self, Expr::Super(expr.clone()), &expr.keyword)?;
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Env(
+                EnvError::report_error(
+                    &expr.keyword,
+                    String::from("super keyword need in inherit class instance function used."),
+                ),
+            )))
+        }
     }
 }
 

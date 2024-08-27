@@ -6,8 +6,8 @@ use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, Expr, ExprAcceptor, ExprStmt,
         ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical,
-        PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, This, Trinomial, Unary,
-        VarStmt, Variable, WhileStmt,
+        PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super, This, Trinomial,
+        Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::Object,
@@ -137,8 +137,12 @@ impl StmtVisitor<String> for AstPrinter {
     }
     fn visit_class(&self, stmt: &ClassStmt) -> Result<String, JokerError> {
         Ok(format!(
-            "ClassStmt(name: {}, fields: {:?}, class_methods: {:?}, instance_methods: {:?}, static_methods: {:?})",
+            "ClassStmt(name: {}, super_class: {:?}, fields: {:?}, methods: {:?}, functions: {:?})",
             stmt.name.lexeme,
+            match &stmt.super_class {
+                Some(super_class) => format!("Some({})", super_class.accept(self)?),
+                None => String::from("None"),
+            },
             match &stmt.fields {
                 Some(fields) => fields
                     .iter()
@@ -147,7 +151,7 @@ impl StmtVisitor<String> for AstPrinter {
                     .join("\n"),
                 None => String::from("None"),
             },
-            match &stmt.class_methods {
+            match &stmt.methods {
                 Some(methods) => methods
                     .iter()
                     .map(|md| -> String { md.accept(self).unwrap() })
@@ -155,15 +159,7 @@ impl StmtVisitor<String> for AstPrinter {
                     .join("\n"),
                 None => String::from("None"),
             },
-            match &stmt.instance_methods {
-                Some(methods) => methods
-                    .iter()
-                    .map(|md| -> String { md.accept(self).unwrap() })
-                    .collect::<Vec<String>>()
-                    .join("\n"),
-                None => String::from("None"),
-            },
-            match &stmt.static_methods {
+            match &stmt.functions {
                 Some(methods) => methods
                     .iter()
                     .map(|md| -> String { md.accept(self).unwrap() })
@@ -256,10 +252,16 @@ impl ExprVisitor<String> for AstPrinter {
     fn visit_this(&self, expr: &This) -> Result<String, JokerError> {
         Ok(format!("This(keyword: {})", expr.keyword.lexeme))
     }
+    fn visit_super(&self, expr: &Super) -> Result<String, JokerError> {
+        Ok(format!(
+            "Super(keyword: {}, method: {})",
+            expr.keyword.lexeme, expr.method.lexeme
+        ))
+    }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
 
     use crate::joker::object::literal_null;
 

@@ -15,26 +15,17 @@ class Person {
 
     fun call_method(this) {
         print this;                 // print the object itself
-        this.cls_method();          // call class method
         this.static_method();       // call static method
-    }
-
-    fun cls_method(cls) {
-        print "This is a class method";
-        print cls;                  // print the class itself
-        // print this;              // error: class method cannot access object instance
     }
 
     fun static_method() {
         print "This is a static method";
-        // print cls;               // error: static method cannot access class instance
         // print this;              // error: static method cannot access object instance
     }
 }
 
 var p = Person("Jane", 30);
 print p.call_method();          // have this
-print p.cls_method();           // not this, but cls
 print p.static_method();        // not this 
 //--------------------------------------------------------------------------------------------
 class Person {
@@ -88,50 +79,47 @@ class Person {
         print end_time - start_time;
     }
 
-    fun cls_method(cls) {
-        print "This is a class method";
-        print cls;                  // print the class itself
-    }
     fun static_method() {
         print "This is a static method";
     }
 }
 
-var p1 = Person("Jane", 30);
-print p1;
-p1.set_age(10000);
-p1.set_name("alex");
-print p1;
+fun test() {
+    var p1 = Person("Jane", 30);
+    print p1;
+    p1.set_age(10000);
+    p1.set_name("alex");
+    print p1;
 
-var p2 = Person("Tom", 25);
-print p2;
-p2.set_age(20000);
-p2.set_name("jack");
-print p2;
+    var p2 = Person("Tom", 25);
+    print p2;
+    p2.set_age(20000);
+    p2.set_name("jack");
+    print p2;
 
-print p1.print_info();
-print p2.p_name;
+    print p1.print_info();
+    print p2.p_name;
 
-// Person.cls_method();          // error: class method cannot access class
-// p1.cls_method();              // success: class method can access object instance
+    Person.static_method();          // success: static method can access class
+    p1.static_method();              // success: static method can access object instance
 
-Person.static_method();          // success: static method can access class
-p1.static_method();              // success: static method can access object instance
+    print Person.p_name;             // success: can access class variable
+    // Person.p_name = "test";       // error: setter only instance have attribute.
 
-print Person.p_name;             // success: can access class variable
-// Person.p_name = "test";       // error: cannot access class variable
+    p1.p_name = "test";              // error: cannot access object variable
+    print p1.p_name;
 
-p1.p_name = "test";              // error: cannot access object variable
-print p1.p_name;
+    var outer = 100;
+    var demo = |outer|{
+        print outer;    // 200
+        print "hello world";
+    };
+    demo(200);
 
-var outer = 100;
-var demo = |outer|{
-    print outer;    // 200
-    print "hello world";
-};
-demo(200);
+    // outer.demo = || {
+    //     print "hello world";
+    // };      //  error: cannot access outer variable
+    // outer.demo();
+}
 
-// outer.demo = || {
-//     print "hello world";
-// };      //  error: cannot access outer variable
-// outer.demo();
+test();

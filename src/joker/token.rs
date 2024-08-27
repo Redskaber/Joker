@@ -164,6 +164,14 @@ impl Token {
             line,
         )
     }
+    pub fn super_(line: usize) -> Token {
+        Token::new(
+            TokenType::Super,
+            String::from("super"),
+            literal_null(),
+            line,
+        )
+    }
 }
 
 impl Display for Token {

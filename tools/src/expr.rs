@@ -16,6 +16,7 @@ pub enum Expr {
     Getter(Getter),
     Setter(Setter),
     This(This),
+    Super(Super),
 }
 
 pub struct Literal {
@@ -79,6 +80,11 @@ pub struct This {
     pub keyword: Token,
 }
 
+pub struct Super {
+    pub keyword: Token,
+    pub method: Token,
+}
+
 impl<T> ExprVisitor<T> for Expr {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         match self {
@@ -94,6 +100,7 @@ impl<T> ExprVisitor<T> for Expr {
             Expr::Getter(getter) => getter.accept(visitor),
             Expr::Setter(setter) => setter.accept(visitor),
             Expr::This(this) => this.accept(visitor),
+            Expr::Super(super) => super.accept(visitor),
         }
     }
 }
@@ -111,6 +118,7 @@ pub trait ExprVisitor<T> {
     fn visit_getter(&self, expr: &Getter) -> Result<T, JokerError>;
     fn visit_setter(&self, expr: &Setter) -> Result<T, JokerError>;
     fn visit_this(&self, expr: &This) -> Result<T, JokerError>;
+    fn visit_super(&self, expr: &Super) -> Result<T, JokerError>;
 }
 
 pub trait ExprAcceptor<T> {
@@ -186,6 +194,12 @@ impl<T> ExprAcceptor<T> for Setter {
 impl<T> ExprAcceptor<T> for This {
     fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
         visitor.visit_this(self)
+    }
+}
+
+impl<T> ExprAcceptor<T> for Super {
+    fn accept(&self, visitor: &dyn ExprVisitor<T>) -> Result<T, JokerError> {
+        visitor.visit_super(self)
     }
 }
 

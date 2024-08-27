@@ -9,21 +9,20 @@ use crate::joker::{
     error::JokerError,
     interpreter::{Interpreter, InterpreterError},
     object::{Instance, Object as OEnum, UpCast},
+    parse::ParserError,
     token::Token,
-    types::{DeepClone, Object},
+    types::{DeepClone, FromObject, Object},
 };
 
-use super::{
-    Binder, BinderFunction, Caller, Function, InstanceFunction, MethodFunction, UserFunction,
-};
+use super::{Binder, BinderFunction, Caller, Function, MethodFunction, UserFunction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Class {
     name: String,
+    super_class: Option<Box<Class>>,
     fields: Option<HashMap<String, Option<Object>>>,
-    class_methods: Option<HashMap<String, MethodFunction>>,
-    instance_methods: Option<HashMap<String, InstanceFunction>>,
-    static_methods: Option<HashMap<String, UserFunction>>,
+    methods: Option<HashMap<String, MethodFunction>>,
+    functions: Option<HashMap<String, UserFunction>>,
 }
 
 impl DeepClone for Class {
@@ -50,45 +49,51 @@ impl UpCast<OEnum> for Box<Class> {
 impl Class {
     pub fn new(
         name: String,
+        super_class: Option<Box<Class>>,
         fields: Option<HashMap<String, Option<Object>>>,
-        class_methods: Option<HashMap<String, MethodFunction>>,
-        instance_methods: Option<HashMap<String, InstanceFunction>>,
-        static_methods: Option<HashMap<String, UserFunction>>,
+        methods: Option<HashMap<String, MethodFunction>>,
+        functions: Option<HashMap<String, UserFunction>>,
     ) -> Class {
         Class {
             name,
+            super_class,
             fields,
-            class_methods,
-            instance_methods,
-            static_methods,
+            methods,
+            functions,
         }
     }
     pub fn get_field(&self, name: &str) -> Option<&Option<Object>> {
         match &self.fields {
             Some(fields) => fields.get(name),
-            None => None,
+            None => match &self.super_class {
+                Some(super_class) => super_class.get_field(name),
+                None => None,
+            },
         }
     }
     // get instance used
     pub fn get_method(&self, name: &str) -> Option<BinderFunction> {
-        if let Some(instances) = &self.instance_methods {
-            if let Some(instance) = instances.get(name) {
-                return Some(BinderFunction::Instance(instance.clone()));
-            }
-        }
-        if let Some(methods) = &self.class_methods {
-            if let Some(method) = methods.get(name) {
-                return Some(BinderFunction::Method(method.clone()));
+        if let Some(methods) = &self.methods {
+            if let Some(md) = methods.get(name) {
+                return Some(BinderFunction::Method(md.clone()));
             }
         }
         if name.eq("init") {
+            if let Some(super_class) = &self.super_class {
+                return super_class.get_method(name);
+            }
             return None;
         }
-        if let Some(statics) = &self.static_methods {
-            if let Some(static_) = statics.get(name) {
-                return Some(BinderFunction::User(static_.clone()));
+        if let Some(functions) = &self.functions {
+            if let Some(func) = functions.get(name) {
+                return Some(BinderFunction::User(func.clone()));
             }
         }
+
+        if let Some(super_class) = &self.super_class {
+            return super_class.get_method(name);
+        }
+
         None
     }
     // used class find
@@ -110,25 +115,26 @@ impl Class {
             }
         }
 
-        if let Some(class_methods) = &self.class_methods {
-            if class_methods.contains_key(&name.lexeme) {
-                return Err(JokerError::Interpreter(InterpreterError::report_error(
-                    name,
-                    format!(
-                        "Error: class method '{}' is exist, but outside not visited.",
-                        name.lexeme
-                    ),
-                )));
-            }
-        }
-
-        if let Some(static_methods) = &self.static_methods {
-            if let Some(static_) = static_methods.get(&name.lexeme) {
+        if let Some(methods) = &self.methods {
+            if let Some(md) = methods.get(&name.lexeme) {
                 return Ok(Some(Object::new(OEnum::Caller(Caller::Func(
-                    Function::User(static_.clone()),
+                    Function::Method(md.clone()),
                 )))));
             }
         }
+
+        if let Some(functions) = &self.functions {
+            if let Some(func) = functions.get(&name.lexeme) {
+                return Ok(Some(Object::new(OEnum::Caller(Caller::Func(
+                    Function::User(func.clone()),
+                )))));
+            }
+        }
+
+        if let Some(super_class) = &self.super_class {
+            return super_class.getter(name);
+        }
+
         Ok(None)
     }
 }
@@ -136,20 +142,21 @@ impl Class {
 impl Hash for Class {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
-        if let Some(methods) = &self.class_methods {
-            for (name, fun) in methods {
+        self.super_class.hash(state);
+        if let Some(fields) = &self.fields {
+            for (name, obj) in fields {
                 name.hash(state);
-                fun.hash(state);
+                obj.hash(state);
             }
         }
-        if let Some(instances) = &self.instance_methods {
-            for (name, fun) in instances {
+        if let Some(methods) = &self.methods {
+            for (name, md) in methods {
                 name.hash(state);
-                fun.hash(state);
+                md.hash(state);
             }
         }
-        if let Some(statics) = &self.static_methods {
-            for (name, fun) in statics {
+        if let Some(functions) = &self.functions {
+            for (name, fun) in functions {
                 name.hash(state);
                 fun.hash(state);
             }
@@ -177,7 +184,28 @@ impl Callable for Box<Class> {
 
 impl Display for Class {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Class(name: {}, fields: {:?}, class_methods: {:?}, instance_methods: {:?}, static_methods: {:?})", 
-        self.name, self.fields, self.class_methods, self.instance_methods, self.static_methods)
+        let super_name = match &self.super_class {
+            Some(super_obj) => &super_obj.name,
+            None => "None",
+        };
+        write!(
+            f,
+            "Class(name: {}, super_class: {}, fields: {:?}, methods: {:?}, functions: {:?})",
+            self.name, super_name, self.fields, self.methods, self.functions
+        )
+    }
+}
+
+impl FromObject for Class {
+    type Err = JokerError;
+    fn from_object(obj: &Object) -> Result<Self, Self::Err> {
+        if let OEnum::Caller(Caller::Class(class)) = &*obj.get() {
+            Ok(*class.clone())
+        } else {
+            Err(JokerError::Parser(ParserError::report_error(
+                &Token::eof(0),
+                format!("object '{}' don't translate to class.", obj),
+            )))
+        }
     }
 }

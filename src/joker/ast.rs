@@ -39,11 +39,13 @@
 //!                     | forStmt
 //!                     | ifStmt               
 //!                     | printStmt
-//!                     | whileStmt             
+//!                     | whileStmt
+//!                     | BlockStmt             
 //!                     | varStmt ;             
 //!
 //!     exprStmt       → expression ";" ;
 //!     printStmt      → "print" expression ";" ;
+//!     BlockStmt      → "{" statement "}"
 //!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
 //!     ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 //!     whileStmt      → "while" "(" expression ")" statement ;          
@@ -56,7 +58,11 @@
 //!     instanceStmt   → "fun" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = self
 //!     parameters     → IDENTIFIER  (, IDENTIFIER)*
 //!
-//!     classStmt      → "class" IDENTIFIER "{" var_decl* | fun_decl* | method_decl* | instance_decl*"}" ;
+//!     classStmt      → "class" IDENTIFIER (":" IDENTIFIER)?  "{"
+//!                             var_decl*
+//!                             | fun_decl*
+//!                             | method_decl*
+//!                     "}" ;
 //!
 //!
 //!      breakStmt      → "break" ";"
@@ -89,6 +95,7 @@
 //!     arguments      → expression ( "," expression )* ;
 //!
 //!     grouping       → "(" expression ")" ;
+//!                     | “super” "." IDENTIFIER
 //!                     | primary ;
 //!
 //!     primary        → I32| F64 | STRING | "true" | "false" | "null"
@@ -285,12 +292,12 @@ macro_rules! define_ast {
     (@impl_display ClassStmt, $($field:ident: $field_type: ty),*) => {
         impl Display for ClassStmt {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "ClassStmt(name: {}, fields: {:?}, class_methods: {:?}, instance_methods: {:?}, static_methods: {:?})",
+                write!(f, "ClassStmt(name: {}, super_class: {:?}, fields: {:?}, methods: {:?}, functions: {:?})",
                     self.name,
+                    self.super_class,
                     self.fields,
-                    self.class_methods,
-                    self.instance_methods,
-                    self.static_methods,
+                    self.methods,
+                    self.functions,
                 )
             }
         }
@@ -322,10 +329,11 @@ define_ast! {
         Getter      { expr: Box<Expr>, name: Token },
         Setter      { l_expr: Box<Expr>, name: Token, r_expr: Box<Expr> },
         This        { keyword: Token },
+        Super       { keyword: Token, method: Token },
     },
     ExprVisitor,    expr, { visit_literal, visit_unary, visit_binary, visit_grouping ,visit_variable,
                             visit_assign, visit_logical, visit_trinomial, visit_call, visit_lambda,
-                            visit_getter, visit_setter, visit_this },
+                            visit_getter, visit_setter, visit_this, visit_super },
     ExprAcceptor,
 }
 
@@ -342,8 +350,8 @@ define_ast! {
         ContinueStmt{ name: Token },
         FunStmt     { name: Token, params: Option<Vec<Token>>, body: Vec<Stmt> },
         ReturnStmt  { keyword: Token, value: Option<Expr> },
-        ClassStmt   { name: Token, fields: Option<Vec<Stmt>>, class_methods: Option<Vec<Stmt>>, instance_methods: Option<Vec<Stmt>>,
-                        static_methods: Option<Vec<Stmt>> },
+        ClassStmt   { name: Token, super_class: Option<Expr>, fields: Option<Vec<Stmt>>,
+                        methods: Option<Vec<Stmt>>, functions: Option<Vec<Stmt>> },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
                             visit_for, visit_break, visit_continue, visit_fun, visit_return, visit_class },

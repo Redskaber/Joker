@@ -30,11 +30,14 @@ TODO:
       - [v] var statement set value is deep copy.
       - [] class method cls param used ?
       - [v] wait handler init this same init before and after.
-      - [v] localvariable check status in class.
-      - [] class attribute set and get, update and delete.
+      - [v] local variable check status in class.
+      - [v] class attribute set and get, update and delete.
       - [] add class static attribute and class static method.
-      - [] add class constructor and destructor.
-      - [] add class inheritance.
+      - [v/] add class constructor and destructor.
+      - [v] add class inheritance.
+      - [v] add resolve static check for class status.
+      - [v] add resolve static check var statement.
+      - [] add class super method call.
       - [] wait update code...
       - [] 我们的解析器会计算出变量是在哪个环境中找到的, 但是它仍然需要根据名称在对应的map中查找。
           一个更有效的环境表示形式是将局部变量保存在一个数组中，并通过索引来查找它们。

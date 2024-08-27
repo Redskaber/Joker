@@ -1,0 +1,117 @@
+// This is a test file for class inheritance in Rust.
+
+/*
+// ---------------------------------------------------------------------------------------
+class Animal {
+    fun bark() {
+        print "Animal is barking.";
+    }
+}
+
+class Dog : Animal {}
+
+var dog = Dog();
+dog.bark(); // Output: Animal is barking.
+
+class Cat : Animal {
+    fun meow() {
+        print "Cat is meowing.";
+    }
+}
+
+var cat = Cat();
+cat.bark(); // Output: Animal is barking.
+cat.meow(); // Output: Cat is meowing.
+// ---------------------------------------------------------------------------------------
+class Animal {
+    fun init(this) {
+        this.name = "Animal";
+        this.age = 0;
+    }
+
+    fun bark() {
+        print "Animal is barking.";
+    }
+}
+
+class Dog : Animal {}
+
+var dog = Dog();
+dog.bark(); // Output: Animal is barking.
+var dog_func = dog.bark;
+dog_func(); // Output: Animal is barking.
+
+print dog.name; // Output: Animal
+print dog.age; // Output: 0
+
+
+class Cat : Animal {
+    fun init(this) {
+        
+        this.name = "Cat";
+        this.age = 1;
+    }
+
+    fun meow() {
+        print "Cat is meowing.";
+    }
+}
+
+var cat = Cat();
+cat.bark(); // Output: Animal is barking.
+cat.meow(); // Output: Cat is meowing.
+
+print cat.name; // Output: Cat
+print cat.age; // Output: 1
+// ---------------------------------------------------------------------------------------
+class A {
+  fun method() {
+    print "A method";
+  }
+}
+
+class B : A {
+  fun method() {
+    print "B method";
+  }
+
+  fun test(this) {      // test method to call A.method()
+    super.method();
+  }
+}
+
+class C : B {}
+
+C().test();     // Output: A method
+*/
+class A {
+  var name = "A";
+  fun method() {
+    print "A method";
+  }
+  fun name(this) {
+    print this.name;
+  }
+}
+
+class B : A {
+  fun method() {
+    print "B method";
+  }
+
+  fun test(this) {      // test method to call A.method()
+    print super.name();
+    super.method();
+  }
+}
+
+class C : B {}
+
+
+fun main() {
+    var c = C();
+    c.test();     // Output: A method
+    c.method();   // Output: B method
+}
+
+main();

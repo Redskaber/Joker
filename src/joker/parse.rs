@@ -10,7 +10,7 @@ use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprStmt,
         ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
-        ReturnStmt, Setter, Stmt, This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        ReturnStmt, Setter, Stmt, Super, This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::{literal_bool, FuncType},
@@ -95,86 +95,89 @@ impl Parser {
         self.statement()
     }
     // class_declaration      → "class" classStmt ;
-    // classStmt      → "class" IDENTIFIER "{" var_decl* | fun_decl* | method_decl* | instance_decl*"}" ;
+    // classStmt      → "class" IDENTIFIER (":" IDENTIFIER )? "{"
+    //                      var_decl* | fun_decl* | method_decl*
+    //                  "}" ;
     fn class_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token =
             self.consume(&[TokenType::Identifier], String::from("expect class name."))?;
+
+        let super_class = if self.is_match(&[TokenType::Colon]) {
+            let super_class = self.consume(
+                &[TokenType::Identifier],
+                String::from("expect super class name."),
+            )?;
+            Some(Expr::Variable(Variable::new(super_class)))
+        } else {
+            None
+        };
         self.consume(
             &[TokenType::LeftBrace],
             String::from("expect '{' before class body."),
         )?;
 
-        let (fields, class_methods, instance_methods, static_methods) =
-            if self.check(&TokenType::RightBrace) {
-                (None, None, None, None)
-            } else {
-                let mut fields = Vec::new();
-                let mut class_methods = Vec::new();
-                let mut instance_methods = Vec::new();
-                let mut static_methods = Vec::new();
-                loop {
-                    if self.is_match(&[TokenType::Var]) {
-                        fields.push(self.var_declaration()?);
-                    } else if self.is_match(&[TokenType::Fun]) {
-                        match self.class_fun_declaration()? {
-                            FuncType::Method(method) => class_methods.push(method),
-                            FuncType::Instance(instance) => instance_methods.push(instance),
-                            FuncType::Static(static_) => static_methods.push(static_),
-                        }
-                    } else {
-                        return Err(JokerError::Parser(ParserError::report_error(
-                            &self.peek(),
-                            String::from("class inside only have var and fun."),
-                        )));
+        let (fields, methods, functions) = if self.check(&TokenType::RightBrace) {
+            (None, None, None)
+        } else {
+            let mut fields = Vec::new();
+            let mut methods = Vec::new();
+            let mut functions = Vec::new();
+            loop {
+                if self.is_match(&[TokenType::Var]) {
+                    fields.push(self.var_declaration()?);
+                } else if self.is_match(&[TokenType::Fun]) {
+                    match self.class_fun_declaration()? {
+                        FuncType::Method(method) => methods.push(method),
+                        FuncType::Function(function) => functions.push(function),
                     }
-                    if self.check(&TokenType::RightBrace) {
-                        break;
-                    }
+                } else {
+                    return Err(JokerError::Parser(ParserError::report_error(
+                        &self.peek(),
+                        String::from("class inside only have var and fun."),
+                    )));
                 }
-                (
-                    if fields.is_empty() {
-                        None
-                    } else {
-                        Some(fields)
-                    },
-                    if class_methods.is_empty() {
-                        None
-                    } else {
-                        Some(class_methods)
-                    },
-                    if instance_methods.is_empty() {
-                        None
-                    } else {
-                        Some(instance_methods)
-                    },
-                    if static_methods.is_empty() {
-                        None
-                    } else {
-                        Some(static_methods)
-                    },
-                )
-            };
+                if self.check(&TokenType::RightBrace) {
+                    break;
+                }
+            }
+            (
+                if fields.is_empty() {
+                    None
+                } else {
+                    Some(fields)
+                },
+                if methods.is_empty() {
+                    None
+                } else {
+                    Some(methods)
+                },
+                if functions.is_empty() {
+                    None
+                } else {
+                    Some(functions)
+                },
+            )
+        };
         self.consume(
             &[TokenType::RightBrace],
             String::from("expect '}' after class body."),
         )?;
         Ok(ClassStmt::upcast(
             name,
+            super_class,
             fields,
-            class_methods,
-            instance_methods,
-            static_methods,
+            methods,
+            functions,
         ))
     }
     fn class_fun_declaration(&mut self) -> Result<FuncType, JokerError> {
         if let Stmt::FunStmt(fun_stmt) = self.fun_declaration()? {
             match &fun_stmt.params {
                 Some(params) => match params[0].lexeme.as_str() {
-                    "cls" => Ok(FuncType::Method(Stmt::FunStmt(fun_stmt))),
-                    "this" => Ok(FuncType::Instance(Stmt::FunStmt(fun_stmt))),
-                    _ => Ok(FuncType::Static(Stmt::FunStmt(fun_stmt))),
+                    "this" => Ok(FuncType::Method(Stmt::FunStmt(fun_stmt))),
+                    _ => Ok(FuncType::Function(Stmt::FunStmt(fun_stmt))),
                 },
-                None => Ok(FuncType::Static(Stmt::FunStmt(fun_stmt))),
+                None => Ok(FuncType::Function(Stmt::FunStmt(fun_stmt))),
             }
         } else {
             unreachable!("fun_declaration return Stmt::FunStmt, unreachable this.")
@@ -656,7 +659,7 @@ impl Parser {
         Ok(Call::upcast(Box::new(callee), paren, arguments))
     }
     // grouping -> "(" expression ")" ;
-    //              | primary ;
+    //              | “super” "." IDENTIFIER
     fn grouping(&mut self) -> Result<Expr, JokerError> {
         if self.is_match(&[TokenType::LeftParen]) {
             let expr: Expr = self.expression()?;
@@ -666,8 +669,23 @@ impl Parser {
             )?;
             return Ok(Grouping::upcast(Box::new(expr)));
         }
+        self.super_()
+    }
+    // super        “super” "." IDENTIFIER
+    //              | primary ;
+    fn super_(&mut self) -> Result<Expr, JokerError> {
+        if self.is_match(&[TokenType::Super]) {
+            let keyword: Token = self.previous();
+            self.consume(&[TokenType::Dot], String::from("expect '.' after 'super'."))?;
+            let method: Token = self.consume(
+                &[TokenType::Identifier],
+                String::from("expect super class method name."),
+            )?;
+            return Ok(Expr::Super(Super::new(keyword, method)));
+        }
         self.primary()
     }
+
     // primary -> I32| F64 | STRING | "true" | "false" | "null"
     //          | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, JokerError> {

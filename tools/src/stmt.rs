@@ -74,7 +74,11 @@ pub struct ReturnStmt {
 
 pub struct ClassStmt {
     pub name: Token,
-    pub methods: Vec<FunStmt>,
+    pub super_class: Option<Variable>,
+    pub fields: Option<Vec<Stmt>>,
+    pub class_methods: Option<Vec<Stmt>>,
+    pub instance_methods: Option<Vec<Stmt>>,
+    pub static_methods: Option<Vec<Stmt>>,
 }
 
 impl<T> StmtVisitor<T> for Stmt {
