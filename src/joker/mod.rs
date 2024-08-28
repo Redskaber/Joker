@@ -6,7 +6,7 @@ mod env;
 mod error;
 mod interpreter;
 mod main;
-mod native_fun;
+mod native_fn;
 mod object;
 mod parse;
 mod resolver;

@@ -112,6 +112,32 @@ fun main() {
     var c = C();
     c.test();     // Output: A method
     c.method();   // Output: B method
+
+  // visit static method of A
+  A.method();          // Output: A
+  print A().name;      // Output: A
+  // A().name();            // error: variable 'name' shadow method 'name'.
 }
 
 main();
+
+/*
+- 递归下降分析
+varStmt: "var" ("mut")? IDENTIFIER (":" type)? ("=" expr)? ";"
+  ps: var name: String = "Alice";
+      var mut age: i32 = 25;
+      
+      name = "Bob";     // error: don't modify constant 'name'.
+      age = 30;         // success: modify mutable 'age'.
+
+      print name;       // Output: Bob
+      print age;        // Output: 30
+
+AssignExpr: expr "=" expr ("=" expr)?* ";"
+  ps: var mut x = 10;
+      var mut y = 20;
+      x = y = 30;      // success: assign to multiple variables.
+      x = 30 = 40;     // error: can't assign to the same variable twice.
+  
+怎么解决在匹配varStmt 时，会错误的匹配AssignExpr ?
+*/

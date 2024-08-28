@@ -276,7 +276,7 @@ impl Scanner {
             "else" => Some(TokenType::Else),
             "false" => Some(TokenType::False),
             "for" => Some(TokenType::For),
-            "fun" => Some(TokenType::Fun),
+            "fn" => Some(TokenType::Fn),
             "if" => Some(TokenType::If),
             "null" => Some(TokenType::Null),
             "or" => Some(TokenType::Or),

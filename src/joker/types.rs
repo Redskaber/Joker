@@ -3,12 +3,23 @@
 //!
 //!
 
-use crate::joker::object::Object as OEnum;
 use std::{
     cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
     fmt::{Debug, Display},
     hash::Hash,
     rc::Rc,
+};
+
+use crate::joker::ast::Call;
+
+use super::{
+    ast::{Expr, Lambda, Literal, Variable},
+    callable::StructError,
+    error::JokerError,
+    object::{Caller, Function, Literal as ObL, Object as OEnum},
+    resolver::{Resolver, ResolverError},
+    token::Token,
 };
 
 pub trait DeepClone {
@@ -69,6 +80,131 @@ impl Display for Object {
 impl Debug for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Object(inner: {})", self.inner.borrow())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Type {
+    I32,
+    F64,
+    Str,
+    Bool,
+    Null,
+    Fn,
+    Class { class_name: String },
+    Instance { class_name: String },
+    UserDefined(Token),
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::I32 => write!(f, "i32"),
+            Type::F64 => write!(f, "f64"),
+            Type::Str => write!(f, "str"),
+            Type::Bool => write!(f, "bool"),
+            Type::Null => write!(f, "null"),
+            Type::Fn => write!(f, "Fn"),
+            Type::Class { class_name } => write!(f, "class({class_name})"),
+            Type::Instance { class_name } => write!(f, "instance({class_name})"),
+            Type::UserDefined(name) => write!(f, "{}", name.lexeme),
+        }
+    }
+}
+
+pub struct TypeEnvironment {
+    types: HashMap<String, Type>,
+}
+
+impl TypeEnvironment {
+    pub fn new() -> Self {
+        TypeEnvironment {
+            types: HashMap::from([
+                (String::from("i32"), Type::I32),
+                (String::from("f64"), Type::F64),
+                (String::from("str"), Type::Str),
+                (String::from("bool"), Type::Bool),
+                (String::from("null"), Type::Null),
+                (String::from("Fn"), Type::Fn),
+            ]),
+        }
+    }
+
+    pub fn declare_type(&mut self, name: String, ty: Type) {
+        self.types.insert(name, ty);
+    }
+
+    pub fn get_type(&self, name: &str) -> Option<&Type> {
+        self.types.get(name)
+    }
+}
+
+pub struct TypeInferrer;
+
+impl TypeInferrer {
+    // parse time:
+    pub fn parse_type(type_name: Token) -> Type {
+        println!("type_name: {:?}", type_name);
+        match type_name.lexeme.as_str() {
+            "i32" => Type::I32,
+            "f64" => Type::F64,
+            "str" => Type::Str,
+            "bool" => Type::Bool,
+            "null" => Type::Null,
+            "Fn" => Type::Fn,
+            // parse don't parse, move to static resolve parse.
+            _ => Type::UserDefined(type_name),
+        }
+    }
+    // resolve time:
+    pub fn infer_type(resolver: &Resolver, expr: &Expr) -> Result<Type, JokerError> {
+        match expr {
+            Expr::Literal(Literal { value }) => match value {
+                OEnum::Literal(ObL::I32(_)) => Ok(Type::I32),
+                OEnum::Literal(ObL::F64(_)) => Ok(Type::F64),
+                OEnum::Literal(ObL::Bool(_)) => Ok(Type::Bool),
+                OEnum::Literal(ObL::Str(_)) => Ok(Type::Str),
+                OEnum::Literal(ObL::Null) => Ok(Type::Null),
+                OEnum::Caller(Caller::Func(Function::Native(_))) => Ok(Type::Fn),
+                OEnum::Caller(Caller::Func(Function::User(_))) => Ok(Type::Fn),
+                OEnum::Caller(Caller::Func(Function::Method(_))) => Ok(Type::Fn),
+                OEnum::Caller(Caller::Lambda(_)) => Ok(Type::Fn),
+                OEnum::Caller(Caller::Class(class)) => Ok(Type::Class {
+                    class_name: class.name.clone(),
+                }),
+                OEnum::Instance(instance) => Ok(Type::Instance {
+                    class_name: instance.class.borrow().name.clone(),
+                }),
+            },
+            Expr::Lambda(Lambda {
+                pipe: _,
+                params: _,
+                body: _,
+            }) => Ok(Type::Fn),
+            Expr::Call(Call {
+                callee,
+                paren: _,
+                arguments: _,
+            }) => TypeInferrer::infer_type(resolver, callee),
+            Expr::Variable(Variable { name }) => {
+                if let Some(ty) = resolver.type_env.borrow().get_type(&name.lexeme) {
+                    Ok(ty.clone())
+                } else {
+                    Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            name,
+                            format!("Unknown type for variable '{}'", name.lexeme),
+                        ),
+                    )))
+                }
+            }
+            _ => Err(JokerError::Resolver(ResolverError::Struct(
+                StructError::report_error(
+                    &Token::eof(0),
+                    String::from("Unsupported type inference"),
+                ),
+            ))),
+        }
     }
 }
 

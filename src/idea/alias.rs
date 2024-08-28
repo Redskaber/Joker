@@ -12,8 +12,8 @@ pub fn d() {
     }
 
     let c = ||{
-        struct Fun;
-        impl Callable for Fun {
+        struct Fn;
+        impl Callable for Fn {
             fn call(&self, int: i32, args: i32) -> Result<i32, String> {
                 Ok(int - args)
             }
@@ -21,11 +21,11 @@ pub fn d() {
                 2
             }
         }
-        Fun {}
+        Fn {}
     };
     let d = ||{
-        struct Fun;
-        impl Callable for Fun {
+        struct Fn;
+        impl Callable for Fn {
             fn call(&self, int: i32, args: i32) -> Result<i32, String> {
                 Ok(int + args)
             }
@@ -33,22 +33,22 @@ pub fn d() {
                 3
             }
         }
-        Fun {}
+        Fn {}
     };
     println!("c: c.call(): {}, c.arity: {}", c().call(10, 100).unwrap(), c().arity());
     println!("d: d.call(): {}, d.arity: {}", d().call(20, 200).unwrap(), d().arity());
 
-    struct LoxFun<F: Callable> {
-        fun: F,
+    struct LoxFn<F: Callable> {
+        fn: F,
     }
-    impl<F: Callable> LoxFun<F> {
-        pub fn new(fun: impl Fn() -> LoxFun<F>) -> LoxFun<F> {
-            fun()
+    impl<F: Callable> LoxFn<F> {
+        pub fn new(fn: impl Fn() -> LoxFn<F>) -> LoxFn<F> {
+            fn()
         }
     }
-    let aa = LoxFun::new(||{
-        struct Fun;
-        impl Callable for Fun {
+    let aa = LoxFn::new(||{
+        struct Fn;
+        impl Callable for Fn {
             fn call(&self, int: i32, args: i32) -> Result<i32, String> {
                 Ok(int - args)
             }
@@ -56,12 +56,12 @@ pub fn d() {
                 2
             }
         }
-        LoxFun::<Fun>{fun: Fun{}}
+        LoxFn::<Fn>{fn: Fn{}}
     });
 
-    let dd = LoxFun::new(||{
-        struct Fun;
-        impl Callable for Fun {
+    let dd = LoxFn::new(||{
+        struct Fn;
+        impl Callable for Fn {
             fn call(&self, int: i32, args: i32) -> Result<i32, String> {
                 Ok(int * args)
             }
@@ -69,44 +69,44 @@ pub fn d() {
                 20
             }
         }
-        LoxFun::<Fun>{fun: Fun{}}
+        LoxFn::<Fn>{fn: Fn{}}
     });
 
-    println!("aa: aa.call(): {}, aa.arity: {}", aa.fun.call(10, 100).unwrap(), aa.fun.arity());
-    println!("dd: dd.call(): {}, dd.arity: {}", dd.fun.call(20, 200).unwrap(), dd.fun.arity());
+    println!("aa: aa.call(): {}, aa.arity: {}", aa.fn.call(10, 100).unwrap(), aa.fn.arity());
+    println!("dd: dd.call(): {}, dd.arity: {}", dd.fn.call(20, 200).unwrap(), dd.fn.arity());
 
 
     #[derive(Clone)]
-    struct DFun {
-        fun: Rc<dyn Callable>,
+    struct DFn {
+        fn: Rc<dyn Callable>,
     }
-    impl Debug for DFun {
+    impl Debug for DFn {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "DFun")
+            write!(f, "DFn")
         }
     }
-    impl PartialEq for DFun {
+    impl PartialEq for DFn {
         fn eq(&self, other: &Self) -> bool {
-            Rc::ptr_eq(&self.fun, &other.fun)
+            Rc::ptr_eq(&self.fn, &other.fn)
         }
     }
 
-    impl DFun {
-        pub fn new(builder: impl Fn() -> Self) -> DFun {
+    impl DFn {
+        pub fn new(builder: impl Fn() -> Self) -> DFn {
             builder()
         }
     }
-    impl Callable for DFun {
+    impl Callable for DFn {
         fn call(&self, int: i32, args: i32) -> Result<i32, String> {
-            self.fun.call(int, args)
+            self.fn.call(int, args)
         }
         fn arity(&self) -> usize {
-            self.fun.arity()
+            self.fn.arity()
         }
     }
     let df = ||{
-        struct Fun;
-        impl Callable for Fun {
+        struct Fn;
+        impl Callable for Fn {
             fn call(&self, int: i32, args: i32) -> Result<i32, String> {
                 Ok(int * args)
             }
@@ -114,11 +114,11 @@ pub fn d() {
                 10
             }
         }
-        DFun{fun: Rc::new(Fun{})}
+        DFn{fn: Rc::new(Fn{})}
     };
     let ef = ||{
-        struct Fun;
-        impl Callable for Fun {
+        struct Fn;
+        impl Callable for Fn {
             fn call(&self, int: i32, args: i32) -> Result<i32, String> {
                 Ok(int / args)
             }
@@ -126,7 +126,7 @@ pub fn d() {
                 20
             }
         }
-        DFun{fun: Rc::new(Fun{})}
+        DFn{fn: Rc::new(Fn{})}
     };
     println!("df: df().call(10, 100).unwrap(): {}, df().arity(): {}", df().call(10, 100).unwrap(), df().arity());
     println!("ef: ef().call(20, 200).unwrap(): {}, ef().arity(): {}", ef().call(20, 200).unwrap(), ef().arity());

@@ -13,7 +13,7 @@ use std::{
 
 use crate::joker::{
     abort::{AbortError, ControlFlowAbort},
-    ast::FunStmt,
+    ast::FnStmt,
     callable::Callable,
     env::Env,
     error::JokerError,
@@ -26,7 +26,7 @@ use super::{Binder, Function};
 
 #[derive(Clone)]
 pub struct MethodFunction {
-    stmt: Rc<FunStmt>,
+    stmt: Rc<FnStmt>,
     closure: Rc<RefCell<Env>>,
 }
 
@@ -62,7 +62,7 @@ impl Hash for MethodFunction {
 }
 
 impl MethodFunction {
-    pub fn new(stmt: &FunStmt, closure: Rc<RefCell<Env>>) -> MethodFunction {
+    pub fn new(stmt: &FnStmt, closure: Rc<RefCell<Env>>) -> MethodFunction {
         MethodFunction {
             stmt: Rc::new(stmt.clone()),
             closure,

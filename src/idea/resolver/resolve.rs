@@ -9,7 +9,7 @@ use super::store::{Key, VarBlock, VarItem, VarLayer, VarStatus, VarStore, VarSto
 use crate::joker::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ContinueStmt, Expr, ExprAcceptor, ExprStmt,
-        ExprVisitor, ForStmt, FunStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
+        ExprVisitor, ForStmt, FnStmt, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
         ReturnStmt, Stmt, StmtAcceptor, StmtVisitor, Trinomial, Unary, VarStmt, Variable,
         WhileStmt,
     },
@@ -40,7 +40,7 @@ impl Hash for Key {
 pub trait StmtResolver<T> {
     fn resolve(&self, stmt: &Stmt) -> Result<T, JokerError>;
     fn resolve_block(&self, stmts: &[Stmt]) -> Result<T, JokerError>;
-    fn resolve_function(&self, stmt: &FunStmt) -> Result<T, JokerError>;
+    fn resolve_function(&self, stmt: &FnStmt) -> Result<T, JokerError>;
     fn resolve_lambda(&self, pipe: &Token, stmt: &Stmt) -> Result<T, JokerError>;
 }
 
@@ -53,7 +53,7 @@ pub trait ExprResolver<T> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContextStatus {
-    Fun,
+    Fn,
     Loop,
 }
 
@@ -195,11 +195,11 @@ impl StmtResolver<()> for Resolver {
         }
         Ok(())
     }
-    fn resolve_function(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        self.context_stack.borrow_mut().push(ContextStatus::Fun);
+    fn resolve_function(&self, stmt: &FnStmt) -> Result<(), JokerError> {
+        self.context_stack.borrow_mut().push(ContextStatus::Fn);
         println!(
             "[{:>10}][{:>20}]:\tstack: {:?}",
-            "resolve", "resolve_function", self.context_stack
+            "resolve", "resolve_fnction", self.context_stack
         );
 
         self.begin_scope()?;
@@ -255,7 +255,7 @@ impl ExprResolver<()> for Resolver {
         Ok(())
     }
     fn resolve_lambda(&self, expr: &Lambda) -> Result<(), JokerError> {
-        self.context_stack.borrow_mut().push(ContextStatus::Fun);
+        self.context_stack.borrow_mut().push(ContextStatus::Fn);
         println!(
             "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "resolve_lambda", self.context_stack
@@ -349,7 +349,7 @@ impl StmtVisitor<()> for Resolver {
             "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "visit_block", self.context_stack
         );
-        if self.context_stack.borrow().contains(&ContextStatus::Fun) {
+        if self.context_stack.borrow().contains(&ContextStatus::Fn) {
             self.begin_scope()?;
             self.resolve_block(&stmt.stmts)?;
             // check local var used status
@@ -448,7 +448,7 @@ impl StmtVisitor<()> for Resolver {
             )),
         )))
     }
-    fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
+    fn visit_fun(&self, stmt: &FnStmt) -> Result<(), JokerError> {
         let var_store = VarStore::Var(VarItem {
             key: Key(stmt.name.clone()),
             layer: VarLayer::default(),
@@ -464,7 +464,7 @@ impl StmtVisitor<()> for Resolver {
             "[{:>10}][{:>20}]:\tstack: {:?}",
             "resolve", "visit_return", self.context_stack
         );
-        if self.context_stack.borrow().contains(&ContextStatus::Fun) {
+        if self.context_stack.borrow().contains(&ContextStatus::Fn) {
             if let Some(expr) = &stmt.value {
                 ExprResolver::resolve(self, expr)?;
             }

@@ -21,13 +21,13 @@
 //!
 //!     declaration    → statement         (语句）            
 //!                     | var_declaration  (声明)
-//!                     | fun_declaration  (声明)
+//!                     | fn_declaration  (声明)
 //!                     | method_declaration  (声明)
 //!                     | instance_declaration  (声明)
 //!                     | class_declaration(声明)
 //!
 //!     var_decl       → "var" varStmt ;
-//!     fun_decl       → "fun" funStmt ;
+//!     fn_decl       → "fn" FnStmt ;
 //!     class_decl     → "class" classStmt ;
 //!     
 //!
@@ -35,7 +35,7 @@
 //!                     | returnStmt
 //!                     | breakStmt
 //!                     | continueStmt
-//!                     | funStmt
+//!                     | FnStmt
 //!                     | forStmt
 //!                     | ifStmt               
 //!                     | printStmt
@@ -46,21 +46,23 @@
 //!     exprStmt       → expression ";" ;
 //!     printStmt      → "print" expression ";" ;
 //!     BlockStmt      → "{" statement "}"
-//!     varStmt        → "var" IDENTIFIER ("=" expression )? ";" ;
+//!     varStmt        → "var" IDENTIFIER  (":" IDENTIFIER)? ("=" expression )? ";" ;
 //!     ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 //!     whileStmt      → "while" "(" expression ")" statement ;          
 //!     forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
 //!                      expression? ";"
 //!                      expression? ")" statement ;
 //!     
-//!     funStmt        → "fun" IDENTIFIER  "(" parameters? ")" statement ;
-//!     methodStmt     → "fun" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = cls
-//!     instanceStmt   → "fun" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = self
-//!     parameters     → IDENTIFIER  (, IDENTIFIER)*
+//!     FnStmt        → "fn" IDENTIFIER  "(" (
+//!                         IDENTIFIER ":" IDENTIFIER (, IDENTIFIER ":" IDENTIFIER )*?
+//!                         )? ")" statement ;
+//!     methodStmt   → "fn" IDENTIFIER  "("
+//!                         "this" (, IDENTIFIER ":" IDENTIFIER )*?
+//!                     ")" statement ;
 //!
 //!     classStmt      → "class" IDENTIFIER (":" IDENTIFIER)?  "{"
 //!                             var_decl*
-//!                             | fun_decl*
+//!                             | fn_decl*
 //!                             | method_decl*
 //!                     "}" ;
 //!
@@ -109,7 +111,7 @@
 //!
 use std::fmt::Display;
 
-use super::{error::JokerError, object::Object as OEnum, token::Token};
+use super::{error::JokerError, object::Object as OEnum, token::Token, types::Type};
 
 macro_rules! define_ast {
     (
@@ -255,10 +257,10 @@ macro_rules! define_ast {
             }
         }
     };
-    (@impl_display FunStmt, $($field:ident: $field_type: ty),*) => {
-        impl Display for FunStmt {
+    (@impl_display FnStmt, $($field:ident: $field_type: ty),*) => {
+        impl Display for FnStmt {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "FunStmt(name: {}, params: {:?}, body: {:?})",
+                write!(f, "FnStmt(name: {}, params: {:?}, body: {:?})",
                     self.name, self.params, self.body)
             }
         }
@@ -266,8 +268,12 @@ macro_rules! define_ast {
     (@impl_display VarStmt, $($field:ident: $field_type: ty),*) => {
         impl Display for VarStmt {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "VarStmt(name: {}, value: {})",
+                write!(f, "VarStmt(name: {}, type: {}, value: {})",
                     self.name,
+                    match &self.type_ {
+                        Some(expr) => format!("Some({})", expr),
+                        None => String::from("None"),
+                    },
                     match &self.value {
                         Some(expr) => format!("Some({})", expr),
                         None => String::from("None"),
@@ -341,19 +347,19 @@ define_ast! {
     Stmt {
         ExprStmt    { expr: Expr },
         PrintStmt   { expr: Expr },
-        VarStmt     { name: Token, value: Option<Expr> },   // left value
+        VarStmt     { name: Token, type_: Option<Type>, value: Option<Expr> },   // left value
         BlockStmt   { stmts: Vec<Stmt> },           // space
         IfStmt      { condition: Expr, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>> },
         WhileStmt   { condition: Expr, body: Box<Stmt>},
         ForStmt     { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Expr> , body: Box<Stmt> },
         BreakStmt   { name: Token },
         ContinueStmt{ name: Token },
-        FunStmt     { name: Token, params: Option<Vec<Token>>, body: Vec<Stmt> },
+        FnStmt     { name: Token, params: Option<Vec<Token>>, body: Vec<Stmt> },
         ReturnStmt  { keyword: Token, value: Option<Expr> },
         ClassStmt   { name: Token, super_class: Option<Expr>, fields: Option<Vec<Stmt>>,
                         methods: Option<Vec<Stmt>>, functions: Option<Vec<Stmt>> },
     },
     StmtVisitor,    stmt, {visit_expr, visit_print, visit_var, visit_block, visit_if, visit_while ,
-                            visit_for, visit_break, visit_continue, visit_fun, visit_return, visit_class },
+                            visit_for, visit_break, visit_continue, visit_fn, visit_return, visit_class },
     StmtAcceptor,
 }

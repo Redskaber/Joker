@@ -52,7 +52,7 @@ pub fn generate_ast(output_dir: &String) -> io::Result<()> {
             String::from("ForStmt   : initializer Option<Box<Stmt>>, condition Expr, increment Option<Expr> , body Box<Stmt>"),
             String::from("BreakStmt : name Token"),
             String::from("ContinueStmt: name Token"),
-            String::from("FunStmt   : name Token, params Vec<Token>, body Vec<Stmt>"),
+            String::from("FnStmt   : name Token, params Vec<Token>, body Vec<Stmt>"),
             String::from("ReturnStmt: keyword Token, value Expr"),
             String::from("ClassStmt : name Token, super_class Option<Variable>, fields Option<Vec<Stmt>>, 
                             class_methods Option<Vec<Stmt>>, instance_methods Option<Vec<Stmt>>, static_methods Option<Vec<Stmt>>"),

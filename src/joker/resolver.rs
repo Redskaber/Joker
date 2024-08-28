@@ -17,24 +17,26 @@ use std::{
 use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
-        ExprStmt, ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal,
-        Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super, This,
-        Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        ExprStmt, ExprVisitor, FnStmt, ForStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical,
+        PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super, This, Trinomial,
+        Unary, VarStmt, Variable, WhileStmt,
     },
     callable::StructError,
     env::EnvError,
     error::{JokerError, ReportError},
     interpreter::Interpreter,
     token::{Token, TokenType},
+    types::{Type, TypeEnvironment, TypeInferrer},
 };
 
 pub trait StmtResolver<T> {
     fn resolve(&self, stmt: &Stmt) -> Result<T, JokerError>;
     fn resolve_block(&self, stmts: &[Stmt]) -> Result<T, JokerError>;
-    fn resolve_function(&self, stmt: &FunStmt) -> Result<T, JokerError>;
+    fn resolve_function(&self, stmt: &FnStmt) -> Result<T, JokerError>;
     fn resolve_lambda(&self, pipe: &Token, stmt: &Stmt) -> Result<T, JokerError>;
     fn resolve_class(&self, stmt: &ClassStmt) -> Result<T, JokerError>;
-    fn resolve_method(&self, stmt: &FunStmt) -> Result<T, JokerError>;
+    fn resolve_method(&self, stmt: &FnStmt) -> Result<T, JokerError>;
+    fn resolve_var(&self, stmt: &VarStmt) -> Result<T, JokerError>;
 }
 
 pub trait ExprResolver<T> {
@@ -47,7 +49,7 @@ pub trait ExprResolver<T> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContextStatus {
     Class(ClassStatus),
-    Fun,
+    Fn,
     Loop,
 }
 
@@ -93,6 +95,7 @@ pub struct Resolver {
     interpreter: Rc<Interpreter>,
     scopes_stack: RefCell<Vec<RefCell<HashMap<Key, VarStatus>>>>,
     context_status_stack: RefCell<Vec<ContextStatus>>,
+    pub type_env: Rc<RefCell<TypeEnvironment>>,
 }
 
 impl Resolver {
@@ -101,6 +104,7 @@ impl Resolver {
             interpreter,
             scopes_stack: RefCell::new(Vec::new()),
             context_status_stack: RefCell::new(Vec::new()),
+            type_env: Rc::new(RefCell::new(TypeEnvironment::new())),
         }
     }
     pub fn resolve(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
@@ -191,6 +195,11 @@ impl Resolver {
             .iter()
             .any(|item| self.context_status_stack.borrow().last().eq(&Some(item)))
     }
+    // wait type keyword
+    // type name = expression;
+    pub fn declare_type(&self, name: String, ty: Type) {
+        self.type_env.borrow_mut().declare_type(name, ty);
+    }
 }
 
 // Resolver
@@ -204,7 +213,7 @@ impl StmtResolver<()> for Resolver {
         }
         Ok(())
     }
-    fn resolve_function(&self, stmt: &FunStmt) -> Result<(), JokerError> {
+    fn resolve_function(&self, stmt: &FnStmt) -> Result<(), JokerError> {
         if self.contains_any(&[
             ContextStatus::Class(ClassStatus::Class),
             ContextStatus::Class(ClassStatus::SuperClass),
@@ -215,7 +224,7 @@ impl StmtResolver<()> for Resolver {
         } else {
             self.context_status_stack
                 .borrow_mut()
-                .push(ContextStatus::Fun);
+                .push(ContextStatus::Fn);
         }
 
         // println!(
@@ -307,15 +316,15 @@ impl StmtResolver<()> for Resolver {
                 .borrow_mut()
                 .insert(Key(Token::this(0)), VarStatus::Used);
             for stmt in stmts {
-                if let Stmt::FunStmt(fun) = stmt {
-                    StmtResolver::resolve_method(self, fun)?;
+                if let Stmt::FnStmt(func) = stmt {
+                    StmtResolver::resolve_method(self, func)?;
                 }
             }
         }
         if let Some(stmts) = &stmt.functions {
             for stmt in stmts {
-                if let Stmt::FunStmt(fun) = stmt {
-                    StmtResolver::resolve_function(self, fun)?;
+                if let Stmt::FnStmt(func) = stmt {
+                    StmtResolver::resolve_function(self, func)?;
                 }
             }
         }
@@ -330,7 +339,7 @@ impl StmtResolver<()> for Resolver {
         self.context_status_stack.borrow_mut().pop();
         Ok(())
     }
-    fn resolve_method(&self, stmt: &FunStmt) -> Result<(), JokerError> {
+    fn resolve_method(&self, stmt: &FnStmt) -> Result<(), JokerError> {
         if self.contains_any(&[
             ContextStatus::Class(ClassStatus::Class),
             ContextStatus::Class(ClassStatus::SuperClass),
@@ -374,6 +383,52 @@ impl StmtResolver<()> for Resolver {
             )))
         }
     }
+    fn resolve_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
+        let value_type = if let Some(expr) = &stmt.value {
+            Some(TypeInferrer::infer_type(self, expr)?)
+        } else {
+            None
+        };
+
+        let declared_type = if let Some(declared_type) = &stmt.type_ {
+            if let Type::UserDefined(token) = declared_type {
+                Some(TypeInferrer::infer_type(
+                    self,
+                    &Expr::Variable(Variable::new(token.clone())),
+                )?)
+            } else {
+                Some(declared_type.clone())
+            }
+        } else {
+            None
+        };
+
+        if let Some(value_type) = value_type {
+            if let Some(declared_type) = declared_type {
+                if declared_type != value_type {
+                    Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            &stmt.name,
+                            format!(
+                                "Type mismatch: expected {}, found {}",
+                                declared_type, value_type
+                            ),
+                        ),
+                    )))
+                } else {
+                    Ok(())
+                }
+            } else {
+                Ok(())
+            }
+        } else if let Some(_declared_type) = declared_type {
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Struct(
+                StructError::report_error(&stmt.name, String::from("Missing type information")),
+            )))
+        }
+    }
 }
 impl ExprResolver<()> for Resolver {
     fn resolve(&self, expr: &Expr) -> Result<(), JokerError> {
@@ -402,7 +457,7 @@ impl ExprResolver<()> for Resolver {
     fn resolve_lambda(&self, expr: &Lambda) -> Result<(), JokerError> {
         self.context_status_stack
             .borrow_mut()
-            .push(ContextStatus::Fun);
+            .push(ContextStatus::Fn);
         // println!(
         //     "[{:>10}][{:>20}]:\tstack: {:?}",
         //     "resolve", "resolve_lambda", self.context_status_stack
@@ -452,13 +507,15 @@ impl StmtVisitor<()> for Resolver {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         if self.contains_any(&[
-            ContextStatus::Fun,
+            ContextStatus::Fn,
             ContextStatus::Loop,
             ContextStatus::Class(ClassStatus::Class),
             ContextStatus::Class(ClassStatus::SuperClass),
             ContextStatus::Class(ClassStatus::Method),
             ContextStatus::Class(ClassStatus::Function),
         ]) {
+            StmtResolver::resolve_var(self, stmt)?;
+
             self.declare(&stmt.name)?;
             if let Some(expr) = &stmt.value {
                 ExprResolver::resolve(self, expr)?;
@@ -498,7 +555,7 @@ impl StmtVisitor<()> for Resolver {
 
         Ok(())
     }
-    fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
+    fn visit_fn(&self, stmt: &FnStmt) -> Result<(), JokerError> {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         StmtResolver::resolve_function(self, stmt)?;
@@ -508,6 +565,12 @@ impl StmtVisitor<()> for Resolver {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         StmtResolver::resolve_class(self, stmt)?;
+        self.declare_type(
+            stmt.name.lexeme.clone(),
+            Type::Class {
+                class_name: stmt.name.lexeme.clone(),
+            },
+        );
         Ok(())
     }
     fn visit_expr(&self, stmt: &ExprStmt) -> Result<(), JokerError> {
@@ -524,7 +587,7 @@ impl StmtVisitor<()> for Resolver {
         //     "resolve", "visit_block", self.context_status_stack
         // );
         if self.contains_any(&[
-            ContextStatus::Fun,
+            ContextStatus::Fn,
             ContextStatus::Class(ClassStatus::Method),
             ContextStatus::Class(ClassStatus::Function),
         ]) {
@@ -585,10 +648,10 @@ impl StmtVisitor<()> for Resolver {
         //     "resolve", "visit_return", self.context_status_stack
         // );
         if self.last_any(&[
-            ContextStatus::Fun,
+            ContextStatus::Fn,
             ContextStatus::Class(ClassStatus::Method),
             ContextStatus::Class(ClassStatus::Function),
-        ]) || self.contains_any(&[ContextStatus::Fun])
+        ]) || self.contains_any(&[ContextStatus::Fn])
         {
             if let Some(expr) = &stmt.value {
                 ExprResolver::resolve(self, expr)?;

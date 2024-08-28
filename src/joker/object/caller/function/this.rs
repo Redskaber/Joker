@@ -16,7 +16,7 @@ use std::{
 
 use crate::joker::{
     abort::{AbortError, ControlFlowAbort},
-    ast::FunStmt,
+    ast::FnStmt,
     callable::Callable,
     env::Env,
     error::JokerError,
@@ -163,7 +163,7 @@ impl Debug for NativeFunction {
 
 #[derive(Clone)]
 pub struct UserFunction {
-    stmt: Rc<FunStmt>,
+    stmt: Rc<FnStmt>,
     closure: Rc<RefCell<Env>>,
 }
 
@@ -199,7 +199,7 @@ impl Hash for UserFunction {
 }
 
 impl UserFunction {
-    pub fn new(stmt: &FunStmt, closure: Rc<RefCell<Env>>) -> UserFunction {
+    pub fn new(stmt: &FnStmt, closure: Rc<RefCell<Env>>) -> UserFunction {
         UserFunction {
             stmt: Rc::new(stmt.clone()),
             closure,
@@ -320,20 +320,20 @@ impl Display for BinderFunction {
 
 #[cfg(test)]
 mod tests {
-    use crate::joker::native_fun;
+    use crate::joker::native_fn;
 
     use super::*;
     #[test]
     #[should_panic = "left: Caller(Func(Native(NativeFun(<callable>))))\n right: Caller(Func(Native(NativeFun(<callable>)))"]
     fn test_translator_object_from_caller_function() {
         let n_fun = NativeFunction::new(|| NativeFunction {
-            fun: Rc::new(native_fun::NativeClock {}),
+            fun: Rc::new(native_fn::NativeClock {}),
         });
         // should panic fun pointer neq
         assert_eq!(
             OEnum::Caller(Caller::Func(Function::Native(NativeFunction::new(|| {
                 NativeFunction {
-                    fun: Rc::new(native_fun::NativeClock {}),
+                    fun: Rc::new(native_fn::NativeClock {}),
                 }
             })))),
             n_fun.upcast()

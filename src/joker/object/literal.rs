@@ -11,7 +11,7 @@
 //!
 
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     hash::{Hash, Hasher},
 };
 

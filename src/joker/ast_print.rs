@@ -5,7 +5,7 @@
 use super::{
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, Expr, ExprAcceptor, ExprStmt,
-        ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical,
+        ExprVisitor, FnStmt, ForStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical,
         PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super, This, Trinomial,
         Unary, VarStmt, Variable, WhileStmt,
     },
@@ -55,8 +55,12 @@ impl StmtVisitor<String> for AstPrinter {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<String, JokerError> {
         Ok(format!(
-            "VarStmt(name: {}, value: {})",
+            "VarStmt(name: {}, type: {}, value: {})",
             stmt.name.lexeme,
+            match &stmt.type_ {
+                Some(type_) => format!("Some({})", type_),
+                None => String::from("None"),
+            },
             match &stmt.value {
                 Some(expr) => format!("Some({})", expr.accept(self)?),
                 None => String::from("None"),
@@ -114,9 +118,9 @@ impl StmtVisitor<String> for AstPrinter {
             &stmt.body.accept(self)?,
         ))
     }
-    fn visit_fun(&self, stmt: &FunStmt) -> Result<String, JokerError> {
+    fn visit_fn(&self, stmt: &FnStmt) -> Result<String, JokerError> {
         Ok(format!(
-            "FunStmt(name: {}, params: {:?}, body: {:?})",
+            "FnStmt(name: {}, params: {:?}, body: {:?})",
             stmt.name.lexeme,
             stmt.params,
             stmt.body

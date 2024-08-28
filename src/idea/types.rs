@@ -22,13 +22,13 @@ mod obj_enum {
 
     #[derive(Debug)]
     pub(super) enum Caller {
-        Fun(Function),
+        Fn(Fnction),
         Lambda(Lambda),
         Class(Class),
     }
 
     #[derive(Debug)]
-    pub(super) enum Function {
+    pub(super) enum Fnction {
         Native(NativeFunction),
         User(UserFunction),
     }

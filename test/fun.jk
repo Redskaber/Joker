@@ -6,7 +6,7 @@
 //     value: Env { 
 //         symbol: {
 //             "global_var": Literal(I32(100)), 
-//             "fd": Caller(Func(User(UserFun(FunStmt(
+//             "fd": Caller(Func(User(UserFun(FnStmt(
 //                 name: fd, 
 //                 params: [
 //                     Token(ttype: Ident, lexeme: a, literal: null, line: 4), Token(ttype: Ident, lexeme: b, literal: null, line: 4)

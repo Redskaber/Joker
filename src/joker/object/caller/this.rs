@@ -15,7 +15,9 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Object as OEnum, UpCast},
-    types::{DeepClone, Object},
+    parse::ParserError,
+    token::Token,
+    types::{DeepClone, FromObject, Object},
 };
 
 use super::{Class, Function, Lambda};
@@ -30,6 +32,20 @@ pub enum Caller {
     Func(Function),
     Lambda(Lambda),
     Class(Box<Class>),
+}
+
+impl FromObject for Caller {
+    type Err = JokerError;
+    fn from_object(obj: &Object) -> Result<Self, Self::Err> {
+        if let OEnum::Caller(caller) = &*obj.get() {
+            Ok(caller.clone())
+        } else {
+            Err(JokerError::Parser(ParserError::report_error(
+                &Token::eof(0),
+                String::from("object translate to caller error."),
+            )))
+        }
+    }
 }
 
 impl DeepClone for Caller {

@@ -1,0 +1,44 @@
+// This is a test file for variable types in Rust.
+
+fn main() {
+    var a: i32 = 10;
+    var b: f64 = 3.14;
+    print a;
+    print b;
+
+    var c: bool = true;
+    print c;
+
+    var d: str = "Hello, world!";
+    print d;
+
+    var e = null;
+    print e;
+
+    var f: Fn = |x| x + 1;
+    print f(10);
+
+    // class create default type
+    class A {}
+    // class B {}
+    var g: A = A;       // success
+    // var h: A = B;    // error: expected type `class(A)`, found type `class(B)`
+    print g;
+
+    // var i: fn(i32,i32) -> i32 = |a: i32, b: i32| -> i32 { a + b };
+    // print i(1, 2);
+
+    class Point {
+        var x: i32;
+        var y: i32;
+    }
+
+    var j: Point = Point();
+    print j;
+
+    j.x = 10;
+    j.y = 20;
+    print j;
+}
+
+main();

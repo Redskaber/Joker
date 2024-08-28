@@ -10,7 +10,7 @@ use super::{
     abort::{AbortError, ControlFlowAbort},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
-        ExprStmt, ExprVisitor, ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda as LambdaExpr,
+        ExprStmt, ExprVisitor, FnStmt, ForStmt, Getter, Grouping, IfStmt, Lambda as LambdaExpr,
         Literal, Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super,
         This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
@@ -262,14 +262,14 @@ impl StmtVisitor<()> for Interpreter {
             ControlFlowAbort::Continue,
         )))
     }
-    fn visit_fun(&self, stmt: &FunStmt) -> Result<(), JokerError> {
-        let fun: Object = Object::new(OEnum::Caller(Caller::Func(Function::User(
+    fn visit_fn(&self, stmt: &FnStmt) -> Result<(), JokerError> {
+        let func: Object = Object::new(OEnum::Caller(Caller::Func(Function::User(
             UserFunction::new(stmt, Rc::clone(&self.run_env.borrow())),
         ))));
         self.run_env
             .borrow()
             .borrow_mut()
-            .define(stmt.name.lexeme.clone(), Some(fun));
+            .define(stmt.name.lexeme.clone(), Some(func));
         Ok(())
     }
     fn visit_return(&self, stmt: &ReturnStmt) -> Result<(), JokerError> {
@@ -352,10 +352,10 @@ impl StmtVisitor<()> for Interpreter {
             Some(stmts) => {
                 let mut methods: HashMap<String, MethodFunction> = HashMap::new();
                 for stmt in stmts {
-                    if let Stmt::FunStmt(fun_stmt) = stmt {
+                    if let Stmt::FnStmt(fn_stmt) = stmt {
                         methods.insert(
-                            fun_stmt.name.lexeme.clone(),
-                            MethodFunction::new(fun_stmt, Rc::clone(&self.run_env.borrow())),
+                            fn_stmt.name.lexeme.clone(),
+                            MethodFunction::new(fn_stmt, Rc::clone(&self.run_env.borrow())),
                         );
                     }
                 }
@@ -366,16 +366,16 @@ impl StmtVisitor<()> for Interpreter {
 
         let functions: Option<HashMap<String, UserFunction>> = match &stmt.functions {
             Some(stmts) => {
-                let mut methods: HashMap<String, UserFunction> = HashMap::new();
+                let mut functions: HashMap<String, UserFunction> = HashMap::new();
                 for stmt in stmts {
-                    if let Stmt::FunStmt(fun_stmt) = stmt {
-                        methods.insert(
-                            fun_stmt.name.lexeme.clone(),
-                            UserFunction::new(fun_stmt, Rc::clone(&self.run_env.borrow())),
+                    if let Stmt::FnStmt(fn_stmt) = stmt {
+                        functions.insert(
+                            fn_stmt.name.lexeme.clone(),
+                            UserFunction::new(fn_stmt, Rc::clone(&self.run_env.borrow())),
                         );
                     }
                 }
-                Some(methods)
+                Some(functions)
             }
             None => None,
         };
@@ -760,7 +760,7 @@ impl ExprVisitor<Option<Object>> for Interpreter {
                 Err(JokerError::Call(CallError::NonCallable(
                     NonCallError::report_error(
                         &expr.paren,
-                        String::from("Can only call functions and classes."),
+                        format!("caller this object is not callable object: '{}'", callee),
                     ),
                 )))
             };
@@ -835,7 +835,7 @@ impl ExprVisitor<Option<Object>> for Interpreter {
                     &expr.r_expr,
                     String::from("setter object invalid right value."),
                 )?;
-                instance.setter(&expr.name.lexeme, value.clone())?;
+                instance.setter(&expr.name, value.clone())?;
                 Ok(Some(value))
             }
             _ => Err(JokerError::Interpreter(InterpreterError::report_error(
@@ -882,10 +882,7 @@ impl ExprVisitor<Option<Object>> for Interpreter {
                         None => {
                             return Err(JokerError::Interpreter(InterpreterError::report_error(
                                 &expr.method,
-                                format!(
-                                    "super class undefined method '{}'.",
-                                    expr.method.lexeme
-                                ),
+                                format!("super class undefined method '{}'.", expr.method.lexeme),
                             )))
                         }
                     }

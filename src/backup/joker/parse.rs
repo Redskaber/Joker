@@ -95,7 +95,7 @@ impl<'a> Parser<'a> {
             match self.peek().unwrap().token_type {
                 TokenType::Class
                 | TokenType::Struct
-                | TokenType::Fun
+                | TokenType::Fn
                 | TokenType::Var
                 | TokenType::For
                 | TokenType::If

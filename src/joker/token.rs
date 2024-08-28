@@ -50,7 +50,7 @@ pub enum TokenType {
     Class,
     Else,
     False,
-    Fun,
+    Fn,
     For,
     If,
     Null,
@@ -110,7 +110,7 @@ impl Display for TokenType {
             TokenType::Class => write!(f, "Class"),
             TokenType::Else => write!(f, "Else"),
             TokenType::False => write!(f, "False"),
-            TokenType::Fun => write!(f, "Fun"),
+            TokenType::Fn => write!(f, "Fn"),
             TokenType::For => write!(f, "For"),
             TokenType::If => write!(f, "If"),
             TokenType::Null => write!(f, "Null"),
@@ -190,7 +190,7 @@ impl Debug for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Token(ttype: {}, lexeme: {}, literal: {}, line: {})",
+            "Token(ttype: {:?}, lexeme: {:?}, literal: {:?}, line: {})",
             self.ttype, self.lexeme, self.literal, self.line,
         )
     }

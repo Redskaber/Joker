@@ -18,9 +18,9 @@ use super::{Binder, BinderFunction, Caller, Function, MethodFunction, UserFuncti
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Class {
-    name: String,
-    super_class: Option<Box<Class>>,
-    fields: Option<HashMap<String, Option<Object>>>,
+    pub name: String,
+    pub super_class: Option<Box<Class>>,
+    pub fields: Option<HashMap<String, Option<Object>>>,
     methods: Option<HashMap<String, MethodFunction>>,
     functions: Option<HashMap<String, UserFunction>>,
 }

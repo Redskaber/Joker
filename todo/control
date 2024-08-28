@@ -37,6 +37,11 @@ TODO:
       - [v] add class inheritance.
       - [v] add resolve static check for class status.
       - [v] add resolve static check var statement.
+      - [v] add base type inference, base type in parse infer{i32, f64, bool, str, null, fn}, 
+            class infer move to resolve static check.
+      - [] add function parameters type inference.
+      - [] add class attribute type inference.
+      - [] add class method type inference.
       - [] add class super method call.
       - [] wait update code...
       - [] 我们的解析器会计算出变量是在哪个环境中找到的, 但是它仍然需要根据名称在对应的map中查找。

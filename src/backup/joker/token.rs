@@ -51,7 +51,7 @@ pub enum TokenType {
     Class,
     Else,
     False,
-    Fun,
+    Fn,
     For,
     If,
     Null,
@@ -112,7 +112,7 @@ impl Display for TokenType {
             TokenType::Class => write!(f, "class"),
             TokenType::Else => write!(f, "else"),
             TokenType::False => write!(f, "false"),
-            TokenType::Fun => write!(f, "fun"),
+            TokenType::Fn => write!(f, "fn"),
             TokenType::For => write!(f, "for"),
             TokenType::If => write!(f, "if"),
             TokenType::Null => write!(f, "null"),
@@ -142,7 +142,7 @@ lazy_static! {
         keyword.insert("else", TokenType::Else);
         keyword.insert("false", TokenType::False);
         keyword.insert("for", TokenType::For);
-        keyword.insert("fun", TokenType::Fun);
+        keyword.insert("fn", TokenType::Fn);
         keyword.insert("if", TokenType::If);
         keyword.insert("null", TokenType::Null);
         keyword.insert("or", TokenType::Or);
@@ -227,7 +227,7 @@ impl<'a> Display for Token<'a> {
             TokenType::Class => write!(f, "class"),
             TokenType::Else => write!(f, "else"),
             TokenType::False => write!(f, "false"),
-            TokenType::Fun => write!(f, "fun"),
+            TokenType::Fn => write!(f, "fn"),
             TokenType::For => write!(f, "for"),
             TokenType::If => write!(f, "if"),
             TokenType::Null => write!(f, "null"),

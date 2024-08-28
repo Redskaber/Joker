@@ -70,31 +70,80 @@ impl Instance {
             fields: Rc::new(RefCell::new(HashMap::new())),
         }
     }
+    // find link: instance fields -> class fields -> super fields
+    // -> class method -> class function -> super method -> super function
     pub fn getter(&self, name: &Token) -> Result<Option<Object>, JokerError> {
-        match self.fields.borrow().get(&name.lexeme) {
-            Some(ins_value) => Ok(Some(ins_value.clone())),
-            None => match self.class.borrow().get_field(&name.lexeme) {
-                Some(cls_value) => match cls_value {
-                    Some(value) => Ok(Some(value.clone())),
-                    None => Err(JokerError::Interpreter(InterpreterError::report_error(
+        if let Some(instance_value) = self.fields.borrow().get(&name.lexeme) {
+            return Ok(Some(instance_value.clone()));
+        }
+
+        if let Some(class_value_status) = self.class.borrow().get_field(&name.lexeme) {
+            if let Some(class_value) = class_value_status {
+                return Ok(Some(class_value.clone()));
+            } else {
+                return Err(JokerError::Interpreter(InterpreterError::report_error(
+                    name,
+                    format!(
+                        "class attribute '{}' is declared, but not define.",
+                        name.lexeme
+                    ),
+                )));
+            }
+        }
+
+        if let Some(super_class) = self.class.borrow().super_class.as_ref() {
+            if let Some(super_value_status) = super_class.get_field(&name.lexeme) {
+                if let Some(super_value) = super_value_status {
+                    return Ok(Some(super_value.clone()));
+                } else {
+                    return Err(JokerError::Interpreter(InterpreterError::report_error(
                         name,
                         format!(
-                            "class attribute '{}' is declared, but not define.",
+                            "super class attribute '{}' is declared, but not define.",
                             name.lexeme
                         ),
-                    ))),
-                },
-                None => {
-                    if let Some(method) = self.class.borrow().get_method(&name.lexeme) {
-                        return Ok(Some(Object::new(method.bind(self.clone()).upcast_into())));
-                    }
-                    Ok(None)
+                    )));
                 }
-            },
+            }
         }
+
+        if let Some(method) = self.class.borrow().get_method(&name.lexeme) {
+            return Ok(Some(Object::new(method.bind(self.clone()).upcast_into())));
+        }
+
+        Ok(None)
     }
-    pub fn setter(&mut self, name: &str, value: Object) -> Result<(), JokerError> {
-        self.fields.borrow_mut().insert(name.to_string(), value);
+    // first find name: getter, if have modify else insert.
+    pub fn setter(&mut self, name: &Token, value: Object) -> Result<(), JokerError> {
+        if let Ok(op_obj) = self.getter(name) {
+            match op_obj {
+                Some(object) => object.set(value.get().clone()),
+                None => {
+                    self.fields.borrow_mut().insert(name.to_string(), value);
+                }
+            }
+        } else {
+            // class declared but not define.
+            if let Some(class_fields) = self.class.borrow_mut().fields.as_mut() {
+                if let Some(class_field) = class_fields.get_mut(&name.lexeme) {
+                    if class_field.is_none() {
+                        *class_field = Some(value);
+                        return Ok(());
+                    }
+                }
+            }
+            // super class declared but not define.
+            if let Some(super_class) = self.class.borrow_mut().super_class.as_mut() {
+                if let Some(super_fields) = super_class.fields.as_mut() {
+                    if let Some(super_field) = super_fields.get_mut(&name.lexeme) {
+                        if super_field.is_none() {
+                            *super_field = Some(value);
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -112,6 +161,8 @@ impl Display for Instance {
 
 #[cfg(test)]
 mod tests {
+    use crate::joker::object::literal_null;
+
     use super::*;
 
     #[test]
@@ -126,7 +177,12 @@ mod tests {
         println!("instance: {:#?}", instance);
         let mut clone_instance = instance.clone();
         clone_instance.setter(
-            "test",
+            &Token::new(
+                crate::joker::token::TokenType::Identifier,
+                String::from("test"),
+                literal_null(),
+                0,
+            ),
             Object::new(OEnum::Literal(crate::joker::object::Literal::I32(100))),
         )?;
         println!("clone_instance: {:#?}", clone_instance); // 100

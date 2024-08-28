@@ -9,12 +9,13 @@ use super::{
     abort::{AbortError, ArgLimitAbort, ArgumentAbort},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprStmt,
-        ForStmt, FunStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt,
-        ReturnStmt, Setter, Stmt, Super, This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
+        FnStmt, ForStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt,
+        Setter, Stmt, Super, This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
     error::{JokerError, ReportError},
     object::{literal_bool, FuncType},
     token::{Token, TokenType},
+    types::{Type, TypeInferrer},
 };
 
 pub struct Parser {
@@ -80,14 +81,14 @@ impl Parser {
 
     // declaration -> stmt              （语句）
     //               | var_declaration  (声明)
-    //               | fun_declaration
+    //               | fn_declaration
     //               | class_declaration
     fn declaration(&mut self) -> Result<Stmt, JokerError> {
         if self.is_match(&[TokenType::Class]) {
             return self.class_declaration();
         }
-        if self.is_match(&[TokenType::Fun]) {
-            return self.fun_declaration();
+        if self.is_match(&[TokenType::Fn]) {
+            return self.fn_declaration();
         }
         if self.is_match(&[TokenType::Var]) {
             return self.var_declaration();
@@ -96,13 +97,13 @@ impl Parser {
     }
     // class_declaration      → "class" classStmt ;
     // classStmt      → "class" IDENTIFIER (":" IDENTIFIER )? "{"
-    //                      var_decl* | fun_decl* | method_decl*
+    //                      var_decl* | fn_decl* | method_decl*
     //                  "}" ;
     fn class_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token =
             self.consume(&[TokenType::Identifier], String::from("expect class name."))?;
 
-        let super_class = if self.is_match(&[TokenType::Colon]) {
+        let super_class: Option<Expr> = if self.is_match(&[TokenType::Colon]) {
             let super_class = self.consume(
                 &[TokenType::Identifier],
                 String::from("expect super class name."),
@@ -125,8 +126,8 @@ impl Parser {
             loop {
                 if self.is_match(&[TokenType::Var]) {
                     fields.push(self.var_declaration()?);
-                } else if self.is_match(&[TokenType::Fun]) {
-                    match self.class_fun_declaration()? {
+                } else if self.is_match(&[TokenType::Fn]) {
+                    match self.class_fn_declaration()? {
                         FuncType::Method(method) => methods.push(method),
                         FuncType::Function(function) => functions.push(function),
                     }
@@ -170,23 +171,23 @@ impl Parser {
             functions,
         ))
     }
-    fn class_fun_declaration(&mut self) -> Result<FuncType, JokerError> {
-        if let Stmt::FunStmt(fun_stmt) = self.fun_declaration()? {
-            match &fun_stmt.params {
+    fn class_fn_declaration(&mut self) -> Result<FuncType, JokerError> {
+        if let Stmt::FnStmt(fn_stmt) = self.fn_declaration()? {
+            match &fn_stmt.params {
                 Some(params) => match params[0].lexeme.as_str() {
-                    "this" => Ok(FuncType::Method(Stmt::FunStmt(fun_stmt))),
-                    _ => Ok(FuncType::Function(Stmt::FunStmt(fun_stmt))),
+                    "this" => Ok(FuncType::Method(Stmt::FnStmt(fn_stmt))),
+                    _ => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
                 },
-                None => Ok(FuncType::Function(Stmt::FunStmt(fun_stmt))),
+                None => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
             }
         } else {
-            unreachable!("fun_declaration return Stmt::FunStmt, unreachable this.")
+            unreachable!("fn_declaration return Stmt::FnStmt, unreachable this.")
         }
     }
-    // fun_declaration        → "fun" funStmt ;
-    // funStmt        → IDENTIFIER "(" parameters? ")" blockStmt ;
+    // fn_declaration        → "fn" FnStmt ;
+    // FnStmt        → IDENTIFIER "(" parameters? ")" blockStmt ;
     // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
-    fn fun_declaration(&mut self) -> Result<Stmt, JokerError> {
+    fn fn_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
             &[TokenType::Identifier],
             String::from("Expect function name."),
@@ -228,25 +229,36 @@ impl Parser {
         )?;
 
         match self.block_statement() {
-            Ok(Stmt::BlockStmt(body)) => Ok(FunStmt::upcast(name, params, body.stmts)),
+            Ok(Stmt::BlockStmt(body)) => Ok(FnStmt::upcast(name, params, body.stmts)),
             Ok(_) => Err(JokerError::Parser(ParserError::report_error(
                 &self.peek(),
-                String::from("func translation err!"),
+                String::from("fn translation err!"),
             ))),
             Err(err) => Err(err),
         }
     }
 
-    // methodStmt     → "fun" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = cls
+    // methodStmt     → "fn" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = cls
     // fn method_declaration(&mut self) -> Result<Stmt, JokerError> {
     // }
 
-    // varStmt → "var" IDENTIFIER ("=" expression )? ";" ;
+    // varStmt → "var" IDENTIFIER (":" IDENTIFIER)?  ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
             &[TokenType::Identifier],
             String::from("Expect variable name."),
         )?;
+
+        let type_: Option<Type> = if self.is_match(&[TokenType::Colon]) {
+            let type_name: Token = self.consume(
+                &[TokenType::Identifier],
+                String::from("Expect variable type after ':'."),
+            )?;
+            Some(TypeInferrer::parse_type(type_name))
+        } else {
+            None
+        };
+
         let value: Option<Expr> = if self.is_match(&[TokenType::Equal]) {
             Some(self.expression()?)
         } else {
@@ -256,7 +268,7 @@ impl Parser {
             &[TokenType::Semicolon],
             String::from("Expect ';' after variable declaration."),
         )?;
-        Ok(VarStmt::upcast(name, value))
+        Ok(VarStmt::upcast(name, type_, value))
     }
     // stmt -> print_stmt
     //        | return_stmt
@@ -729,7 +741,7 @@ impl Parser {
             }
             match self.peek().ttype {
                 TokenType::Class
-                | TokenType::Fun
+                | TokenType::Fn
                 | TokenType::Var
                 | TokenType::For
                 | TokenType::If
