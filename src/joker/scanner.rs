@@ -68,7 +68,14 @@ impl Scanner {
             '}' => self.add_token(TokenType::RightBrace),
             ',' => self.add_token(TokenType::Comma),
             '.' => self.add_token(TokenType::Dot),
-            '-' => self.add_token(TokenType::Minus),
+            '-' => {
+                let t_type = if self.is_match('>') {
+                    TokenType::Arrow
+                } else {
+                    TokenType::Minus
+                };
+                self.add_token(t_type);
+            }
             '+' => self.add_token(TokenType::Plus),
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),

@@ -1,4 +1,5 @@
 use super::ast::Expr;
+use super::types::Type;
 use super::token::Token;
 use super::error::JokerError;
 
@@ -28,6 +29,7 @@ pub struct PrintStmt {
 
 pub struct VarStmt {
     pub name: Token,
+    pub type_: Option<Type>,
     pub value: Expr,
 }
 
@@ -93,7 +95,7 @@ impl<T> StmtVisitor<T> for Stmt {
             Stmt::ForStmt(forstmt) => forstmt.accept(visitor),
             Stmt::BreakStmt(breakstmt) => breakstmt.accept(visitor),
             Stmt::ContinueStmt(continuestmt) => continuestmt.accept(visitor),
-            Stmt::FnStmt(FnStmt) => FnStmt.accept(visitor),
+            Stmt::FnStmt(fnstmt) => fnstmt.accept(visitor),
             Stmt::ReturnStmt(returnstmt) => returnstmt.accept(visitor),
             Stmt::ClassStmt(classstmt) => classstmt.accept(visitor),
         }
@@ -110,7 +112,7 @@ pub trait StmtVisitor<T> {
     fn visit_forstmt(&self, expr: &ForStmt) -> Result<T, JokerError>;
     fn visit_breakstmt(&self, expr: &BreakStmt) -> Result<T, JokerError>;
     fn visit_continuestmt(&self, expr: &ContinueStmt) -> Result<T, JokerError>;
-    fn visit_FnStmt(&self, expr: &FnStmt) -> Result<T, JokerError>;
+    fn visit_fnstmt(&self, expr: &FnStmt) -> Result<T, JokerError>;
     fn visit_returnstmt(&self, expr: &ReturnStmt) -> Result<T, JokerError>;
     fn visit_classstmt(&self, expr: &ClassStmt) -> Result<T, JokerError>;
 }
@@ -175,7 +177,7 @@ impl<T> StmtAcceptor<T> for ContinueStmt {
 
 impl<T> StmtAcceptor<T> for FnStmt {
     fn accept(&self, visitor: &dyn StmtVisitor<T>) -> Result<T, JokerError> {
-        visitor.visit_FnStmt(self)
+        visitor.visit_fnstmt(self)
     }
 }
 

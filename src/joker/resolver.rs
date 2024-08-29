@@ -26,7 +26,7 @@ use super::{
     error::{JokerError, ReportError},
     interpreter::Interpreter,
     token::{Token, TokenType},
-    types::{Type, TypeEnvironment, TypeInferrer},
+    types::{ParamPair, Type, TypeEnvironment, TypeInferrer},
 };
 
 pub trait StmtResolver<T> {
@@ -235,8 +235,17 @@ impl StmtResolver<()> for Resolver {
         self.begin_scope();
         if let Some(tokens) = &stmt.params {
             for param in tokens {
-                self.declare(param)?;
-                self.define(param)?;
+                if let ParamPair::Normal { param, type_: _ } = param {
+                    self.declare(param)?;
+                    self.define(param)?;
+                } else {
+                    return Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            &stmt.name,
+                            String::from("Invalid parameter type"),
+                        ),
+                    )));
+                }
             }
         }
         StmtResolver::resolve_block(self, &stmt.body)?;
@@ -356,9 +365,29 @@ impl StmtResolver<()> for Resolver {
             if let Some(params) = &stmt.params {
                 // resolve fun init(this, ...) {...}
                 // this 'this' can shadow outer this.
+                if !matches!(params[0].as_ref(), ParamPair::This { param: _ }) {
+                    return Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            &stmt.name,
+                            format!(
+                                "class method first 'this', but '{}' not is.",
+                                stmt.name.lexeme
+                            ),
+                        ),
+                    )));
+                }
                 for param in params[1..].iter() {
-                    self.declare(param)?;
-                    self.define(param)?;
+                    if let ParamPair::Normal { param, type_: _ } = param {
+                        self.declare(param)?;
+                        self.define(param)?;
+                    } else {
+                        return Err(JokerError::Resolver(ResolverError::Struct(
+                            StructError::report_error(
+                                &stmt.name,
+                                String::from("Invalid parameter type"),
+                            ),
+                        )));
+                    }
                 }
             }
             StmtResolver::resolve_block(self, &stmt.body)?;
@@ -491,6 +520,91 @@ impl ExprResolver<()> for Resolver {
         expr.arguments
             .iter()
             .try_for_each(|arg| ExprResolver::resolve(self, arg))?;
+
+        let callee_type: Type = TypeInferrer::infer_type(self, &expr.callee)?;
+        if let Type::Fn {
+            params,
+            return_type: _,
+        } = callee_type
+        {
+            if params
+                .as_ref()
+                .map_or(false, |p| p.len() != expr.arguments.len())
+            {
+                return Err(JokerError::Resolver(ResolverError::Struct(
+                    StructError::report_error(
+                        &expr.paren,
+                        format!(
+                            "Expected {} arguments but got {}.",
+                            params.as_ref().unwrap().len(),
+                            expr.arguments.len()
+                        ),
+                    ),
+                )));
+            }
+
+            if let Some(param_types) = params {
+                if let ParamPair::This { param: _ } = param_types[0] {
+                    // method
+                    for (arg, param_pair) in expr.arguments.iter().zip(param_types[1..].iter()) {
+                        if let ParamPair::Normal { param: _, type_ } = param_pair {
+                            let arg_type = TypeInferrer::infer_type(self, arg)?;
+                            if arg_type != *type_ {
+                                return Err(JokerError::Resolver(ResolverError::Struct(
+                                    StructError::report_error(
+                                        &expr.paren,
+                                        format!(
+                                            "Expected argument of type '{}' but got '{}'.",
+                                            type_, arg_type
+                                        ),
+                                    ),
+                                )));
+                            }
+                        } else {
+                            return Err(JokerError::Resolver(ResolverError::Struct(
+                                StructError::report_error(
+                                    &expr.paren,
+                                    String::from("Invalid parameter type in method call."),
+                                ),
+                            )));
+                        }
+                    }
+                } else {
+                    // function
+                    for (arg, param_pair) in expr.arguments.iter().zip(param_types.iter()) {
+                        if let ParamPair::Normal { param: _, type_ } = param_pair {
+                            let arg_type = TypeInferrer::infer_type(self, arg)?;
+                            if arg_type != *type_ {
+                                return Err(JokerError::Resolver(ResolverError::Struct(
+                                    StructError::report_error(
+                                        &expr.paren,
+                                        format!(
+                                            "Expected argument of type '{}' but got '{}'.",
+                                            type_, arg_type
+                                        ),
+                                    ),
+                                )));
+                            }
+                        } else {
+                            return Err(JokerError::Resolver(ResolverError::Struct(
+                                StructError::report_error(
+                                    &expr.paren,
+                                    String::from("Invalid parameter type in function call."),
+                                ),
+                            )));
+                        }
+                    }
+                }
+            }
+        } else {
+            return Err(JokerError::Resolver(ResolverError::Struct(
+                StructError::report_error(
+                    &expr.paren,
+                    String::from("Can only call functions and classes."),
+                ),
+            )));
+        }
+
         Ok(())
     }
 }
@@ -559,6 +673,13 @@ impl StmtVisitor<()> for Resolver {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         StmtResolver::resolve_function(self, stmt)?;
+        self.declare_type(
+            stmt.name.lexeme.clone(),
+            Type::Fn {
+                params: stmt.params.clone(),
+                return_type: stmt.return_type.clone(),
+            },
+        );
         Ok(())
     }
     fn visit_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {

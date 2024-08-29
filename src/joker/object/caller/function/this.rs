@@ -228,7 +228,7 @@ impl Callable for UserFunction {
 
         if let Some(params) = &self.stmt.params {
             for (name, value) in params.iter().zip(arguments) {
-                fun_env.define(name.lexeme.clone(), Some(value.clone()));
+                fun_env.define(name.param().lexeme.clone(), Some(value.clone()));
             }
         }
         if let Err(err) = interpreter.execute_block(&self.stmt.body, fun_env) {

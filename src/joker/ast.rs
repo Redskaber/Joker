@@ -53,9 +53,9 @@
 //!                      expression? ";"
 //!                      expression? ")" statement ;
 //!     
-//!     FnStmt        → "fn" IDENTIFIER  "(" (
-//!                         IDENTIFIER ":" IDENTIFIER (, IDENTIFIER ":" IDENTIFIER )*?
-//!                         )? ")" statement ;
+//!     FnStmt        → "fn" IDENTIFIER  "("
+//!                         (IDENTIFIER ":" IDENTIFIER (, IDENTIFIER ":" IDENTIFIER )*? )?
+//!                     ")" ("->" IDENTIFIER)? statement ;
 //!     methodStmt   → "fn" IDENTIFIER  "("
 //!                         "this" (, IDENTIFIER ":" IDENTIFIER )*?
 //!                     ")" statement ;
@@ -111,7 +111,12 @@
 //!
 use std::fmt::Display;
 
-use super::{error::JokerError, object::Object as OEnum, token::Token, types::Type};
+use super::{
+    error::JokerError,
+    object::Object as OEnum,
+    token::Token,
+    types::{ParamPair, Type},
+};
 
 macro_rules! define_ast {
     (
@@ -354,7 +359,7 @@ define_ast! {
         ForStmt     { initializer: Option<Box<Stmt>>, condition: Expr, increment: Option<Expr> , body: Box<Stmt> },
         BreakStmt   { name: Token },
         ContinueStmt{ name: Token },
-        FnStmt     { name: Token, params: Option<Vec<Token>>, body: Vec<Stmt> },
+        FnStmt      { name: Token, params: Option<Vec<ParamPair>>, return_type: Option<Box<Type>>, body: Vec<Stmt> },
         ReturnStmt  { keyword: Token, value: Option<Expr> },
         ClassStmt   { name: Token, super_class: Option<Expr>, fields: Option<Vec<Stmt>>,
                         methods: Option<Vec<Stmt>>, functions: Option<Vec<Stmt>> },

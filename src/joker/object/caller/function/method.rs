@@ -94,7 +94,7 @@ impl Callable for MethodFunction {
 
         if let Some(params) = &self.stmt.params {
             for (name, value) in params[1..].iter().zip(arguments) {
-                instance_env.define(name.lexeme.clone(), Some(value.clone()));
+                instance_env.define(name.param().lexeme.clone(), Some(value.clone()));
             }
         }
         match interpreter.execute_block(&self.stmt.body, instance_env) {

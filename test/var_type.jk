@@ -1,5 +1,6 @@
 // This is a test file for variable types in Rust.
 
+/*
 fn main() {
     var a: i32 = 10;
     var b: f64 = 3.14;
@@ -39,6 +40,22 @@ fn main() {
     j.x = 10;
     j.y = 20;
     print j;
+}
+
+main();
+
+fn counter(name: str, n: i32) -> i32 {
+    print name;
+    return n + 1;
+}
+*/
+
+fn main() {
+    var a: i32 = 10;
+    var b: f64 = 3.14;
+    var c: bool = true;
+    var d: str = "Hello, world!";
+    var e = null;
 }
 
 main();

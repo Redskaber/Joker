@@ -11,15 +11,14 @@ use std::{
     rc::Rc,
 };
 
-use crate::joker::ast::Call;
-
 use super::{
-    ast::{Expr, Lambda, Literal, Variable},
+    ast::{Call, Expr, Lambda, Literal, Variable},
     callable::StructError,
     error::JokerError,
     object::{Caller, Function, Literal as ObL, Object as OEnum},
+    parse::Parser,
     resolver::{Resolver, ResolverError},
-    token::Token,
+    token::{Token, TokenType},
 };
 
 pub trait DeepClone {
@@ -33,9 +32,8 @@ pub struct Object {
 
 impl DeepClone for Object {
     fn deep_clone(&self) -> Self {
-        let new_ref_cell = RefCell::new((*self.inner.borrow()).deep_clone());
         Object {
-            inner: Rc::new(new_ref_cell),
+            inner: Rc::new(RefCell::new((*self.inner.borrow()).deep_clone())),
         }
     }
 }
@@ -90,9 +88,16 @@ pub enum Type {
     Str,
     Bool,
     Null,
-    Fn,
-    Class { class_name: String },
-    Instance { class_name: String },
+    Fn {
+        params: Option<Vec<ParamPair>>,
+        return_type: Option<Box<Type>>,
+    },
+    Class {
+        class_name: String,
+    },
+    Instance {
+        class_name: String,
+    },
     UserDefined(Token),
 }
 
@@ -104,11 +109,75 @@ impl Display for Type {
             Type::Str => write!(f, "str"),
             Type::Bool => write!(f, "bool"),
             Type::Null => write!(f, "null"),
-            Type::Fn => write!(f, "Fn"),
+            Type::Fn {
+                params,
+                return_type,
+            } => {
+                let params = match params {
+                    Some(params) => params
+                        .iter()
+                        .map(|p| TypeInferrer::parse_type(p.param().clone()).to_string())
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    None => String::new(),
+                };
+                match return_type {
+                    Some(return_type) => write!(f, "Fn({}) -> {}", params, return_type.to_string()),
+                    None => write!(f, "Fn({})", params),
+                }
+            }
             Type::Class { class_name } => write!(f, "class({class_name})"),
             Type::Instance { class_name } => write!(f, "instance({class_name})"),
             Type::UserDefined(name) => write!(f, "{}", name.lexeme),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ParamPair {
+    This { param: Token },
+    Normal { param: Token, type_: Type },
+}
+
+impl ParamPair {
+    pub fn this(param: Token) -> ParamPair {
+        ParamPair::This { param }
+    }
+    pub fn normal(param: Token, type_: Type) -> ParamPair {
+        ParamPair::Normal { param, type_ }
+    }
+    pub fn this_with_parse(parser: &mut Parser) -> Result<ParamPair, JokerError> {
+        Ok(ParamPair::This {
+            param: parser.consume(
+                &[TokenType::This],
+                String::from("Expect class method 'this' name."),
+            )?,
+        })
+    }
+    pub fn normal_with_parse(parser: &mut Parser) -> Result<ParamPair, JokerError> {
+        let param: Token = parser.consume(
+            &[TokenType::Identifier],
+            String::from("Expect parameter name."),
+        )?;
+        parser.consume(
+            &[TokenType::Colon],
+            String::from("Expect ':' in parameter name after."),
+        )?;
+        let type_: Type = TypeInferrer::parse_type(parser.consume(
+            &[TokenType::Identifier],
+            String::from("Expect parameter type."),
+        )?);
+
+        Ok(ParamPair::Normal { param, type_ })
+    }
+    pub fn param(&self) -> &Token {
+        match self {
+            ParamPair::This { param } => param,
+            ParamPair::Normal { param, type_: _ } => param,
+        }
+    }
+    pub fn as_ref(&self) -> &Self {
+        &self
     }
 }
 
@@ -125,7 +194,6 @@ impl TypeEnvironment {
                 (String::from("str"), Type::Str),
                 (String::from("bool"), Type::Bool),
                 (String::from("null"), Type::Null),
-                (String::from("Fn"), Type::Fn),
             ]),
         }
     }
@@ -144,14 +212,16 @@ pub struct TypeInferrer;
 impl TypeInferrer {
     // parse time:
     pub fn parse_type(type_name: Token) -> Type {
-        println!("type_name: {:?}", type_name);
         match type_name.lexeme.as_str() {
             "i32" => Type::I32,
             "f64" => Type::F64,
             "str" => Type::Str,
             "bool" => Type::Bool,
             "null" => Type::Null,
-            "Fn" => Type::Fn,
+            "Fn" => Type::Fn {
+                params: None,
+                return_type: None,
+            },
             // parse don't parse, move to static resolve parse.
             _ => Type::UserDefined(type_name),
         }
@@ -165,10 +235,22 @@ impl TypeInferrer {
                 OEnum::Literal(ObL::Bool(_)) => Ok(Type::Bool),
                 OEnum::Literal(ObL::Str(_)) => Ok(Type::Str),
                 OEnum::Literal(ObL::Null) => Ok(Type::Null),
-                OEnum::Caller(Caller::Func(Function::Native(_))) => Ok(Type::Fn),
-                OEnum::Caller(Caller::Func(Function::User(_))) => Ok(Type::Fn),
-                OEnum::Caller(Caller::Func(Function::Method(_))) => Ok(Type::Fn),
-                OEnum::Caller(Caller::Lambda(_)) => Ok(Type::Fn),
+                OEnum::Caller(Caller::Func(Function::Native(_))) => Ok(Type::Fn {
+                    params: None,
+                    return_type: None,
+                }),
+                OEnum::Caller(Caller::Func(Function::User(_))) => Ok(Type::Fn {
+                    params: None,
+                    return_type: None,
+                }),
+                OEnum::Caller(Caller::Func(Function::Method(_))) => Ok(Type::Fn {
+                    params: None,
+                    return_type: None,
+                }),
+                OEnum::Caller(Caller::Lambda(_)) => Ok(Type::Fn {
+                    params: None,
+                    return_type: None,
+                }),
                 OEnum::Caller(Caller::Class(class)) => Ok(Type::Class {
                     class_name: class.name.clone(),
                 }),
@@ -180,7 +262,10 @@ impl TypeInferrer {
                 pipe: _,
                 params: _,
                 body: _,
-            }) => Ok(Type::Fn),
+            }) => Ok(Type::Fn {
+                params: None,
+                return_type: None,
+            }),
             Expr::Call(Call {
                 callee,
                 paren: _,

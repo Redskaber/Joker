@@ -36,10 +36,11 @@ pub enum TokenType {
     // < <=
     Less,
     LessEqual,
-    // :  ? |
+    // :  ? |  ->
     Colon,
     Question,
     Pipeline,
+    Arrow,
     // id string I32 F64
     Identifier,
     Str,
@@ -96,10 +97,11 @@ impl Display for TokenType {
             // < <=
             TokenType::Less => write!(f, "<"),
             TokenType::LessEqual => write!(f, "<="),
-            // : ?
+            // : ? | ->
             TokenType::Colon => write!(f, ":"),
             TokenType::Question => write!(f, "?"),
             TokenType::Pipeline => write!(f, "|"),
+            TokenType::Arrow => write!(f, "->"),
             // id Str i32 f64
             TokenType::Identifier => write!(f, "Ident"),
             TokenType::Str => write!(f, "Str"),

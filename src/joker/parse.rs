@@ -15,7 +15,7 @@ use super::{
     error::{JokerError, ReportError},
     object::{literal_bool, FuncType},
     token::{Token, TokenType},
-    types::{Type, TypeInferrer},
+    types::{ParamPair, Type, TypeInferrer},
 };
 
 pub struct Parser {
@@ -63,7 +63,10 @@ impl Parser {
         let mut has_error: Option<JokerError> = None;
         while !self.is_at_end() {
             match self.declaration() {
-                Ok(stmt) => stmts.push(stmt),
+                Ok(stmt) => {
+                    println!("Stmt: {:#?}", stmt);
+                    stmts.push(stmt);
+                },
                 Err(err) => {
                     has_error = Some(err);
                     if self.is_at_end() {
@@ -174,9 +177,13 @@ impl Parser {
     fn class_fn_declaration(&mut self) -> Result<FuncType, JokerError> {
         if let Stmt::FnStmt(fn_stmt) = self.fn_declaration()? {
             match &fn_stmt.params {
-                Some(params) => match params[0].lexeme.as_str() {
-                    "this" => Ok(FuncType::Method(Stmt::FnStmt(fn_stmt))),
-                    _ => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
+                Some(params) => match params[0].as_ref() {
+                    ParamPair::This { param } if param.lexeme.eq("this") => Ok(FuncType::Method(Stmt::FnStmt(fn_stmt))),
+                    ParamPair::Normal { param: _, type_: _ } => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
+                    ParamPair::This { param } => Err(JokerError::Parser(ParserError::report_error(
+                        &param,
+                        format!("class method function first param is this keyword, but this is '{}'", param.lexeme),
+                    )))
                 },
                 None => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
             }
@@ -185,8 +192,9 @@ impl Parser {
         }
     }
     // fn_declaration        → "fn" FnStmt ;
-    // FnStmt        → IDENTIFIER "(" parameters? ")" blockStmt ;
-    // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
+    // FnStmt        → "fn" IDENTIFIER  "("
+    //                      (IDENTIFIER ":" IDENTIFIER (, IDENTIFIER ":" IDENTIFIER )*? )?
+    //                  ")" ("->" IDENTIFIER)? statement ;
     fn fn_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
             &[TokenType::Identifier],
@@ -197,18 +205,16 @@ impl Parser {
             String::from("Expect '(' after function name."),
         )?;
 
-        let params: Option<Vec<Token>> = if self.check(&TokenType::RightParen) {
+        let params: Option<Vec<ParamPair>> = if self.check(&TokenType::RightParen) {
             None
         } else {
-            let mut params: Vec<Token> = vec![self.consume(
-                &[TokenType::Identifier, TokenType::This],
-                String::from("Expect parameter name."),
-            )?];
+            let mut params: Vec<ParamPair> = if self.is_match(&[TokenType::This]) {
+                vec![ParamPair::this_with_parse(self)?]
+            } else {
+                vec![ParamPair::normal_with_parse(self)?]
+            };
             while self.is_match(&[TokenType::Comma]) {
-                params.push(self.consume(
-                    &[TokenType::Identifier],
-                    String::from("Expect parameter name."),
-                )?);
+                params.push(ParamPair::normal_with_parse(self)?);
             }
             if params.len() >= 255 {
                 // TODO: warning
@@ -223,13 +229,23 @@ impl Parser {
             &[TokenType::RightParen],
             String::from("Expect ')' after parameters."),
         )?;
+
+        let return_type = if self.is_match(&[TokenType::Arrow]) {
+            Some(Box::new(TypeInferrer::parse_type(self.consume(
+                &[TokenType::Identifier],
+                String::from("Expect return type after '->'."),
+            )?)))
+        } else {
+            None
+        };
+
         self.consume(
             &[TokenType::LeftBrace],
             String::from("Expect '{' before body."),
         )?;
 
         match self.block_statement() {
-            Ok(Stmt::BlockStmt(body)) => Ok(FnStmt::upcast(name, params, body.stmts)),
+            Ok(Stmt::BlockStmt(body)) => Ok(FnStmt::upcast(name, params, return_type, body.stmts)),
             Ok(_) => Err(JokerError::Parser(ParserError::report_error(
                 &self.peek(),
                 String::from("fn translation err!"),
@@ -237,11 +253,6 @@ impl Parser {
             Err(err) => Err(err),
         }
     }
-
-    // methodStmt     → "fn" IDENTIFIER  "(" parameter (, parameters)? ")" statement ;    parameter = cls
-    // fn method_declaration(&mut self) -> Result<Stmt, JokerError> {
-    // }
-
     // varStmt → "var" IDENTIFIER (":" IDENTIFIER)?  ("=" expression )? ";" ;
     fn var_declaration(&mut self) -> Result<Stmt, JokerError> {
         let name: Token = self.consume(
@@ -722,7 +733,11 @@ impl Parser {
             ))), // jump
         }
     }
-    fn consume(&mut self, expected: &[TokenType], msg: String) -> Result<Token, JokerError> {
+    pub(crate) fn consume(
+        &mut self,
+        expected: &[TokenType],
+        msg: String,
+    ) -> Result<Token, JokerError> {
         for exp in expected {
             if self.check(exp) {
                 return Ok(self.advance());
