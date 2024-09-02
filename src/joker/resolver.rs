@@ -268,8 +268,7 @@ impl Resolver {
             .borrow()
             .last()
             .and_then(|context| match context {
-                ContextStatus::Fn(v) 
-                | ContextStatus::Class(ClassStatus::Fn(v)) => Some(v.clone()),
+                ContextStatus::Fn(v) | ContextStatus::Class(ClassStatus::Fn(v)) => Some(v.clone()),
                 _ => None,
             })
     }
@@ -595,88 +594,91 @@ impl ExprResolver<()> for Resolver {
             .try_for_each(|arg| ExprResolver::resolve(self, arg))?;
 
         let callee_type: Type = TypeInferrer::infer_type(self, &expr.callee)?;
-        if let Type::Fn {
-            params,
-            return_type: _,
-        } = callee_type
-        {
-            if params
-                .as_ref()
-                .map_or(false, |p| p.len() != expr.arguments.len())
-            {
-                return Err(JokerError::Resolver(ResolverError::Struct(
-                    StructError::report_error(
-                        &expr.paren,
-                        format!(
-                            "Expected {} arguments but got {}.",
-                            params.as_ref().unwrap().len(),
-                            expr.arguments.len()
+        match callee_type {
+            Type::Fn {
+                params,
+                return_type: _,
+            } => {
+                if params
+                    .as_ref()
+                    .map_or(false, |p| p.len() != expr.arguments.len())
+                {
+                    return Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            &expr.paren,
+                            format!(
+                                "Expected {} arguments but got {}.",
+                                params.as_ref().unwrap().len(),
+                                expr.arguments.len()
+                            ),
                         ),
-                    ),
-                )));
-            }
+                    )));
+                }
 
-            if let Some(param_types) = params {
-                if param_types[0].is_this() {
-                    for (arg, param_pair) in expr.arguments.iter().zip(param_types[1..].iter()) {
-                        if let ParamPair::Normal { param: _, type_ } = param_pair {
-                            let arg_type = TypeInferrer::infer_type(self, arg)?;
-                            if arg_type != *type_ {
+                if let Some(param_types) = params {
+                    if param_types[0].is_this() {
+                        for (arg, param_pair) in expr.arguments.iter().zip(param_types[1..].iter())
+                        {
+                            if let ParamPair::Normal { param: _, type_ } = param_pair {
+                                let arg_type = TypeInferrer::infer_type(self, arg)?;
+                                if arg_type != *type_ {
+                                    return Err(JokerError::Resolver(ResolverError::Struct(
+                                        StructError::report_error(
+                                            &expr.paren,
+                                            format!(
+                                                "Expected argument of type '{}' but got '{}'.",
+                                                type_, arg_type
+                                            ),
+                                        ),
+                                    )));
+                                }
+                            } else {
                                 return Err(JokerError::Resolver(ResolverError::Struct(
                                     StructError::report_error(
                                         &expr.paren,
-                                        format!(
-                                            "Expected argument of type '{}' but got '{}'.",
-                                            type_, arg_type
-                                        ),
+                                        String::from("Invalid parameter type in method call."),
                                     ),
                                 )));
                             }
-                        } else {
-                            return Err(JokerError::Resolver(ResolverError::Struct(
-                                StructError::report_error(
-                                    &expr.paren,
-                                    String::from("Invalid parameter type in method call."),
-                                ),
-                            )));
                         }
-                    }
-                } else {
-                    for (arg, param_pair) in expr.arguments.iter().zip(param_types.iter()) {
-                        if let ParamPair::Normal { param: _, type_ } = param_pair {
-                            let arg_type = TypeInferrer::infer_type(self, arg)?;
-                            if arg_type != *type_ {
+                    } else {
+                        for (arg, param_pair) in expr.arguments.iter().zip(param_types.iter()) {
+                            if let ParamPair::Normal { param: _, type_ } = param_pair {
+                                let arg_type = TypeInferrer::infer_type(self, arg)?;
+                                if arg_type != *type_ {
+                                    return Err(JokerError::Resolver(ResolverError::Struct(
+                                        StructError::report_error(
+                                            &expr.paren,
+                                            format!(
+                                                "Expected argument of type '{}' but got '{}'.",
+                                                type_, arg_type
+                                            ),
+                                        ),
+                                    )));
+                                }
+                            } else {
                                 return Err(JokerError::Resolver(ResolverError::Struct(
                                     StructError::report_error(
                                         &expr.paren,
-                                        format!(
-                                            "Expected argument of type '{}' but got '{}'.",
-                                            type_, arg_type
-                                        ),
+                                        String::from("Invalid parameter type in function call."),
                                     ),
                                 )));
                             }
-                        } else {
-                            return Err(JokerError::Resolver(ResolverError::Struct(
-                                StructError::report_error(
-                                    &expr.paren,
-                                    String::from("Invalid parameter type in function call."),
-                                ),
-                            )));
                         }
                     }
                 }
+                Ok(())
             }
-        } else {
-            return Err(JokerError::Resolver(ResolverError::Struct(
-                StructError::report_error(
-                    &expr.paren,
-                    String::from("Can only call functions and classes."),
-                ),
-            )));
+            // class
+            _ => {
+                Err(JokerError::Resolver(ResolverError::Struct(
+                    StructError::report_error(
+                        &expr.paren,
+                        String::from("Can only call functions and classes."),
+                    ),
+                )))
+            }
         }
-
-        Ok(())
     }
 }
 

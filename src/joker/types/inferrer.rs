@@ -4,7 +4,9 @@
 //!
 
 use crate::joker::{
-    ast::{Binary, Call, Expr, Lambda, Literal, Variable},
+    ast::{
+        Assign, Binary, Call, Expr, Grouping, Lambda, Literal, Logical, Trinomial, Unary, Variable,
+    },
     callable::StructError,
     error::JokerError,
     object::{Caller, Function, Literal as ObL, Object as OEnum},
@@ -31,7 +33,7 @@ impl TypeInferrer {
             &[TokenType::Identifier],
             String::from("Expect type. but this not is."),
         )?;
-
+        println!("type_name: {type_name:?}");
         match type_name.lexeme.as_str() {
             "i32" => Ok(Type::I32),
             "f64" => Ok(Type::F64),
@@ -70,7 +72,7 @@ impl TypeInferrer {
     }
     // resolve time:
     pub fn infer_type(resolver: &Resolver, expr: &Expr) -> Result<Type, JokerError> {
-        println!("expr: {:?}", expr);
+        // println!("expr:\t{:?}", expr);
         match expr {
             Expr::Literal(Literal { value }) => match value {
                 OEnum::Literal(ObL::I32(_)) => Ok(Type::I32),
@@ -101,11 +103,101 @@ impl TypeInferrer {
                     name: instance.class.borrow().name.clone(),
                 }),
             },
+            Expr::Unary(Unary { l_opera, r_expr }) => {
+                let right_type: Type = TypeInferrer::infer_type(resolver, r_expr)?;
+                if matches!(right_type, Type::I32 | Type::F64) {
+                    Ok(right_type)
+                } else {
+                    Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            l_opera,
+                            format!(
+                                "Type mismatch in unary expression, '{}' don't impl operator '{}'.",
+                                right_type, l_opera.lexeme
+                            ),
+                        ),
+                    )))
+                }
+            }
             Expr::Binary(Binary {
                 l_expr,
-                m_opera: _,
-                r_expr: _,
-            }) => TypeInferrer::infer_type(resolver, l_expr),
+                m_opera,
+                r_expr,
+            }) => {
+                let left_type: Type = TypeInferrer::infer_type(resolver, l_expr)?;
+                let right_type: Type = TypeInferrer::infer_type(resolver, r_expr)?;
+                if left_type.eq_type(&right_type) {
+                    Ok(left_type)
+                } else {
+                    Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            m_opera,
+                            format!("Type mismatch in binary expression, left type '{}' and right type '{}'",
+                                left_type,
+                                right_type
+                            ),
+                        ),
+                    )))
+                }
+            }
+            Expr::Grouping(Grouping { expr }) => TypeInferrer::infer_type(resolver, expr),
+            Expr::Assign(Assign { name, value: _ }) => {
+                Err(JokerError::Resolver(ResolverError::Struct(
+                    StructError::report_error(name, String::from("Assign don't inferrer type.")),
+                )))
+            }
+            Expr::Logical(Logical {
+                l_expr,
+                m_opera,
+                r_expr,
+            }) => {
+                let left_type: Type = TypeInferrer::infer_type(resolver, l_expr)?;
+                let right_type: Type = TypeInferrer::infer_type(resolver, r_expr)?;
+                if left_type.eq_type(&right_type) {
+                    Ok(left_type)
+                } else {
+                    Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            m_opera,
+                            format!("Type mismatch in logical expression, left type '{}' and right type '{}'",
+                                left_type,
+                                right_type
+                            ),
+                        ),
+                    )))
+                }
+            }
+            Expr::Trinomial(Trinomial {
+                condition,
+                l_expr,
+                r_expr,
+            }) => {
+                let condition: Type = TypeInferrer::infer_type(resolver, condition)?;
+                if condition.eq_type(&Type::Bool) {
+                    let left_type: Type = TypeInferrer::infer_type(resolver, l_expr)?;
+                    let right_type: Type = TypeInferrer::infer_type(resolver, r_expr)?;
+                    if left_type.eq_type(&right_type) {
+                        Ok(left_type)
+                    } else {
+                        Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+                            &Token::eof(0),
+                            format!("Type mismatch in binary expression, left type '{}' and right type '{}'",
+                                left_type,
+                                right_type,
+                            ),
+                        ))))
+                    }
+                } else {
+                    Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            &Token::eof(0),
+                            String::from(
+                                "Type mismatch in trinomial expression, but condition don't Bool.",
+                            ),
+                        ),
+                    )))
+                }
+            }
             Expr::Lambda(Lambda {
                 pipe: _,
                 params,

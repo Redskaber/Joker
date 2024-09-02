@@ -57,7 +57,7 @@ fn main() {
     var d: str = "Hello, world!";
     var e = null;
     var f: Fn(i32) -> i32 = |x: i32| -> i32 { 
-        return x + 1;               // return type check?
+        return x + 1;
     };
 
     fn counter(name: str, n: i32) -> i32 {
@@ -81,6 +81,25 @@ fn main() {
     }
 
     local_fn();
+
+    fn used_trinomial(condition: bool) -> bool {
+        // return condition ? true : 1;  // error:  Type mismatch in binary expression, left type 'bool' and right type 'i32'.
+        return condition ? true : false;
+    }
+    var i: bool = used_trinomial(true);
+    print i;
+
+
+    class Point {
+        var x: i32;
+        var y: i32;
+    }
+
+    var j: Point = Point();
+    j.x = 10;
+    j.y = 20;
+    print j;
+
 }
 
 main();
