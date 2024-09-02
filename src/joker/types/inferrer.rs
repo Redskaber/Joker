@@ -4,7 +4,7 @@
 //!
 
 use crate::joker::{
-    ast::{Call, Expr, Lambda, Literal, Variable},
+    ast::{Binary, Call, Expr, Lambda, Literal, Variable},
     callable::StructError,
     error::JokerError,
     object::{Caller, Function, Literal as ObL, Object as OEnum},
@@ -70,6 +70,7 @@ impl TypeInferrer {
     }
     // resolve time:
     pub fn infer_type(resolver: &Resolver, expr: &Expr) -> Result<Type, JokerError> {
+        println!("expr: {:?}", expr);
         match expr {
             Expr::Literal(Literal { value }) => match value {
                 OEnum::Literal(ObL::I32(_)) => Ok(Type::I32),
@@ -100,6 +101,11 @@ impl TypeInferrer {
                     name: instance.class.borrow().name.clone(),
                 }),
             },
+            Expr::Binary(Binary {
+                l_expr,
+                m_opera: _,
+                r_expr: _,
+            }) => TypeInferrer::infer_type(resolver, l_expr),
             Expr::Lambda(Lambda {
                 pipe: _,
                 params,

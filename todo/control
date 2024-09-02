@@ -40,7 +40,7 @@ TODO:
       - [v] add base type inference, base type in parse infer{i32, f64, bool, str, null, fn}, 
             class infer move to resolve static check.
       - [v] add lambda function type inference.
-      - [] add return type inference and return type check.
+      - [v] {fn, lambda}add return type inference and return type check.
       - [] add function parameters type inference.
       - [] add class attribute type inference.
       - [] add class method type inference.

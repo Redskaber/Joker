@@ -49,8 +49,17 @@ pub trait ExprResolver<T> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContextStatus {
     Class(ClassStatus),
-    Fn,
+    Fn(ReturnType),
     Loop,
+}
+
+impl ContextStatus {
+    pub fn is_fn(&self) -> bool {
+        matches!(
+            self,
+            ContextStatus::Fn(_) | ContextStatus::Class(ClassStatus::Fn(_))
+        )
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -58,7 +67,45 @@ pub enum ClassStatus {
     Class,
     SuperClass,
     Method,
-    Fn,
+    Fn(ReturnType),
+}
+
+#[derive(Debug, Clone)]
+pub enum ReturnType<T = Option<Box<Type>>> {
+    Any,
+    Specific(T),
+}
+
+impl PartialEq for ReturnType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ReturnType::Any, _) | (_, ReturnType::Any) => true,
+            (ReturnType::Specific(s1), ReturnType::Specific(s2)) => s1.eq(s2),
+        }
+    }
+}
+
+impl Eq for ReturnType {}
+
+impl ReturnType {
+    pub fn eq_type(&self, other: &Type) -> bool {
+        match self {
+            ReturnType::Any => true,
+            ReturnType::Specific(s) => s.as_ref().map_or(false, |t| t.eq_type(other)),
+        }
+    }
+}
+
+impl Display for ReturnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ReturnType::Any => write!(f, "Any"),
+            ReturnType::Specific(spec) => match spec {
+                Some(type_) => Display::fmt(type_, f),
+                None => write!(f, "None"),
+            },
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -216,6 +263,16 @@ impl Resolver {
             EnvError::report_error(name, String::from("type env exist but type is None.")),
         )))
     }
+    pub fn last_fn(&self) -> Option<ReturnType> {
+        self.context_status_stack
+            .borrow()
+            .last()
+            .and_then(|context| match context {
+                ContextStatus::Fn(v) 
+                | ContextStatus::Class(ClassStatus::Fn(v)) => Some(v.clone()),
+                _ => None,
+            })
+    }
 }
 
 // Resolver
@@ -236,11 +293,15 @@ impl StmtResolver<()> for Resolver {
         ]) {
             self.context_status_stack
                 .borrow_mut()
-                .push(ContextStatus::Class(ClassStatus::Fn));
+                .push(ContextStatus::Class(ClassStatus::Fn(ReturnType::Specific(
+                    stmt.return_type.clone(),
+                ))));
         } else {
             self.context_status_stack
                 .borrow_mut()
-                .push(ContextStatus::Fn);
+                .push(ContextStatus::Fn(ReturnType::Specific(
+                    stmt.return_type.clone(),
+                )));
         }
 
         self.begin_scope();
@@ -495,14 +556,19 @@ impl ExprResolver<()> for Resolver {
     fn resolve_lambda(&self, expr: &Lambda) -> Result<(), JokerError> {
         self.context_status_stack
             .borrow_mut()
-            .push(ContextStatus::Fn);
+            .push(ContextStatus::Fn(ReturnType::Specific(
+                expr.return_type.clone(),
+            )));
 
         self.begin_scope();
         if let Some(tokens) = expr.params.as_ref() {
             for param in tokens {
-                if let ParamPair::Normal { param, type_: _ } = param {
+                if let ParamPair::Normal { param, type_ } = param {
+                    // value check
                     self.declare(param)?;
                     self.define(param)?;
+                    // type check
+                    self.declare_type(param.lexeme.clone(), type_.clone());
                 } else {
                     return Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
@@ -626,12 +692,12 @@ impl StmtVisitor<()> for Resolver {
     }
     fn visit_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         if self.contains_any(&[
-            ContextStatus::Fn,
+            ContextStatus::Fn(ReturnType::Any),
             ContextStatus::Loop,
             ContextStatus::Class(ClassStatus::Class),
             ContextStatus::Class(ClassStatus::SuperClass),
             ContextStatus::Class(ClassStatus::Method),
-            ContextStatus::Class(ClassStatus::Fn),
+            ContextStatus::Class(ClassStatus::Fn(ReturnType::Any)),
         ]) {
             StmtResolver::resolve_var(self, stmt)?;
 
@@ -700,14 +766,10 @@ impl StmtVisitor<()> for Resolver {
         Ok(())
     }
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
-        // println!(
-        //     "[{:>10}][{:>20}]:\tstack: {:?}",
-        //     "resolve", "visit_block", self.context_status_stack
-        // );
         if self.contains_any(&[
-            ContextStatus::Fn,
+            ContextStatus::Fn(ReturnType::Any),
             ContextStatus::Class(ClassStatus::Method),
-            ContextStatus::Class(ClassStatus::Fn),
+            ContextStatus::Class(ClassStatus::Fn(ReturnType::Any)),
         ]) {
             self.begin_scope();
             self.resolve_block(&stmt.stmts)?;
@@ -749,13 +811,29 @@ impl StmtVisitor<()> for Resolver {
     }
     fn visit_return(&self, stmt: &ReturnStmt) -> Result<(), JokerError> {
         if self.last_any(&[
-            ContextStatus::Fn,
+            ContextStatus::Fn(ReturnType::Any),
             ContextStatus::Class(ClassStatus::Method),
-            ContextStatus::Class(ClassStatus::Fn),
-        ]) || self.contains_any(&[ContextStatus::Fn])
+            ContextStatus::Class(ClassStatus::Fn(ReturnType::Any)),
+        ]) || self.contains_any(&[ContextStatus::Fn(ReturnType::Any)])
         {
+            // value check
             if let Some(expr) = stmt.value.as_ref() {
                 ExprResolver::resolve(self, expr)?;
+                // type check
+                if let Some(expected_return_type) = self.last_fn() {
+                    let actual_return_type = TypeInferrer::infer_type(self, expr)?;
+                    if !expected_return_type.eq_type(&actual_return_type) {
+                        return Err(JokerError::Resolver(ResolverError::Struct(
+                            StructError::report_error(
+                                &stmt.keyword,
+                                format!(
+                                    "Return type mismatch: expected '{}', found '{}'.",
+                                    expected_return_type, actual_return_type
+                                ),
+                            ),
+                        )));
+                    }
+                }
             }
             Ok(())
         } else {
