@@ -56,6 +56,102 @@ fn main() {
     var c: bool = true;
     var d: str = "Hello, world!";
     var e = null;
+    var f: Fn(i32) -> i32 = |x: i32| -> i32 { 
+        return x + 1;               // return type check?
+    };
+
+    fn counter(name: str, n: i32) -> i32 {
+        print f(n);
+        return n + 1;
+    }
+
+    var g: Fn(str, i32) -> i32 = counter;
+    print g("Hello, world!", 10);
+
+    var h: i32 = counter("Hello, world!", 10);
+    print h;
+    print f(10);
+
+    fn local_fn() -> i32 {
+        var i: i32 = 10;
+        var f: Fn(i32) -> i32 = |x: i32| -> i32 {
+            return x + i;
+        };
+        print f(20);
+    }
+
+    local_fn();
 }
 
 main();
+
+/*
+type_env: RefCell {
+    value: [
+        RefCell {
+            value: {},
+        },
+        RefCell {
+            value: {
+                "c": Bool,
+                "a": I32,
+                "f": Fn {
+                    params: Some(
+                        [
+                            Normal {
+                                param: Token(ttype: Identifier, lexeme: "x", literal: Literal(Null), line: 59),
+                                type_: I32,
+                            },
+                        ],
+                    ),
+                    return_type: Some(
+                        I32,
+                    ),
+                },
+                "g": Fn {
+                    params: Some(
+                        [
+                            Normal {
+                                param: Token(ttype: Identifier, lexeme: "name", literal: Literal(Null), line: 63),
+                                type_: Str,
+                            },
+                            Normal {
+                                param: Token(ttype: Identifier, lexeme: "n", literal: Literal(Null), line: 63),
+                                type_: I32,
+                            },
+                        ],
+                    ),
+                    return_type: Some(
+                        I32,
+                    ),
+                },
+                "e": Null,
+                "h": I32,
+                "b": F64,
+                "d": Str,
+                "local_fn": Fn {
+                    params: None,
+                    return_type: None,
+                },
+                "counter": Fn {
+                    params: Some(
+                        [
+                            Normal {
+                                param: Token(ttype: Identifier, lexeme: "name", literal: Literal(Null), line: 63),
+                                type_: Str,
+                            },
+                            Normal {
+                                param: Token(ttype: Identifier, lexeme: "n", literal: Literal(Null), line: 63),
+                                type_: I32,
+                            },
+                        ],
+                    ),
+                    return_type: Some(
+                        I32,
+                    ),
+                },
+            },
+        },
+    ],
+}
+*/

@@ -76,7 +76,7 @@
 //!     assignment     → ( call "." )? IDENTIFIER "=" assignment
 //!                     | Lambda ;
 //!
-//!     Lambda         → "|" parameters? "|" statement ( "(" parameters? ")" ";" )?
+//!     Lambda         → "|" parameters? "|" ("->" IDENTIFIER)?  statement ( "(" parameters? ")" ";" )?
 //!                     | Trinomial ;
 //!
 //!
@@ -207,8 +207,8 @@ macro_rules! define_ast {
     (@impl_display Lambda, $($field:ident: $field_type: ty),*) => {
         impl Display for Lambda {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "Lambda(params: {:?}, body: {:?})",
-                    self.params, self.body)
+                write!(f, "Lambda(params: {:?}, return_type: {:?}, body: {:?})",
+                    self.params, self.return_type, self.body)
             }
         }
     };
@@ -336,7 +336,7 @@ define_ast! {
         Logical     { l_expr: Box<Expr>, m_opera: Token, r_expr: Box<Expr> },
         Trinomial   { condition: Box<Expr>, l_expr: Box<Expr>, r_expr: Box<Expr> },
         Call        { callee: Box<Expr>, paren: Token, arguments: Vec<Expr> },
-        Lambda      { pipe: Token, params: Vec<Token>, body: Box<Stmt> },
+        Lambda      { pipe: Token, params: Option<Vec<ParamPair>>, return_type: Option<Box<Type>>, body: Box<Stmt> },
         Getter      { expr: Box<Expr>, name: Token },
         Setter      { l_expr: Box<Expr>, name: Token, r_expr: Box<Expr> },
         This        { keyword: Token },

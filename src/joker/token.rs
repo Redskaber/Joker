@@ -3,7 +3,12 @@
 //!
 use std::fmt::{Debug, Display};
 
-use super::object::{literal_null, Object};
+use super::{
+    error::JokerError,
+    object::{literal_null, Object},
+    parse::ParserError,
+    types::{FromParamPair, ParamPair},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenType {
@@ -195,6 +200,30 @@ impl Debug for Token {
             "Token(ttype: {:?}, lexeme: {:?}, literal: {:?}, line: {})",
             self.ttype, self.lexeme, self.literal, self.line,
         )
+    }
+}
+
+impl FromParamPair for Token {
+    type Err = JokerError;
+    fn from_param_pair(param_pair: &ParamPair) -> Result<Self, Self::Err> {
+        if let Some(param) = param_pair.get_param() {
+            Ok(param.clone())
+        } else {
+            Err(JokerError::Parser(ParserError::report_error(
+                &Token::eof(0),
+                String::from("param pair translate to token, need param."),
+            )))
+        }
+    }
+    fn from_param_pair_ref(param_pair: &ParamPair) -> Result<&Self, Self::Err> {
+        if let Some(param) = param_pair.get_param() {
+            Ok(param)
+        } else {
+            Err(JokerError::Parser(ParserError::report_error(
+                &Token::eof(0),
+                String::from("param pair translate to token, need param."),
+            )))
+        }
     }
 }
 

@@ -19,6 +19,7 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Instance, Object as OEnum, UpCast},
+    token::Token,
     types::{DeepClone, Object},
 };
 
@@ -26,7 +27,7 @@ use super::{Binder, Function};
 
 #[derive(Clone)]
 pub struct MethodFunction {
-    stmt: Rc<FnStmt>,
+    pub stmt: Rc<FnStmt>,
     closure: Rc<RefCell<Env>>,
 }
 
@@ -94,7 +95,10 @@ impl Callable for MethodFunction {
 
         if let Some(params) = &self.stmt.params {
             for (name, value) in params[1..].iter().zip(arguments) {
-                instance_env.define(name.param().lexeme.clone(), Some(value.clone()));
+                instance_env.define(
+                    name.parse_ref::<Token>()?.lexeme.clone(),
+                    Some(value.clone()),
+                );
             }
         }
         match interpreter.execute_block(&self.stmt.body, instance_env) {

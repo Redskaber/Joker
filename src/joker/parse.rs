@@ -6,7 +6,7 @@
 use std::{error::Error, fmt::Display};
 
 use super::{
-    abort::{AbortError, ArgLimitAbort, ArgumentAbort},
+    abort::ArgLimitAbort,
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprStmt,
         FnStmt, ForStmt, Getter, Grouping, IfStmt, Lambda, Literal, Logical, PrintStmt, ReturnStmt,
@@ -49,7 +49,7 @@ impl Parser {
             &self.peek().ttype == ttype
         }
     }
-    fn is_match(&mut self, types: &[TokenType]) -> bool {
+    pub(crate) fn is_match(&mut self, types: &[TokenType]) -> bool {
         for ttype in types {
             if self.check(ttype) {
                 self.advance();
@@ -63,10 +63,7 @@ impl Parser {
         let mut has_error: Option<JokerError> = None;
         while !self.is_at_end() {
             match self.declaration() {
-                Ok(stmt) => {
-                    println!("Stmt: {:#?}", stmt);
-                    stmts.push(stmt);
-                },
+                Ok(stmt) => stmts.push(stmt),
                 Err(err) => {
                     has_error = Some(err);
                     if self.is_at_end() {
@@ -178,11 +175,15 @@ impl Parser {
         if let Stmt::FnStmt(fn_stmt) = self.fn_declaration()? {
             match &fn_stmt.params {
                 Some(params) => match params[0].as_ref() {
-                    ParamPair::This { param } if param.lexeme.eq("this") => Ok(FuncType::Method(Stmt::FnStmt(fn_stmt))),
+                    ParamPair::This { param, type_: _ } if param.lexeme.eq("this") => Ok(FuncType::Method(Stmt::FnStmt(fn_stmt))),
                     ParamPair::Normal { param: _, type_: _ } => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
-                    ParamPair::This { param } => Err(JokerError::Parser(ParserError::report_error(
-                        &param,
+                    ParamPair::This { param , type_: _ } => Err(JokerError::Parser(ParserError::report_error(
+                        param,
                         format!("class method function first param is this keyword, but this is '{}'", param.lexeme),
+                    ))),
+                    ParamPair::Label { type_: _ } => Err(JokerError::Parser(ParserError::report_error(
+                        &fn_stmt.name,
+                        String::from("function not used var type label param pair.")
                     )))
                 },
                 None => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
@@ -231,10 +232,7 @@ impl Parser {
         )?;
 
         let return_type = if self.is_match(&[TokenType::Arrow]) {
-            Some(Box::new(TypeInferrer::parse_type(self.consume(
-                &[TokenType::Identifier],
-                String::from("Expect return type after '->'."),
-            )?)))
+            Some(Box::new(TypeInferrer::parse_type(self)?))
         } else {
             None
         };
@@ -261,11 +259,7 @@ impl Parser {
         )?;
 
         let type_: Option<Type> = if self.is_match(&[TokenType::Colon]) {
-            let type_name: Token = self.consume(
-                &[TokenType::Identifier],
-                String::from("Expect variable type after ':'."),
-            )?;
-            Some(TypeInferrer::parse_type(type_name))
+            Some(TypeInferrer::parse_type(self)?)
         } else {
             None
         };
@@ -496,39 +490,39 @@ impl Parser {
         }
         Ok(expr)
     }
-    // lambda_expr -> "|" parameters? "|" statement "(" parameters? ")"
+    // lambda_expr -> "|" parameters? "|" ("->" IDENTIFIER)? statement "(" parameters? ")"
     //                |  trinomial ;
     // parameters -> IDENTIFIER (, IDENTIFIER)*
     fn lambda(&mut self) -> Result<Expr, JokerError> {
         if self.is_match(&[TokenType::Pipeline]) {
             let pipe: Token = self.previous();
 
-            let mut params: Vec<Token> = Vec::new();
-            if self.check(&TokenType::Identifier) {
-                loop {
-                    if params.len() >= 255 {
-                        // warning:?
-                        return Err(JokerError::Abort(AbortError::Argument(
-                            ArgumentAbort::Limit(ArgLimitAbort::report_error(
-                                &self.peek(),
-                                String::from("Can't have more than 255 parameters."),
-                            )),
-                        )));
-                    }
-                    params.push(self.consume(
-                        &[TokenType::Identifier],
-                        String::from("Expect parameter name."),
-                    )?);
-                    if !self.is_match(&[TokenType::Comma]) {
-                        break;
-                    }
+            let params: Option<Vec<ParamPair>> = if self.check(&TokenType::Pipeline) {
+                None
+            } else {
+                let mut params: Vec<ParamPair> = vec![ParamPair::normal_with_parse(self)?];
+                while self.is_match(&[TokenType::Comma]) {
+                    params.push(ParamPair::normal_with_parse(self)?);
                 }
-            }
-
+                if params.len() >= 255 {
+                    // TODO: warning
+                    ArgLimitAbort::report_error(
+                        &self.peek(),
+                        String::from("Can't have more than 255 parameters."),
+                    );
+                }
+                Some(params)
+            };
             self.consume(
                 &[TokenType::Pipeline],
                 String::from("Expect '|' after parameters."),
             )?;
+
+            let return_type: Option<Box<Type>> = if self.is_match(&[TokenType::Arrow]) {
+                Some(Box::new(TypeInferrer::parse_type(self)?))
+            } else {
+                None
+            };
 
             let body: Stmt = if self.is_match(&[TokenType::LeftBrace]) {
                 self.block_statement()?
@@ -536,7 +530,7 @@ impl Parser {
                 ExprStmt::upcast(self.expression()?)
             };
 
-            let lambda: Expr = Lambda::upcast(pipe, params, Box::new(body));
+            let lambda: Expr = Lambda::upcast(pipe, params, return_type, Box::new(body));
             if self.is_match(&[TokenType::LeftParen]) {
                 return self.finish_call(lambda);
             } else {
@@ -665,12 +659,10 @@ impl Parser {
             while self.is_match(&[TokenType::Comma]) {
                 if arguments.len() >= 255 {
                     // waring:?
-                    return Err(JokerError::Abort(AbortError::Argument(
-                        ArgumentAbort::Limit(ArgLimitAbort::report_error(
-                            &self.peek(),
-                            String::from("Can't have more than 255 arguments."),
-                        )),
-                    )));
+                    ArgLimitAbort::report_error(
+                        &self.peek(),
+                        String::from("Can't have more than 255 arguments."),
+                    );
                 }
                 arguments.push(self.expression()?);
             }

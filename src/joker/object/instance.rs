@@ -168,7 +168,12 @@ mod tests {
     #[test]
     fn test_instance_clone_modify() -> Result<(), JokerError> {
         let instance = Instance::new(Box::new(Class::new(
-            String::from("Demo"),
+            Token::new(
+                crate::joker::token::TokenType::Identifier,
+                String::from("Demo"),
+                literal_null(),
+                0,
+            ),
             None,
             None,
             None,

@@ -381,7 +381,7 @@ impl StmtVisitor<()> for Interpreter {
         };
 
         let class: Object = Object::new(OEnum::Caller(Caller::Class(Box::new(Class::new(
-            stmt.name.lexeme.clone(),
+            stmt.name.clone(),
             super_class,
             fields,
             methods,

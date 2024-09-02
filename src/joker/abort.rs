@@ -25,14 +25,14 @@ use super::{
 #[derive(Debug)]
 pub enum AbortError {
     ControlFlow(ControlFlowAbort),
-    Argument(ArgumentAbort),
+    // Argument(ArgumentAbort),
 }
 
 impl Display for AbortError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AbortError::Argument(arg) => Display::fmt(arg, f),
             AbortError::ControlFlow(control) => Display::fmt(control, f),
+            // AbortError::Argument(arg) => Display::fmt(arg, f),
         }
     }
 }
@@ -43,7 +43,7 @@ impl ReportError for AbortError {
     fn report(&self) {
         match &self {
             AbortError::ControlFlow(control_flow) => ReportError::report(control_flow),
-            AbortError::Argument(argument) => ReportError::report(argument),
+            // AbortError::Argument(argument) => ReportError::report(argument),
         }
     }
 }
@@ -74,26 +74,26 @@ impl ReportError for ControlFlowAbort {
     }
 }
 
-#[derive(Debug)]
-pub enum ArgumentAbort {
-    Limit(ArgLimitAbort),
-}
+// #[derive(Debug)]
+// pub enum ArgumentAbort {
+//     Limit(ArgLimitAbort),
+// }
 
-impl Display for ArgumentAbort {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ArgumentAbort::Limit(limit) => Display::fmt(limit, f),
-        }
-    }
-}
+// impl Display for ArgumentAbort {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             ArgumentAbort::Limit(limit) => Display::fmt(limit, f),
+//         }
+//     }
+// }
 
-impl ReportError for ArgumentAbort {
-    fn report(&self) {
-        match self {
-            ArgumentAbort::Limit(limit) => ReportError::report(limit),
-        }
-    }
-}
+// impl ReportError for ArgumentAbort {
+//     fn report(&self) {
+//         match self {
+//             ArgumentAbort::Limit(limit) => ReportError::report(limit),
+//         }
+//     }
+// }
 
 #[derive(Debug)]
 pub struct ArgLimitAbort {

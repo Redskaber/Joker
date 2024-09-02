@@ -22,6 +22,7 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Instance, Object as OEnum, UpCast},
+    token::Token,
     types::{DeepClone, Object},
 };
 
@@ -163,7 +164,7 @@ impl Debug for NativeFunction {
 
 #[derive(Clone)]
 pub struct UserFunction {
-    stmt: Rc<FnStmt>,
+    pub stmt: Rc<FnStmt>,
     closure: Rc<RefCell<Env>>,
 }
 
@@ -226,9 +227,12 @@ impl Callable for UserFunction {
     ) -> Result<Option<Object>, JokerError> {
         let mut fun_env: Env = Env::new_with_enclosing(self.closure.clone());
 
-        if let Some(params) = &self.stmt.params {
+        if let Some(params) = self.stmt.params.as_ref() {
             for (name, value) in params.iter().zip(arguments) {
-                fun_env.define(name.param().lexeme.clone(), Some(value.clone()));
+                fun_env.define(
+                    name.parse_ref::<Token>()?.lexeme.clone(),
+                    Some(value.clone()),
+                );
             }
         }
         if let Err(err) = interpreter.execute_block(&self.stmt.body, fun_env) {

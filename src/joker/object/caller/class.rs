@@ -18,7 +18,7 @@ use super::{Binder, BinderFunction, Caller, Function, MethodFunction, UserFuncti
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Class {
-    pub name: String,
+    pub name: Token,
     pub super_class: Option<Box<Class>>,
     pub fields: Option<HashMap<String, Option<Object>>>,
     methods: Option<HashMap<String, MethodFunction>>,
@@ -48,7 +48,7 @@ impl UpCast<OEnum> for Box<Class> {
 
 impl Class {
     pub fn new(
-        name: String,
+        name: Token,
         super_class: Option<Box<Class>>,
         fields: Option<HashMap<String, Option<Object>>>,
         methods: Option<HashMap<String, MethodFunction>>,
@@ -185,7 +185,7 @@ impl Callable for Box<Class> {
 impl Display for Class {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let super_name = match &self.super_class {
-            Some(super_obj) => &super_obj.name,
+            Some(super_obj) => &super_obj.name.lexeme,
             None => "None",
         };
         write!(

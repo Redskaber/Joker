@@ -19,12 +19,13 @@ use crate::joker::{
     error::JokerError,
     interpreter::Interpreter,
     object::{Caller, Object as OEnum, UpCast},
+    token::Token,
     types::{DeepClone, Object},
 };
 
 #[derive(Clone)]
 pub struct Lambda {
-    expr: Rc<LambdaExpr>,
+    pub expr: Rc<LambdaExpr>,
     closure: Rc<RefCell<Env>>,
 }
 
@@ -77,8 +78,13 @@ impl Callable for Lambda {
     ) -> Result<Option<Object>, JokerError> {
         let mut lambda_env: Env = Env::new_with_enclosing(Rc::clone(&self.closure));
 
-        for (name, value) in self.expr.params.iter().zip(arguments) {
-            lambda_env.define(name.lexeme.clone(), Some(value.clone()));
+        if let Some(params) = self.expr.params.as_ref() {
+            for (name, value) in params.iter().zip(arguments) {
+                lambda_env.define(
+                    name.parse_ref::<Token>()?.lexeme.clone(),
+                    Some(value.clone()),
+                );
+            }
         }
         match &*self.expr.body {
             Stmt::BlockStmt(block) => {
@@ -108,7 +114,7 @@ impl Callable for Lambda {
         Ok(None)
     }
     fn arity(&self) -> usize {
-        self.expr.params.len()
+        self.expr.params.as_ref().map_or(0, |params| params.len())
     }
 }
 
