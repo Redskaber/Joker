@@ -127,7 +127,7 @@ impl Parser {
                 if self.is_match(&[TokenType::Var]) {
                     fields.push(self.var_declaration()?);
                 } else if self.is_match(&[TokenType::Fn]) {
-                    match self.class_fn_declaration()? {
+                    match self.class_fn_declaration(&name)? {
                         FuncType::Method(method) => methods.push(method),
                         FuncType::Function(function) => functions.push(function),
                     }
@@ -171,25 +171,90 @@ impl Parser {
             functions,
         ))
     }
-    fn class_fn_declaration(&mut self) -> Result<FuncType, JokerError> {
-        if let Stmt::FnStmt(fn_stmt) = self.fn_declaration()? {
-            match &fn_stmt.params {
-                Some(params) => match params[0].as_ref() {
-                    ParamPair::This { param, type_: _ } if param.lexeme.eq("this") => Ok(FuncType::Method(Stmt::FnStmt(fn_stmt))),
-                    ParamPair::Normal { param: _, type_: _ } => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
-                    ParamPair::This { param , type_: _ } => Err(JokerError::Parser(ParserError::report_error(
+    fn label_func(&self, fn_stmt: FnStmt) -> Result<FuncType, JokerError> {
+        match &fn_stmt.params {
+            Some(params) => match params[0].as_ref() {
+                ParamPair::This { param, type_: _ } if param.is_this() => {
+                    Ok(FuncType::Method(Stmt::FnStmt(fn_stmt)))
+                }
+                ParamPair::Normal { param: _, type_: _ } => {
+                    Ok(FuncType::Function(Stmt::FnStmt(fn_stmt)))
+                }
+                ParamPair::This { param, type_: _ } => {
+                    Err(JokerError::Parser(ParserError::report_error(
                         param,
-                        format!("class method function first param is this keyword, but this is '{}'", param.lexeme),
-                    ))),
-                    ParamPair::Label { type_: _ } => Err(JokerError::Parser(ParserError::report_error(
-                        &fn_stmt.name,
-                        String::from("function not used var type label param pair.")
+                        format!(
+                            "class method function first param is this keyword, but this is '{}'",
+                            param.lexeme
+                        ),
                     )))
-                },
-                None => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
-            }
+                }
+                ParamPair::Label { type_: _ } => {
+                    Err(JokerError::Parser(ParserError::report_error(
+                        &fn_stmt.name,
+                        String::from("function not used var type label param pair."),
+                    )))
+                }
+            },
+            None => Ok(FuncType::Function(Stmt::FnStmt(fn_stmt))),
+        }
+    }
+    fn class_fn_declaration(&mut self, class: &Token) -> Result<FuncType, JokerError> {
+        let name: Token = self.consume(
+            &[TokenType::Identifier],
+            String::from("Expect function name."),
+        )?;
+        self.consume(
+            &[TokenType::LeftParen],
+            String::from("Expect '(' after function name."),
+        )?;
+
+        let params: Option<Vec<ParamPair>> = if self.check(&TokenType::RightParen) {
+            None
         } else {
-            unreachable!("fn_declaration return Stmt::FnStmt, unreachable this.")
+            let mut params: Vec<ParamPair> = if self.check(&TokenType::This) {
+                vec![ParamPair::this_with_parse(self, class)?]
+            } else {
+                vec![ParamPair::normal_with_parse(self)?]
+            };
+
+            while self.is_match(&[TokenType::Comma]) {
+                params.push(ParamPair::normal_with_parse(self)?);
+            }
+            if params.len() >= 255 {
+                // TODO: warning
+                ArgLimitAbort::report_error(
+                    &self.peek(),
+                    String::from("Can't have more than 255 parameters."),
+                );
+            }
+            Some(params)
+        };
+        self.consume(
+            &[TokenType::RightParen],
+            String::from("Expect ')' after parameters."),
+        )?;
+
+        let return_type = if self.is_match(&[TokenType::Arrow]) {
+            Some(Box::new(TypeInferrer::parse_type(self)?))
+        } else {
+            None
+        };
+
+        self.consume(
+            &[TokenType::LeftBrace],
+            String::from("Expect '{' before body."),
+        )?;
+
+        match self.block_statement() {
+            Ok(Stmt::BlockStmt(body)) => {
+                Ok(self.label_func(FnStmt::new(name, params, return_type, body.stmts))?)
+            }
+            Ok(_) => Err(JokerError::Parser(ParserError::report_error(
+                &self.peek(),
+                String::from("fn translation err!"),
+            ))),
+            Err(err) => Err(err),
         }
     }
     // fn_declaration        → "fn" FnStmt ;
@@ -209,11 +274,7 @@ impl Parser {
         let params: Option<Vec<ParamPair>> = if self.check(&TokenType::RightParen) {
             None
         } else {
-            let mut params: Vec<ParamPair> = if self.is_match(&[TokenType::This]) {
-                vec![ParamPair::this_with_parse(self)?]
-            } else {
-                vec![ParamPair::normal_with_parse(self)?]
-            };
+            let mut params: Vec<ParamPair> = vec![ParamPair::normal_with_parse(self)?];
             while self.is_match(&[TokenType::Comma]) {
                 params.push(ParamPair::normal_with_parse(self)?);
             }

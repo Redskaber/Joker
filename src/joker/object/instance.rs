@@ -27,7 +27,7 @@ use super::{Binder, Class, UpCast};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Instance {
     pub class: Rc<RefCell<Box<Class>>>,
-    fields: Rc<RefCell<HashMap<String, Object>>>,
+    pub fields: Rc<RefCell<HashMap<String, Object>>>,
 }
 
 impl DeepClone for Instance {

@@ -3,19 +3,25 @@
 //!
 //!
 
+use std::collections::HashMap;
+
 use crate::joker::{
     ast::{
-        Assign, Binary, Call, Expr, Grouping, Lambda, Literal, Logical, Trinomial, Unary, Variable,
+        Assign, Binary, Call, ClassStmt, Expr, Getter, Grouping, Lambda, Literal, Logical, Stmt,
+        Trinomial, Unary, Variable,
     },
     callable::StructError,
     error::JokerError,
-    object::{Caller, Function, Literal as ObL, Object as OEnum},
+    object::{literal_null, Caller, Function, Literal as ObL, Object as OEnum},
     parse::Parser,
     resolver::{Resolver, ResolverError},
     token::{Token, TokenType},
 };
 
-use super::type_::{ParamPair, Type};
+use super::{
+    type_::{ParamPair, Type},
+    DeepClone, IsInstance,
+};
 
 pub struct TypeInferrer;
 
@@ -33,7 +39,6 @@ impl TypeInferrer {
             &[TokenType::Identifier],
             String::from("Expect type. but this not is."),
         )?;
-        println!("type_name: {type_name:?}");
         match type_name.lexeme.as_str() {
             "i32" => Ok(Type::I32),
             "f64" => Ok(Type::F64),
@@ -72,7 +77,6 @@ impl TypeInferrer {
     }
     // resolve time:
     pub fn infer_type(resolver: &Resolver, expr: &Expr) -> Result<Type, JokerError> {
-        // println!("expr:\t{:?}", expr);
         match expr {
             Expr::Literal(Literal { value }) => match value {
                 OEnum::Literal(ObL::I32(_)) => Ok(Type::I32),
@@ -96,12 +100,119 @@ impl TypeInferrer {
                     params: lambda.expr.params.clone(),
                     return_type: lambda.expr.return_type.clone(),
                 }),
-                OEnum::Caller(Caller::Class(class)) => Ok(Type::Class {
-                    name: class.name.clone(),
-                }),
-                OEnum::Instance(instance) => Ok(Type::Instance {
-                    name: instance.class.borrow().name.clone(),
-                }),
+                OEnum::Caller(Caller::Class(class)) => {
+                    let name: Token = class.name.clone();
+                    let super_class: Option<Box<Type>> =
+                        if let Some(super_class) = class.super_class.as_ref() {
+                            Some(Box::new(TypeInferrer::infer_type(
+                                resolver,
+                                &Expr::Literal(Literal {
+                                    value: OEnum::Caller(Caller::Class(super_class.clone())),
+                                }),
+                            )?))
+                        } else {
+                            None
+                        };
+                    let fields: Option<HashMap<String, Type>> =
+                        if let Some(fields) = class.fields.as_ref() {
+                            let mut fields_type: HashMap<String, Type> = HashMap::new();
+                            for (field, value) in fields {
+                                let value_type = if let Some(value) = value {
+                                    TypeInferrer::infer_type(
+                                        resolver,
+                                        &Expr::Literal(Literal {
+                                            value: value.get().clone(),
+                                        }),
+                                    )?
+                                } else {
+                                    resolver.get_type(&Token::new(
+                                        TokenType::Identifier,
+                                        field.clone(),
+                                        literal_null(),
+                                        0,
+                                    ))?
+                                };
+                                fields_type.insert(field.clone(), value_type);
+                            }
+                            Some(fields_type)
+                        } else {
+                            None
+                        };
+
+                    let methods: Option<HashMap<String, Type>> =
+                        if let Some(methods) = class.methods.as_ref() {
+                            let mut methods_type: HashMap<String, Type> = HashMap::new();
+                            for (method, value) in methods {
+                                let value_type: Type = TypeInferrer::infer_type(
+                                    resolver,
+                                    &Expr::Literal(Literal {
+                                        value: OEnum::Caller(Caller::Func(Function::Method(
+                                            value.clone(),
+                                        ))),
+                                    }),
+                                )?;
+
+                                methods_type.insert(method.clone(), value_type);
+                            }
+                            Some(methods_type)
+                        } else {
+                            None
+                        };
+
+                    let functions: Option<HashMap<String, Type>> =
+                        if let Some(functions) = class.functions.as_ref() {
+                            let mut functions_type: HashMap<String, Type> = HashMap::new();
+                            for (func, value) in functions {
+                                let value_type: Type = TypeInferrer::infer_type(
+                                    resolver,
+                                    &Expr::Literal(Literal {
+                                        value: OEnum::Caller(Caller::Func(Function::User(
+                                            value.clone(),
+                                        ))),
+                                    }),
+                                )?;
+
+                                functions_type.insert(func.clone(), value_type);
+                            }
+                            Some(functions_type)
+                        } else {
+                            None
+                        };
+
+                    Ok(Type::Class {
+                        name,
+                        super_class,
+                        fields,
+                        methods,
+                        functions,
+                    })
+                }
+                OEnum::Instance(instance) => {
+                    let class: Box<Type> = Box::new(TypeInferrer::infer_type(
+                        resolver,
+                        &Expr::Literal(Literal {
+                            value: OEnum::Caller(Caller::Class(
+                                instance.class.borrow().deep_clone(),
+                            )),
+                        }),
+                    )?);
+
+                    let fields: Option<HashMap<String, Type>> = {
+                        let mut fields: HashMap<String, Type> = HashMap::new();
+                        for (key, value) in instance.fields.borrow().iter() {
+                            let value_type = TypeInferrer::infer_type(
+                                resolver,
+                                &Expr::Literal(Literal {
+                                    value: value.get().clone(),
+                                }),
+                            )?;
+                            fields.insert(key.clone(), value_type);
+                        }
+                        Some(fields)
+                    };
+
+                    Ok(Type::Instance { class, fields })
+                }
             },
             Expr::Unary(Unary { l_opera, r_expr }) => {
                 let right_type: Type = TypeInferrer::infer_type(resolver, r_expr)?;
@@ -213,6 +324,60 @@ impl TypeInferrer {
                 arguments: _,
             }) => TypeInferrer::infer_type(resolver, callee),
             Expr::Variable(Variable { name }) => resolver.get_type(name),
+            Expr::Getter(Getter { expr, name }) => {
+                // var instance: class = class();
+                // class.callable();
+                // instance.callable();
+                // through Getter expr type, judgement who handle getter name type, and return type.
+                let caller_type: Type = TypeInferrer::infer_type(resolver, &expr)?;
+                match caller_type {
+                    Type::Class {
+                        name: _,
+                        super_class: _,
+                        fields: _,
+                        methods: _,
+                        functions: _,
+                    } => {
+                        if let Some(sub_type) = caller_type.get_type(name)? {
+                            Ok(sub_type.clone())
+                        } else {
+                            Err(JokerError::Resolver(ResolverError::Struct(
+                                StructError::report_error(
+                                    &name,
+                                    format!(
+                                        "[infer_type] Getter class type not get '{}'.",
+                                        name.lexeme
+                                    ),
+                                ),
+                            )))
+                        }
+                    }
+                    Type::Instance {
+                        class: _,
+                        fields: _,
+                    } => {
+                        if let Some(sub_type) = caller_type.get_type(name)? {
+                            Ok(sub_type.clone())
+                        } else {
+                            Err(JokerError::Resolver(ResolverError::Struct(
+                                StructError::report_error(
+                                    &name,
+                                    format!(
+                                        "[infer_type] Getter instance type not get '{}'.",
+                                        name.lexeme
+                                    ),
+                                ),
+                            )))
+                        }
+                    }
+                    _ => Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            name,
+                            String::from("Getter need left variable is impl getter."),
+                        ),
+                    ))),
+                }
+            }
             _ => Err(JokerError::Resolver(ResolverError::Struct(
                 StructError::report_error(
                     &Token::eof(0),
@@ -220,5 +385,88 @@ impl TypeInferrer {
                 ),
             ))),
         }
+    }
+    pub fn infer_class_stmt(resolver: &Resolver, stmt: &ClassStmt) -> Result<Type, JokerError> {
+        let name: Token = stmt.name.clone();
+        let super_class: Option<Box<Type>> = if let Some(super_class) = stmt.super_class.as_ref() {
+            Some(Box::new(TypeInferrer::infer_type(resolver, super_class)?))
+        } else {
+            None
+        };
+
+        let fields: Option<HashMap<String, Type>> = if let Some(fields) = stmt.fields.as_ref() {
+            let mut fields_type: HashMap<String, Type> = HashMap::new();
+            for stmt in fields {
+                if let Stmt::VarStmt(var_stmt) = stmt {
+                    let value_type: Type = if let Some(value) = var_stmt.value.as_ref() {
+                        TypeInferrer::infer_type(resolver, value)?
+                    } else if let Some(declared_type) = var_stmt.type_.as_ref() {
+                        declared_type.clone()
+                    } else {
+                        return Err(JokerError::Resolver(ResolverError::Struct(
+                            StructError::report_error(
+                                &var_stmt.name,
+                                format!(
+                                    "class fields variable need some type, but this '{}' not.",
+                                    var_stmt.name.lexeme
+                                ),
+                            ),
+                        )));
+                    };
+                    fields_type.insert(var_stmt.name.lexeme.clone(), value_type);
+                } else {
+                    unreachable!("[TypeInferrer::infer_class_stmt]: unreachable this arm.")
+                }
+            }
+
+            Some(fields_type)
+        } else {
+            None
+        };
+
+        let methods: Option<HashMap<String, Type>> = if let Some(methods) = stmt.methods.as_ref() {
+            let mut methods_type: HashMap<String, Type> = HashMap::new();
+            for stmt in methods {
+                if let Stmt::FnStmt(fn_stmt) = stmt {
+                    let value_type: Type = Type::Fn {
+                        params: fn_stmt.params.clone(),
+                        return_type: fn_stmt.return_type.clone(),
+                    };
+                    methods_type.insert(fn_stmt.name.lexeme.clone(), value_type);
+                } else {
+                    unreachable!("[TypeInferrer::infer_class_stmt]: unreachable this arm.")
+                }
+            }
+            Some(methods_type)
+        } else {
+            None
+        };
+
+        let functions: Option<HashMap<String, Type>> =
+            if let Some(functions) = stmt.functions.as_ref() {
+                let mut functions_type: HashMap<String, Type> = HashMap::new();
+                for stmt in functions {
+                    if let Stmt::FnStmt(fn_stmt) = stmt {
+                        let value_type: Type = Type::Fn {
+                            params: fn_stmt.params.clone(),
+                            return_type: fn_stmt.return_type.clone(),
+                        };
+                        functions_type.insert(fn_stmt.name.lexeme.clone(), value_type);
+                    } else {
+                        unreachable!("[TypeInferrer::infer_class_stmt]: unreachable this arm.")
+                    }
+                }
+                Some(functions_type)
+            } else {
+                None
+            };
+
+        Ok(Type::Class {
+            name,
+            super_class,
+            fields,
+            methods,
+            functions,
+        })
     }
 }

@@ -179,6 +179,9 @@ impl Token {
             line,
         )
     }
+    pub fn is_this(&self) -> bool {
+        self.lexeme.eq("this")
+    }
 }
 
 impl Display for Token {

@@ -1,14 +1,31 @@
-use std::fmt::Display;
+//! This file is Joker language in Rust impl rs
+//!
+//! - PS:
+//!     Hash Trait: hash value is in depend, not sequence.
+//!     so. hash HashMap cant through Hash.
+//!
+//!
+
+use std::{collections::HashMap, fmt::Display, hash::Hash};
 
 use crate::joker::{
+    callable::StructError,
     error::JokerError,
     parse::Parser,
+    resolver::ResolverError,
     token::{Token, TokenType},
 };
 
 use super::TypeInferrer;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub trait IsInstance {
+    type Err;
+    fn is_instance(&self, parent: &Self) -> Result<bool, Self::Err>;
+    fn contains_key(&self, name: &Token) -> Result<bool, Self::Err>;
+    fn get_type(&self, name: &Token) -> Result<Option<&Type>, Self::Err>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     I32,
     F64,
@@ -21,14 +38,59 @@ pub enum Type {
     },
     Class {
         name: Token,
+        super_class: Option<Box<Type>>,
+        fields: Option<HashMap<String, Type>>,
+        methods: Option<HashMap<String, Type>>,
+        functions: Option<HashMap<String, Type>>,
     },
     Instance {
-        name: Token,
+        class: Box<Type>,
+        fields: Option<HashMap<String, Type>>,
     },
+    This(Token),
     UserDefined(Token),
 }
 
 impl Type {
+    pub fn is_this(&self) -> bool {
+        matches!(self, Type::This(_))
+    }
+    pub fn is_class(&self) -> bool {
+        matches!(
+            self,
+            Type::Class {
+                name: _,
+                super_class: _,
+                fields: _,
+                methods: _,
+                functions: _
+            }
+        )
+    }
+    pub fn is_instance(&self) -> bool {
+        matches!(
+            self,
+            Type::Instance {
+                class: _,
+                fields: _
+            }
+        )
+    }
+    pub fn is_class_param(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Type::This(class),
+                Type::Class {
+                    name,
+                    super_class: _,
+                    fields: _,
+                    methods: _,
+                    functions: _,
+                },
+            ) => class.eq(name),
+            _ => self.eq_type(other),
+        }
+    }
     pub fn eq_type(&self, other: &Self) -> bool {
         match (self, other) {
             (Type::I32, Type::I32) => true,
@@ -60,11 +122,13 @@ impl Type {
 
                     if ps1.len() != ps2.len() {
                         return false;
-                    } else if ps1
-                        .iter()
-                        .zip(ps2)
-                        .all(|(p1, p2)| p1.get_type().eq(p2.get_type()))
-                    {
+                    } else if {
+                        ps2[0].get_type().is_class_param(ps1[0].get_type())
+                            && ps1[1..]
+                                .iter()
+                                .zip(ps2[1..].iter())
+                                .all(|(p1, p2)| p1.get_type().eq_type(p2.get_type()))
+                    } {
                         if r1.is_none() && r2.is_none() {
                             return true;
                         } else if r1.is_some() && r2.is_some() {
@@ -79,10 +143,291 @@ impl Type {
                     return false;
                 }
             }
-            (Type::Class { name: name1 }, Type::Class { name: name2 }) => name1 == name2,
-            (Type::Instance { name: name1 }, Type::Instance { name: name2 }) => name1 == name2,
+            (
+                Type::Class {
+                    name: n1,
+                    super_class: sc1,
+                    fields: f1,
+                    methods: m1,
+                    functions: fn1,
+                },
+                Type::Class {
+                    name: n2,
+                    super_class: sc2,
+                    fields: f2,
+                    methods: m2,
+                    functions: fn2,
+                },
+            ) => {
+                if n1 != n2 {
+                    return false;
+                }
+
+                if sc1.is_none() && sc2.is_none() {
+                    // Both super_class are None
+                } else if sc1.is_some() && sc2.is_some() {
+                    if !sc1.as_ref().unwrap().eq_type(sc2.as_ref().unwrap()) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+
+                if f1.is_none() && f2.is_none() {
+                    // Both fields are None
+                } else if f1.is_some() && f2.is_some() {
+                    if f1.as_ref().unwrap() != f2.as_ref().unwrap() {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+
+                if m1.is_none() && m2.is_none() {
+                    // Both methods are None
+                } else if m1.is_some() && m2.is_some() {
+                    if m1.as_ref().unwrap() != m2.as_ref().unwrap() {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+
+                if fn1.is_none() && fn2.is_none() {
+                    // Both functions are None
+                } else if fn1.is_some() && fn2.is_some() {
+                    if fn1.as_ref().unwrap() != fn2.as_ref().unwrap() {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+
+                true
+            }
+            (
+                Type::Instance {
+                    class: c1,
+                    fields: _,
+                },
+                Type::Instance {
+                    class: c2,
+                    fields: _,
+                },
+            ) => c1.eq_type(c2),
             (Type::UserDefined(name1), Type::UserDefined(name2)) => name1 == name2,
             _ => false,
+        }
+    }
+}
+
+impl IsInstance for Type {
+    type Err = JokerError;
+    fn is_instance(&self, parent: &Self) -> Result<bool, Self::Err> {
+        if let Type::Instance { class, fields: _ } = self {
+            if parent.is_class() {
+                Ok(class.eq_type(parent))
+            } else {
+                Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+                    &Token::eof(0),
+                    format!("[IsInstance] Type mismatch: instance '{}', parent '{}'. Current type not's Class.",
+                    self, parent,
+                    )
+                ))))
+            }
+        } else {
+            Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+                &Token::eof(0),
+                format!("[IsInstance] Type mismatch: instance '{}', parent '{}'. Current type not's Instance.",
+                self, parent,
+                )
+            ))))
+        }
+    }
+    fn contains_key(&self, name: &Token) -> Result<bool, Self::Err> {
+        match self {
+            Type::Class {
+                name: _,
+                super_class,
+                fields,
+                methods,
+                functions,
+            } => {
+                if let Some(fields) = fields {
+                    if fields.contains_key(&name.lexeme) {
+                        return Ok(true);
+                    }
+                }
+
+                if let Some(methods) = methods {
+                    if methods.contains_key(&name.lexeme) {
+                        return Ok(true);
+                    }
+                }
+
+                if let Some(functions) = functions {
+                    if functions.contains_key(&name.lexeme) {
+                        return Ok(true);
+                    }
+                }
+
+                if let Some(super_class) = super_class {
+                    if super_class.contains_key(name)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Instance { class, fields } => {
+                if let Some(fields) = fields {
+                    if fields.contains_key(&name.lexeme) {
+                        return Ok(true);
+                    }
+                }
+                if class.contains_key(name)? {
+                    return Ok(true);
+                }
+                Ok(false)
+            }
+            _ => Err(JokerError::Resolver(ResolverError::Struct(
+                StructError::report_error(
+                    name,
+                    format!(
+                        "[IsInstance::contain_key] This type '{}' is not call.",
+                        self
+                    ),
+                ),
+            ))),
+        }
+    }
+    fn get_type(&self, name: &Token) -> Result<Option<&Type>, Self::Err> {
+        match self {
+            Type::Class {
+                name: _,
+                super_class,
+                fields,
+                methods,
+                functions,
+            } => {
+                if let Some(fields) = fields {
+                    if let Some(type_) = fields.get(&name.lexeme) {
+                        return Ok(Some(type_))
+                    }
+                }
+
+                if let Some(methods) = methods {
+                    if let Some(type_) = methods.get(&name.lexeme) {
+                        return Ok(Some(type_));
+                    }
+                }
+
+                if let Some(functions) = functions {
+                    if let Some(type_) = functions.get(&name.lexeme) {
+                        return Ok(Some(type_));
+                    }
+                }
+
+                if let Some(super_class) = super_class {
+                    if let Some(type_) = super_class.get_type(name)? {
+                        return Ok(Some(type_));
+                    }
+                }
+                Ok(None)
+            }
+            Type::Instance { class, fields } => {
+                if let Some(fields) = fields {
+                    if let Some(type_) = fields.get(&name.lexeme) {
+                        return Ok(Some(type_));
+                    }
+                }
+                if let Some(type_) = class.get_type(name)? {
+                    return Ok(Some(type_));
+                }
+                Ok(None)
+            }
+            _ => Err(JokerError::Resolver(ResolverError::Struct(
+                StructError::report_error(
+                    name,
+                    format!(
+                        "[IsInstance::contain_key] This type '{}' don't get type, need class type or instance type.",
+                        self
+                    ),
+                ))))
+        }
+    }
+}
+
+impl Hash for Type {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Type::Null => 0.hash(state),
+            Type::I32 => 1.hash(state),
+            Type::F64 => 2.hash(state),
+            Type::Str => 3.hash(state),
+            Type::Bool => 4.hash(state),
+            Type::Fn {
+                params,
+                return_type,
+            } => {
+                5.hash(state);
+                if let Some(params) = params {
+                    for pair in params {
+                        pair.hash(state);
+                    }
+                }
+                if let Some(return_type) = return_type {
+                    return_type.hash(state);
+                }
+            }
+            Type::Class {
+                name,
+                super_class,
+                fields,
+                methods,
+                functions,
+            } => {
+                6.hash(state);
+                name.hash(state);
+                if let Some(super_class) = super_class {
+                    super_class.hash(state);
+                }
+                if let Some(fields) = fields {
+                    for (key, value) in fields {
+                        key.hash(state);
+                        value.hash(state);
+                    }
+                }
+                if let Some(methods) = methods {
+                    for (key, value) in methods {
+                        key.hash(state);
+                        value.hash(state);
+                    }
+                }
+                if let Some(functions) = functions {
+                    for (key, value) in functions {
+                        key.hash(state);
+                        value.hash(state);
+                    }
+                }
+            }
+            Type::Instance { class, fields } => {
+                7.hash(state);
+                class.hash(state);
+                if let Some(fields) = fields {
+                    for (key, value) in fields {
+                        key.hash(state);
+                        value.hash(state);
+                    }
+                }
+            }
+            Type::This(class) => {
+                8.hash(state);
+                class.hash(state);
+            }
+            Type::UserDefined(token) => {
+                9.hash(state);
+                token.hash(state);
+            }
         }
     }
 }
@@ -112,8 +457,15 @@ impl Display for Type {
                     None => write!(f, "Fn({})", params),
                 }
             }
-            Type::Class { name } => write!(f, "class({})", name.lexeme),
-            Type::Instance { name } => write!(f, "instance({})", name.lexeme),
+            Type::Class {
+                name,
+                super_class: _,
+                fields: _,
+                methods: _,
+                functions: _,
+            } => write!(f, "class({})", name.lexeme),
+            Type::Instance { class, fields: _ } => write!(f, "instance({})", class),
+            Type::This(class) => write!(f, "{}", class.lexeme),
             Type::UserDefined(name) => write!(f, "{}", name.lexeme),
         }
     }
@@ -169,19 +521,26 @@ impl ParamPair {
             ParamPair::This { param: _, type_ } => type_,
         }
     }
+    pub fn set_type(&mut self, new_type: Type) {
+        match self {
+            ParamPair::Normal { param: _, type_ } => *type_ = new_type,
+            ParamPair::Label { type_ } => *type_ = new_type,
+            ParamPair::This { param: _, type_ } => *type_ = new_type,
+        }
+    }
     pub fn parse<F: FromParamPair>(&self) -> Result<F, F::Err> {
         FromParamPair::from_param_pair(self)
     }
     pub fn parse_ref<F: FromParamPair>(&self) -> Result<&F, F::Err> {
         FromParamPair::from_param_pair_ref(self)
     }
-    pub fn this_with_parse(parser: &mut Parser) -> Result<ParamPair, JokerError> {
+    pub fn this_with_parse(parser: &mut Parser, class: &Token) -> Result<ParamPair, JokerError> {
         Ok(ParamPair::This {
             param: parser.consume(
                 &[TokenType::This],
                 String::from("Expect class method 'this' name."),
             )?,
-            type_: Type::Null,
+            type_: Type::This(class.clone()),
         })
     }
     pub fn normal_with_parse(parser: &mut Parser) -> Result<ParamPair, JokerError> {
@@ -200,6 +559,9 @@ impl ParamPair {
     pub fn label_with_parse(parser: &mut Parser) -> Result<ParamPair, JokerError> {
         let type_: Type = TypeInferrer::parse_type(parser)?;
         Ok(ParamPair::Label { type_ })
+    }
+    pub fn eq_type(&self, other: &Self) -> bool {
+        self.get_type().eq_type(other.get_type())
     }
     pub fn as_ref(&self) -> &Self {
         self

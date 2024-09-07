@@ -91,15 +91,50 @@ fn main() {
 
 
     class Point {
+        var inner_x: i32 = 10000;
         var x: i32;
         var y: i32;
+
+        fn init(this, x: i32, y: i32) {
+            this.x = x;
+            this.y = y;
+        }
+        fn get_x(this) -> i32 {
+            return this.x;
+        }
+        fn add_into(a: i32, b: i32) -> i32 {
+            return a + b;
+        }
     }
 
-    var j: Point = Point();
+    // create class instance default call init method.
+    var j: Point = Point(1000, 2000);
+    print j.x;
+    print j.y;
+
+    print "get x value";
+    var j_get_x: Fn(Point) -> i32 = Point.get_x;
+    
+    print "add into value";
+    print j.add_into(10, 20);
+
+    // setter class parameter.
     j.x = 10;
     j.y = 20;
+
+    // getter class parameter.
+    print j.x;
+    print j.y;
+
+    // show class instance.
     print j;
 
+    // class getter class parameter.
+    print Point.inner_x;
+
+    // class function call.
+    var j_add_into: Fn(i32, i32) -> i32 = Point.add_into;
+    print j_add_into(10, 20);
 }
 
 main();

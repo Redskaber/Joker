@@ -21,8 +21,8 @@ pub struct Class {
     pub name: Token,
     pub super_class: Option<Box<Class>>,
     pub fields: Option<HashMap<String, Option<Object>>>,
-    methods: Option<HashMap<String, MethodFunction>>,
-    functions: Option<HashMap<String, UserFunction>>,
+    pub methods: Option<HashMap<String, MethodFunction>>,
+    pub functions: Option<HashMap<String, UserFunction>>,
 }
 
 impl DeepClone for Class {

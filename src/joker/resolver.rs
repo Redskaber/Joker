@@ -26,7 +26,7 @@ use super::{
     error::{JokerError, ReportError},
     interpreter::Interpreter,
     token::{Token, TokenType},
-    types::{ParamPair, Type, TypeInferrer},
+    types::{IsInstance, ParamPair, Type, TypeInferrer},
 };
 
 pub trait StmtResolver<T> {
@@ -383,12 +383,21 @@ impl StmtResolver<()> for Resolver {
             }
         }
         if let Some(stmts) = stmt.methods.as_ref() {
+            // value check
             self.scopes_stack
                 .borrow()
                 .last()
                 .unwrap()
                 .borrow_mut()
                 .insert(Key(Token::this(0)), VarStatus::Used);
+            // type check
+            self.type_env
+                .borrow()
+                .last()
+                .unwrap()
+                .borrow_mut()
+                .insert(stmt.name.lexeme.clone(), Type::This(stmt.name.clone()));
+
             for stmt in stmts {
                 if let Stmt::FnStmt(func) = stmt {
                     StmtResolver::resolve_method(self, func)?;
@@ -468,15 +477,29 @@ impl StmtResolver<()> for Resolver {
             )))
         }
     }
+    // var a: declared_type = value;
+    // var b: declared_type = caller.value;
+    // var c: declared_type = caller.callable();
     fn resolve_var(&self, stmt: &VarStmt) -> Result<(), JokerError> {
         let value_type: Option<Type> = if let Some(expr) = stmt.value.as_ref() {
             if let Expr::Call(call) = expr {
-                match TypeInferrer::infer_type(self, &call.callee)? {
+                let type_: Type = TypeInferrer::infer_type(self, &call.callee)?;
+                match type_ {
                     Type::Fn {
                         params: _,
                         return_type,
                     } => return_type.map(|return_type| *return_type),
-                    _ => None,
+                    Type::Class {
+                        name: _,
+                        super_class: _,
+                        fields: _,
+                        methods: _,
+                        functions: _,
+                    } => Some(Type::Instance {
+                        class: Box::new(type_),
+                        fields: None,
+                    }),
+                    _ => Some(type_),
                 }
             } else {
                 Some(TypeInferrer::infer_type(self, expr)?)
@@ -485,12 +508,25 @@ impl StmtResolver<()> for Resolver {
             None
         };
 
-        let declared_type: Option<Type> = if let Some(declared_type) = stmt.type_.as_ref() {
+        let declared_type: Option<Type> = if let Some(declared_type) = stmt.type_.clone().as_mut() {
             if let Type::UserDefined(token) = declared_type {
                 Some(TypeInferrer::infer_type(
                     self,
                     &Expr::Variable(Variable::new(token.clone())),
                 )?)
+            } else if let Type::Fn {
+                params,
+                return_type: _,
+            } = declared_type
+            {
+                if let Some(params) = params {
+                    for pair in params {
+                        if let Type::UserDefined(label) = pair.get_type() {
+                            pair.set_type(self.get_type(label)?);
+                        }
+                    }
+                }
+                Some(declared_type.clone())
             } else {
                 Some(declared_type.clone())
             }
@@ -501,15 +537,20 @@ impl StmtResolver<()> for Resolver {
         if let Some(value_type) = value_type {
             if let Some(declared_type) = declared_type {
                 if !declared_type.eq_type(&value_type) {
-                    Err(JokerError::Resolver(ResolverError::Struct(
-                        StructError::report_error(
-                            &stmt.name,
-                            format!(
-                                "Type mismatch: expected {}, found {}",
-                                declared_type, value_type
+                    if !IsInstance::is_instance(&value_type, &declared_type)? {
+                        Err(JokerError::Resolver(ResolverError::Struct(
+                            StructError::report_error(
+                                &stmt.name,
+                                format!(
+                                    "Type mismatch: expected {}, found {}",
+                                    declared_type, value_type
+                                ),
                             ),
-                        ),
-                    )))
+                        )))
+                    } else {
+                        self.declare_type(stmt.name.lexeme.clone(), value_type);
+                        Ok(())
+                    }
                 } else {
                     self.declare_type(stmt.name.lexeme.clone(), value_type);
                     Ok(())
@@ -537,10 +578,6 @@ impl ExprResolver<()> for Resolver {
     // setter| assign: name = expr
     fn resolve_local(&self, expr: Expr, name: &Token) -> Result<(), JokerError> {
         for (layer, scope) in self.scopes_stack.borrow().iter().rev().enumerate() {
-            // println!(
-            //     "[{:>10}][{:>20}]:\tname: {},\tlayer: {},\tscope: {:?}",
-            //     "resolve", "resolve_local", name, layer, scope
-            // );
             if let Entry::Occupied(mut entry) = scope.borrow_mut().entry(Key(name.clone())) {
                 self.interpreter.resolve(expr, layer);
                 match entry.get() {
@@ -599,10 +636,13 @@ impl ExprResolver<()> for Resolver {
                 params,
                 return_type: _,
             } => {
-                if params
-                    .as_ref()
-                    .map_or(false, |p| p.len() != expr.arguments.len())
-                {
+                if params.as_ref().map_or(false, |p| {
+                    if p[0].is_this() {
+                        p.len() - 1 != expr.arguments.len()
+                    } else {
+                        p.len() != expr.arguments.len()
+                    }
+                }) {
                     return Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
                             &expr.paren,
@@ -669,15 +709,22 @@ impl ExprResolver<()> for Resolver {
                 }
                 Ok(())
             }
-            // class
-            _ => {
-                Err(JokerError::Resolver(ResolverError::Struct(
-                    StructError::report_error(
-                        &expr.paren,
-                        String::from("Can only call functions and classes."),
-                    ),
-                )))
+            Type::Class {
+                name,
+                super_class: _,
+                fields: _,
+                methods: _,
+                functions: _,
+            } => {
+                let _class_type: Type = self.get_type(&name)?;
+                Ok(())
             }
+            _ => Err(JokerError::Resolver(ResolverError::Struct(
+                StructError::report_error(
+                    &expr.paren,
+                    String::from("Can only call functions and classes."),
+                ),
+            ))),
         }
     }
 }
@@ -753,9 +800,7 @@ impl StmtVisitor<()> for Resolver {
         StmtResolver::resolve_class(self, stmt)?;
         self.declare_type(
             stmt.name.lexeme.clone(),
-            Type::Class {
-                name: stmt.name.clone(),
-            },
+            TypeInferrer::infer_class_stmt(self, stmt)?,
         );
         Ok(())
     }
