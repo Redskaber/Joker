@@ -93,8 +93,8 @@ impl Interpreter {
         stmt.accept(self)
     }
     pub fn execute_block(&self, stmts: &[Stmt], block_env: Env) -> Result<(), JokerError> {
-        let previous = self.run_env.replace(Rc::new(RefCell::new(block_env)));
-        let result = stmts.iter().try_for_each(|stmt| self.execute(stmt));
+        let previous: Rc<RefCell<Env>> = self.run_env.replace(Rc::new(RefCell::new(block_env)));
+        let result: Result<(), JokerError> = stmts.iter().try_for_each(|stmt| self.execute(stmt));
         self.run_env.replace(previous);
         result
     }
@@ -108,17 +108,9 @@ impl Interpreter {
         result
     }
     pub fn resolve(&self, expr: Expr, depth: usize) {
-        // println!(
-        //     "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
-        //     "inter", "resolve", "expr", expr, depth
-        // );
         self.local_resolve.borrow_mut().insert(expr, depth);
     }
     fn look_up_variable(&self, name: &Token, expr: &Expr) -> Result<Option<Object>, JokerError> {
-        // println!(
-        //     "[{:>10}][{:>20}]:\t{:<5}: {:?},\tname: {:?}",
-        //     "inter", "look_up_variable", "expr", expr, name
-        // );
         match self.local_resolve.borrow().get(expr) {
             Some(depth) => self
                 .run_env

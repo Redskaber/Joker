@@ -48,9 +48,7 @@ fn counter(name: str, n: i32) -> i32 {
     print name;
     return n + 1;
 }
-*/
 
-fn main() {
     var a: i32 = 10;
     var b: f64 = 3.14;
     var c: bool = true;
@@ -135,77 +133,42 @@ fn main() {
     // class function call.
     var j_add_into: Fn(i32, i32) -> i32 = Point.add_into;
     print j_add_into(10, 20);
+*/
+
+fn main() {
+    class Point {
+        var x: i32;
+        var y: i32;
+        fn init(this, x: i32, y: i32) {
+            this.x = x;
+            this.y = y;
+        }
+        fn aux_display(p: Point) -> None { 
+            print p; // don't use p.x or p.y, it will cause error.
+        }
+    }
+
+    class Circle: Point {
+        var radius: f64;
+        fn init(this, x: i32, y: i32, radius: f64) {
+            super.init(x, y);
+            this.radius = radius;
+        }
+        fn area(this) -> f64 {
+            return 3.1415926 * this.radius * this.radius;
+        }
+    }
+
+    var p: Point = Point(10, 20);
+    var c: Circle = Circle(10, 20, 3.0);
+
+    print p;
+    print "aux_display:";
+    p.aux_display(p);
+    
+    print "Circle:";
+    print c;
+    print c.area();
 }
 
 main();
-
-/*
-type_env: RefCell {
-    value: [
-        RefCell {
-            value: {},
-        },
-        RefCell {
-            value: {
-                "c": Bool,
-                "a": I32,
-                "f": Fn {
-                    params: Some(
-                        [
-                            Normal {
-                                param: Token(ttype: Identifier, lexeme: "x", literal: Literal(Null), line: 59),
-                                type_: I32,
-                            },
-                        ],
-                    ),
-                    return_type: Some(
-                        I32,
-                    ),
-                },
-                "g": Fn {
-                    params: Some(
-                        [
-                            Normal {
-                                param: Token(ttype: Identifier, lexeme: "name", literal: Literal(Null), line: 63),
-                                type_: Str,
-                            },
-                            Normal {
-                                param: Token(ttype: Identifier, lexeme: "n", literal: Literal(Null), line: 63),
-                                type_: I32,
-                            },
-                        ],
-                    ),
-                    return_type: Some(
-                        I32,
-                    ),
-                },
-                "e": Null,
-                "h": I32,
-                "b": F64,
-                "d": Str,
-                "local_fn": Fn {
-                    params: None,
-                    return_type: None,
-                },
-                "counter": Fn {
-                    params: Some(
-                        [
-                            Normal {
-                                param: Token(ttype: Identifier, lexeme: "name", literal: Literal(Null), line: 63),
-                                type_: Str,
-                            },
-                            Normal {
-                                param: Token(ttype: Identifier, lexeme: "n", literal: Literal(Null), line: 63),
-                                type_: I32,
-                            },
-                        ],
-                    ),
-                    return_type: Some(
-                        I32,
-                    ),
-                },
-            },
-        },
-    ],
-}
-*/

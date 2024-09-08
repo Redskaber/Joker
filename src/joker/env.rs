@@ -56,11 +56,6 @@ impl Env {
         current_env
     }
     pub fn get_with_depth(&self, depth: usize, name: &Token) -> Result<Option<Object>, JokerError> {
-        // println!(
-        //     "[{:>10}][{:>20}]:\t{:<5}: {:?},\tdepth: {}",
-        //     "env", "get_with_depth", "name", name, depth
-        // );
-
         match depth {
             0 => {
                 if let Some(object) = self.symbol.get(&name.lexeme) {

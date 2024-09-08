@@ -122,13 +122,12 @@ impl Type {
 
                     if ps1.len() != ps2.len() {
                         return false;
-                    } else if {
-                        ps2[0].get_type().is_class_param(ps1[0].get_type())
-                            && ps1[1..]
-                                .iter()
-                                .zip(ps2[1..].iter())
-                                .all(|(p1, p2)| p1.get_type().eq_type(p2.get_type()))
-                    } {
+                    } else if ps2[0].get_type().is_class_param(ps1[0].get_type())
+                        && ps1[1..]
+                            .iter()
+                            .zip(ps2[1..].iter())
+                            .all(|(p1, p2)| p1.get_type().eq_type(p2.get_type()))
+                    {
                         if r1.is_none() && r2.is_none() {
                             return true;
                         } else if r1.is_some() && r2.is_some() {

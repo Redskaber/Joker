@@ -358,12 +358,21 @@ impl StmtResolver<()> for Resolver {
             ExprResolver::resolve(self, super_expr)?;
             // local -> this(instance) -> >super class< -> global
             self.begin_scope();
+            // value check
             self.scopes_stack
                 .borrow()
                 .last()
                 .unwrap()
                 .borrow_mut()
                 .insert(Key(Token::super_(0)), VarStatus::Used);
+            // type check
+            let super_type: Type = TypeInferrer::infer_type(self, super_expr)?;
+            self.type_env
+                .borrow()
+                .last()
+                .unwrap()
+                .borrow_mut()
+                .insert(String::from("super"), super_type);
 
             true
         } else {
@@ -447,9 +456,17 @@ impl StmtResolver<()> for Resolver {
                     )));
                 }
                 for param in params[1..].iter() {
-                    if let ParamPair::Normal { param, type_: _ } = param {
+                    if let ParamPair::Normal { param, type_ } = param {
+                        // value check
                         self.declare(param)?;
                         self.define(param)?;
+                        // type check
+                        self.type_env
+                            .borrow()
+                            .last()
+                            .unwrap()
+                            .borrow_mut()
+                            .insert(param.lexeme.clone(), type_.clone());
                     } else {
                         return Err(JokerError::Resolver(ResolverError::Struct(
                             StructError::report_error(
@@ -660,8 +677,18 @@ impl ExprResolver<()> for Resolver {
                         for (arg, param_pair) in expr.arguments.iter().zip(param_types[1..].iter())
                         {
                             if let ParamPair::Normal { param: _, type_ } = param_pair {
-                                let arg_type = TypeInferrer::infer_type(self, arg)?;
-                                if arg_type != *type_ {
+                                let arg_type: Type = TypeInferrer::infer_type(self, arg)?;
+                                let param_type: Type = if let Type::UserDefined(token) = type_ {
+                                    TypeInferrer::infer_type(
+                                        self,
+                                        &Expr::Variable(Variable {
+                                            name: token.clone(),
+                                        }),
+                                    )?
+                                } else {
+                                    type_.clone()
+                                };
+                                if !arg_type.eq_type(&param_type) && !IsInstance::is_instance(&arg_type, &param_type)? {
                                     return Err(JokerError::Resolver(ResolverError::Struct(
                                         StructError::report_error(
                                             &expr.paren,
@@ -684,8 +711,18 @@ impl ExprResolver<()> for Resolver {
                     } else {
                         for (arg, param_pair) in expr.arguments.iter().zip(param_types.iter()) {
                             if let ParamPair::Normal { param: _, type_ } = param_pair {
-                                let arg_type = TypeInferrer::infer_type(self, arg)?;
-                                if arg_type != *type_ {
+                                let arg_type: Type = TypeInferrer::infer_type(self, arg)?;
+                                let param_type: Type = if let Type::UserDefined(token) = type_ {
+                                    TypeInferrer::infer_type(
+                                        self,
+                                        &Expr::Variable(Variable {
+                                            name: token.clone(),
+                                        }),
+                                    )?
+                                } else {
+                                    type_.clone()
+                                };
+                                if !arg_type.eq_type(&param_type) && !IsInstance::is_instance(&arg_type, &param_type)? {
                                     return Err(JokerError::Resolver(ResolverError::Struct(
                                         StructError::report_error(
                                             &expr.paren,

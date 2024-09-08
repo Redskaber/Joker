@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use crate::joker::{
     ast::{
         Assign, Binary, Call, ClassStmt, Expr, Getter, Grouping, Lambda, Literal, Logical, Stmt,
-        Trinomial, Unary, Variable,
+        Super, Trinomial, Unary, Variable,
     },
     callable::StructError,
     error::JokerError,
@@ -329,7 +329,7 @@ impl TypeInferrer {
                 // class.callable();
                 // instance.callable();
                 // through Getter expr type, judgement who handle getter name type, and return type.
-                let caller_type: Type = TypeInferrer::infer_type(resolver, &expr)?;
+                let caller_type: Type = TypeInferrer::infer_type(resolver, expr)?;
                 match caller_type {
                     Type::Class {
                         name: _,
@@ -343,7 +343,7 @@ impl TypeInferrer {
                         } else {
                             Err(JokerError::Resolver(ResolverError::Struct(
                                 StructError::report_error(
-                                    &name,
+                                    name,
                                     format!(
                                         "[infer_type] Getter class type not get '{}'.",
                                         name.lexeme
@@ -361,7 +361,7 @@ impl TypeInferrer {
                         } else {
                             Err(JokerError::Resolver(ResolverError::Struct(
                                 StructError::report_error(
-                                    &name,
+                                    name,
                                     format!(
                                         "[infer_type] Getter instance type not get '{}'.",
                                         name.lexeme
@@ -378,10 +378,38 @@ impl TypeInferrer {
                     ))),
                 }
             }
+            Expr::Super(Super { keyword, method }) => {
+                let super_type: Type = resolver.get_type(keyword)?;
+                if super_type.is_class() {
+                    if let Some(method_type) = IsInstance::get_type(&super_type, method)? {
+                        Ok(method_type.clone())
+                    } else {
+                        Err(JokerError::Resolver(ResolverError::Struct(
+                            StructError::report_error(
+                                keyword,
+                                format!(
+                                    "This keyword super: '{}', not getter method: '{}'.",
+                                    super_type, method
+                                ),
+                            ),
+                        )))
+                    }
+                } else {
+                    Err(JokerError::Resolver(ResolverError::Struct(
+                        StructError::report_error(
+                            keyword,
+                            format!("This keyword is not super class object. '{}'", super_type),
+                        ),
+                    )))
+                }
+            }
             _ => Err(JokerError::Resolver(ResolverError::Struct(
                 StructError::report_error(
                     &Token::eof(0),
-                    String::from("Unsupported type inference"),
+                    format!(
+                        "[TypeInferrer::infer_type] Unsupported type inference: '{}'.",
+                        expr
+                    ),
                 ),
             ))),
         }
