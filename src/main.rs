@@ -11,4 +11,5 @@ fn main() {
     // idea::resolve::resolve_main();
     // idea::types::types_main();
     // idea::interpreter::interpreter_main();
+    // idea::object_operator::object_operator();
 }

@@ -815,18 +815,34 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         //     "[{:>10}][{:>20}]:\t{:<5}: {}",
         //     "inter", "visit_setter", "expr", expr
         // );
+        /*
+            Setter(
+                l_expr: This(keyword: This),
+                name: x,
+                r_expr: Binary(
+                    l_expr: Getter(
+                        expr: This(keyword: This),
+                        name: x
+                    ),
+                    m_opera: +,
+                    r_expr: Literal(value: 1)
+                )
+            )
+        */
         let object: Object = self.value_or_raise(
             &expr.name,
             &expr.l_expr,
             String::from("setter object invalid left value."),
         )?;
+        // if this handle in object.get_mut, can raise error:
+        //      - error: already mutably borrowed: BorrowError
+        let value: Object = self.value_or_raise(
+            &expr.name,
+            &expr.r_expr,
+            String::from("setter object invalid right value."),
+        )?;
         let result: Result<Option<Object>, JokerError> = match &mut *object.get_mut() {
             OEnum::Instance(instance) => {
-                let value: Object = self.value_or_raise(
-                    &expr.name,
-                    &expr.r_expr,
-                    String::from("setter object invalid right value."),
-                )?;
                 instance.setter(&expr.name, value.clone())?;
                 Ok(Some(value))
             }

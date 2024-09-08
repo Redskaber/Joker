@@ -41,6 +41,10 @@ TODO:
             class infer move to resolve static check.
       - [v] add lambda function type inference.
       - [v] {fn, lambda, binary, unary, logical, assign}add return type inference and return type check.
+      - [v] resolve static check for class instance obejct assign and get. handler this used this parameters.
+        - [v] error: already mutably borrowed: BorrowError
+      - [] add class method and parameter public, private, protected.
+        - [] add root keyword {pub} , default is private, need add pub set?.
       - [] add function parameters type inference.
       - [] add class attribute type inference.
       - [] add class method type inference.

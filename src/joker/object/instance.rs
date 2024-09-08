@@ -117,7 +117,10 @@ impl Instance {
     pub fn setter(&mut self, name: &Token, value: Object) -> Result<(), JokerError> {
         if let Ok(op_obj) = self.getter(name) {
             match op_obj {
-                Some(object) => object.set(value.get().clone()),
+                Some(object) => {
+                    let new_value = value.get().clone();
+                    object.set(new_value);
+                }
                 None => {
                     self.fields.borrow_mut().insert(name.to_string(), value);
                 }

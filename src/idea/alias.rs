@@ -39,11 +39,11 @@ pub fn d() {
     println!("d: d.call(): {}, d.arity: {}", d().call(20, 200).unwrap(), d().arity());
 
     struct LoxFn<F: Callable> {
-        fn: F,
+        inner: F,
     }
     impl<F: Callable> LoxFn<F> {
-        pub fn new(fn: impl Fn() -> LoxFn<F>) -> LoxFn<F> {
-            fn()
+        pub fn new(builder: impl Fn() -> LoxFn<F>) -> LoxFn<F> {
+            builder()
         }
     }
     let aa = LoxFn::new(||{
@@ -56,7 +56,7 @@ pub fn d() {
                 2
             }
         }
-        LoxFn::<Fn>{fn: Fn{}}
+        LoxFn::<Fn>{ inner: Fn{} }
     });
 
     let dd = LoxFn::new(||{
@@ -69,16 +69,16 @@ pub fn d() {
                 20
             }
         }
-        LoxFn::<Fn>{fn: Fn{}}
+        LoxFn::<Fn>{ inner: Fn{} }
     });
 
-    println!("aa: aa.call(): {}, aa.arity: {}", aa.fn.call(10, 100).unwrap(), aa.fn.arity());
-    println!("dd: dd.call(): {}, dd.arity: {}", dd.fn.call(20, 200).unwrap(), dd.fn.arity());
+    println!("aa: aa.call(): {}, aa.arity: {}", aa.inner.call(10, 100).unwrap(), aa.inner.arity());
+    println!("dd: dd.call(): {}, dd.arity: {}", dd.inner.call(20, 200).unwrap(), dd.inner.arity());
 
 
     #[derive(Clone)]
     struct DFn {
-        fn: Rc<dyn Callable>,
+        inner: Rc<dyn Callable>,
     }
     impl Debug for DFn {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -87,7 +87,7 @@ pub fn d() {
     }
     impl PartialEq for DFn {
         fn eq(&self, other: &Self) -> bool {
-            Rc::ptr_eq(&self.fn, &other.fn)
+            Rc::ptr_eq(&self.inner, &other.inner)
         }
     }
 
@@ -98,10 +98,10 @@ pub fn d() {
     }
     impl Callable for DFn {
         fn call(&self, int: i32, args: i32) -> Result<i32, String> {
-            self.fn.call(int, args)
+            self.inner.call(int, args)
         }
         fn arity(&self) -> usize {
-            self.fn.arity()
+            self.inner.arity()
         }
     }
     let df = ||{
@@ -114,7 +114,7 @@ pub fn d() {
                 10
             }
         }
-        DFn{fn: Rc::new(Fn{})}
+        DFn{ inner: Rc::new(Fn{}) }
     };
     let ef = ||{
         struct Fn;
@@ -126,7 +126,7 @@ pub fn d() {
                 20
             }
         }
-        DFn{fn: Rc::new(Fn{})}
+        DFn{ inner: Rc::new(Fn{}) }
     };
     println!("df: df().call(10, 100).unwrap(): {}, df().arity(): {}", df().call(10, 100).unwrap(), df().arity());
     println!("ef: ef().call(20, 200).unwrap(): {}, ef().arity(): {}", ef().call(20, 200).unwrap(), ef().arity());

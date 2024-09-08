@@ -1,4 +1,4 @@
-use obj_enum::{Class, Instance};
+use obj_enum::{Class, ClassInstance};
 
 
 mod obj_enum {
@@ -22,13 +22,13 @@ mod obj_enum {
 
     #[derive(Debug)]
     pub(super) enum Caller {
-        Fn(Fnction),
+        Fn(Function),
         Lambda(Lambda),
         Class(Class),
     }
 
     #[derive(Debug)]
-    pub(super) enum Fnction {
+    pub(super) enum Function {
         Native(NativeFunction),
         User(UserFunction),
     }
@@ -47,11 +47,11 @@ mod obj_enum {
 
     #[derive(Debug)]
     pub(super) enum Instance {
-        Class(Instance),
+        Class(ClassInstance),
     }
 
     #[derive(Debug)]
-    pub(super) struct  Instance {
+    pub(super) struct  ClassInstance {
         pub(super) class: Class,
         pub(super) fields: Option<HashMap<String, Object>>
     }
@@ -99,7 +99,7 @@ pub fn types_main() {
     println!("obj get: {:?}", obj.get());
     println!("obj get_mut: {:?}", obj.get_mut());
 
-    obj.set(OEnum::Instance(obj_enum::Instance::Class(Instance { 
+    obj.set(OEnum::Instance(obj_enum::Instance::Class(ClassInstance { 
         class: Class { name: String::from("Demo"), methods: None }, 
         fields: None,
     })));

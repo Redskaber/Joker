@@ -37,7 +37,7 @@ impl TypeInferrer {
     pub fn parse_type(parser: &mut Parser) -> Result<Type, JokerError> {
         let type_name: Token = parser.consume(
             &[TokenType::Identifier],
-            String::from("Expect type. but this not is."),
+            String::from("[TypeInferrer::parse_type] Expect type. but this not is."),
         )?;
         match type_name.lexeme.as_str() {
             "i32" => Ok(Type::I32),
@@ -57,7 +57,7 @@ impl TypeInferrer {
                 };
                 parser.consume(
                     &[TokenType::RightParen],
-                    String::from("Expect ')' after label parameters."),
+                    String::from("[TypeInferrer::parse_type] Expect ')' after label parameters."),
                 )?;
 
                 let return_type = if parser.is_match(&[TokenType::Arrow]) {
@@ -223,7 +223,7 @@ impl TypeInferrer {
                         StructError::report_error(
                             l_opera,
                             format!(
-                                "Type mismatch in unary expression, '{}' don't impl operator '{}'.",
+                                "[TypeInferrer::infer_type] Type mismatch in unary expression, '{}' don't impl operator '{}'.",
                                 right_type, l_opera.lexeme
                             ),
                         ),
@@ -243,7 +243,7 @@ impl TypeInferrer {
                     Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
                             m_opera,
-                            format!("Type mismatch in binary expression, left type '{}' and right type '{}'",
+                            format!("[TypeInferrer::infer_type] Type mismatch in binary expression, left type '{}' and right type '{}'",
                                 left_type,
                                 right_type
                             ),
@@ -252,11 +252,12 @@ impl TypeInferrer {
                 }
             }
             Expr::Grouping(Grouping { expr }) => TypeInferrer::infer_type(resolver, expr),
-            Expr::Assign(Assign { name, value: _ }) => {
-                Err(JokerError::Resolver(ResolverError::Struct(
-                    StructError::report_error(name, String::from("Assign don't inferrer type.")),
-                )))
-            }
+            Expr::Assign(Assign { name, value: _ }) => Err(JokerError::Resolver(
+                ResolverError::Struct(StructError::report_error(
+                    name,
+                    String::from("[TypeInferrer::infer_type] Assign don't inferrer type."),
+                )),
+            )),
             Expr::Logical(Logical {
                 l_expr,
                 m_opera,
@@ -270,7 +271,7 @@ impl TypeInferrer {
                     Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
                             m_opera,
-                            format!("Type mismatch in logical expression, left type '{}' and right type '{}'",
+                            format!("[TypeInferrer::infer_type] Type mismatch in logical expression, left type '{}' and right type '{}'",
                                 left_type,
                                 right_type
                             ),
@@ -292,7 +293,7 @@ impl TypeInferrer {
                     } else {
                         Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
                             &Token::eof(0),
-                            format!("Type mismatch in binary expression, left type '{}' and right type '{}'",
+                            format!("[TypeInferrer::infer_type] Type mismatch in binary expression, left type '{}' and right type '{}'",
                                 left_type,
                                 right_type,
                             ),
@@ -303,7 +304,7 @@ impl TypeInferrer {
                         StructError::report_error(
                             &Token::eof(0),
                             String::from(
-                                "Type mismatch in trinomial expression, but condition don't Bool.",
+                                "[TypeInferrer::infer_type] Type mismatch in trinomial expression, but condition don't Bool.",
                             ),
                         ),
                     )))
@@ -329,7 +330,14 @@ impl TypeInferrer {
                 // class.callable();
                 // instance.callable();
                 // through Getter expr type, judgement who handle getter name type, and return type.
+                // inner type need translate: UserDefined to base type.
                 let caller_type: Type = TypeInferrer::infer_type(resolver, expr)?;
+                let caller_type: Type = if let Type::UserDefined(token) = caller_type {
+                    TypeInferrer::infer_type(resolver, &Expr::Variable(Variable { name: token }))?
+                } else {
+                    caller_type
+                };
+
                 match caller_type {
                     Type::Class {
                         name: _,
@@ -345,7 +353,7 @@ impl TypeInferrer {
                                 StructError::report_error(
                                     name,
                                     format!(
-                                        "[infer_type] Getter class type not get '{}'.",
+                                        "[TypeInferrer::infer_type] Expected getter class type, found get '{}'.",
                                         name.lexeme
                                     ),
                                 ),
@@ -363,7 +371,7 @@ impl TypeInferrer {
                                 StructError::report_error(
                                     name,
                                     format!(
-                                        "[infer_type] Getter instance type not get '{}'.",
+                                        "[TypeInferrer::infer_type] Expected getter instance type, found get '{}'.",
                                         name.lexeme
                                     ),
                                 ),
@@ -373,7 +381,7 @@ impl TypeInferrer {
                     _ => Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
                             name,
-                            String::from("Getter need left variable is impl getter."),
+                            String::from("[TypeInferrer::infer_type] Expected getter need left variable is impl getter."),
                         ),
                     ))),
                 }
@@ -388,7 +396,7 @@ impl TypeInferrer {
                             StructError::report_error(
                                 keyword,
                                 format!(
-                                    "This keyword super: '{}', not getter method: '{}'.",
+                                    "[TypeInferrer::infer_type] This keyword super: '{}', not getter method: '{}'.",
                                     super_type, method
                                 ),
                             ),
@@ -398,7 +406,7 @@ impl TypeInferrer {
                     Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
                             keyword,
-                            format!("This keyword is not super class object. '{}'", super_type),
+                            format!("[TypeInferrer::infer_type] This keyword is not super class object. '{}'", super_type),
                         ),
                     )))
                 }

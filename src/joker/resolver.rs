@@ -688,7 +688,9 @@ impl ExprResolver<()> for Resolver {
                                 } else {
                                     type_.clone()
                                 };
-                                if !arg_type.eq_type(&param_type) && !IsInstance::is_instance(&arg_type, &param_type)? {
+                                if !arg_type.eq_type(&param_type)
+                                    && !IsInstance::is_instance(&arg_type, &param_type)?
+                                {
                                     return Err(JokerError::Resolver(ResolverError::Struct(
                                         StructError::report_error(
                                             &expr.paren,
@@ -722,7 +724,9 @@ impl ExprResolver<()> for Resolver {
                                 } else {
                                     type_.clone()
                                 };
-                                if !arg_type.eq_type(&param_type) && !IsInstance::is_instance(&arg_type, &param_type)? {
+                                if !arg_type.eq_type(&param_type)
+                                    && !IsInstance::is_instance(&arg_type, &param_type)?
+                                {
                                     return Err(JokerError::Resolver(ResolverError::Struct(
                                         StructError::report_error(
                                             &expr.paren,

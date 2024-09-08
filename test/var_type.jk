@@ -44,11 +44,13 @@ fn main() {
 
 main();
 
-fn counter(name: str, n: i32) -> i32 {
-    print name;
-    return n + 1;
-}
-
+    // fn closure
+    fn counter(name: str, n: i32) -> i32 {
+        print name;
+        return n + 1;
+    }
+    
+// TODO: var type check. and fn type check. base type create instance and class create instance.
     var a: i32 = 10;
     var b: f64 = 3.14;
     var c: bool = true;
@@ -87,7 +89,7 @@ fn counter(name: str, n: i32) -> i32 {
     var i: bool = used_trinomial(true);
     print i;
 
-
+// TODO: class create and instance. handler class method and functions call. class parameter and return type.
     class Point {
         var inner_x: i32 = 10000;
         var x: i32;
@@ -133,9 +135,8 @@ fn counter(name: str, n: i32) -> i32 {
     // class function call.
     var j_add_into: Fn(i32, i32) -> i32 = Point.add_into;
     print j_add_into(10, 20);
-*/
 
-fn main() {
+// TODO: class inheritance. handler class super keyword resolve static check and call method.
     class Point {
         var x: i32;
         var y: i32;
@@ -144,7 +145,7 @@ fn main() {
             this.y = y;
         }
         fn aux_display(p: Point) -> None { 
-            print p; // don't use p.x or p.y, it will cause error.
+            print p.x; 
         }
     }
 
@@ -164,11 +165,47 @@ fn main() {
 
     print p;
     print "aux_display:";
-    p.aux_display(p);
+    // p.aux_display(p);
     
     print "Circle:";
     print c;
     print c.area();
+
+// TODO: handler class this.p = this.p ... question: how to handle this.p in class method.
+    class Point {
+        var x: i32;
+        var y: i32;
+        fn init(this, x: i32, y: i32) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    fn move_point(p: Point, dx: i32, dy: i32) -> None {
+        // setter(getter, getter + dx)
+        p.x = p.x + dx; 
+        p.y = p.y + dy;
+    }
+
+    var p1: Point = Point(10, 20);
+    move_point(p1, 100, 200);
+    print p1;
+*/
+
+fn main() {
+    var a: i32 = 10;
+    var b: f64 = 3.14;
+    print a;
+    print b;
+
+    var c: bool = true;
+    print c;
+
+    var d: str = "Hello, world!";
+    print d;
+
+    var e = null;
+    print e;
 }
 
 main();
