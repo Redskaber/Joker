@@ -163,10 +163,10 @@ impl Token {
     pub fn this(line: usize) -> Token {
         Token::new(TokenType::This, String::from("this"), literal_null(), line)
     }
-    pub fn cls(line: usize) -> Token {
+    pub fn this_type(line: usize) -> Token {
         Token::new(
             TokenType::Identifier,
-            String::from("cls"),
+            String::from("This"),
             literal_null(),
             line,
         )
@@ -181,6 +181,9 @@ impl Token {
     }
     pub fn is_this(&self) -> bool {
         self.lexeme.eq("this")
+    }
+    pub fn is_type_this(&self) -> bool {
+        self.lexeme.eq("This")
     }
 }
 

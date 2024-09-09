@@ -21,6 +21,7 @@ use super::TypeInferrer;
 pub trait IsInstance {
     type Err;
     fn is_instance(&self, parent: &Self) -> Result<bool, Self::Err>;
+    fn is_inherit(&self, parent: &Self) -> Result<bool, JokerError>;
     fn contains_key(&self, name: &Token) -> Result<bool, Self::Err>;
     fn get_type(&self, name: &Token) -> Result<Option<&Type>, Self::Err>;
 }
@@ -47,7 +48,7 @@ pub enum Type {
         class: Box<Type>,
         fields: Option<HashMap<String, Type>>,
     },
-    This(Token),
+    This(Box<Type>),
     UserDefined(Token),
 }
 
@@ -81,13 +82,13 @@ impl Type {
             (
                 Type::This(class),
                 Type::Class {
-                    name,
+                    name: _,
                     super_class: _,
                     fields: _,
                     methods: _,
                     functions: _,
                 },
-            ) => class.eq(name),
+            ) => other.eq(&class),
             _ => self.eq_type(other),
         }
     }
@@ -225,11 +226,15 @@ impl IsInstance for Type {
     fn is_instance(&self, parent: &Self) -> Result<bool, Self::Err> {
         if let Type::Instance { class, fields: _ } = self {
             if parent.is_class() {
-                Ok(class.eq_type(parent))
+                if class.eq_type(parent) {
+                    Ok(true)
+                } else {
+                    IsInstance::is_inherit(class.as_ref(), parent)
+                }
             } else {
                 Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
                     &Token::eof(0),
-                    format!("[IsInstance] Type mismatch: instance '{}', parent '{}'. Current type not's Class.",
+                    format!("[IsInstance::is_instance] Type mismatch: instance '{}', parent '{}'. Current type not's Class.",
                     self, parent,
                     )
                 ))))
@@ -237,8 +242,44 @@ impl IsInstance for Type {
         } else {
             Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
                 &Token::eof(0),
-                format!("[IsInstance] Type mismatch: instance '{}', parent '{}'. Current type not's Instance.",
+                format!("[IsInstance::is_instance] Type mismatch: instance '{}', parent '{}'. Current type not's Instance.",
                 self, parent,
+                )
+            ))))
+        }
+    }
+    fn is_inherit(&self, parent: &Self) -> Result<bool, JokerError> {
+        if let Type::Class {
+            name: _,
+            super_class,
+            fields: _,
+            methods: _,
+            functions: _,
+        } = self
+        {
+            if parent.is_class() {
+                if let Some(super_class) = super_class {
+                    if super_class.eq_type(parent) {
+                        Ok(true)
+                    } else {
+                        IsInstance::is_inherit(super_class.as_ref(), parent)
+                    }
+                } else {
+                    Ok(false)
+                }
+            } else {
+                Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+                    &Token::eof(0),
+                    format!("[IsInstance::is_inherit] Type mismatch: Expected right Class type, found '{}'.",
+                    parent,
+                    )
+                ))))
+            }
+        } else {
+            Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+                &Token::eof(0),
+                format!("[IsInstance::is_inherit] Type mismatch: Expected left Class type, found '{}'.",
+                self,
                 )
             ))))
         }
@@ -464,7 +505,7 @@ impl Display for Type {
                 functions: _,
             } => write!(f, "class({})", name.lexeme),
             Type::Instance { class, fields: _ } => write!(f, "instance({})", class),
-            Type::This(class) => write!(f, "{}", class.lexeme),
+            Type::This(class) => write!(f, "{}", class),
             Type::UserDefined(name) => write!(f, "{}", name.lexeme),
         }
     }
@@ -539,7 +580,7 @@ impl ParamPair {
                 &[TokenType::This],
                 String::from("Expect class method 'this' name."),
             )?,
-            type_: Type::This(class.clone()),
+            type_: Type::UserDefined(class.clone()),
         })
     }
     pub fn normal_with_parse(parser: &mut Parser) -> Result<ParamPair, JokerError> {

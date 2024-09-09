@@ -61,7 +61,7 @@ impl TypeEnv {
         Err(JokerError::Env(EnvError::report_error(
             name,
             format!(
-                "Undefined variable '{}' at line {}.",
+                "[TypeEnv::get_with_depth] Undefined variable '{}' at line {}.",
                 name.lexeme, name.line
             ),
         )))
@@ -74,7 +74,10 @@ impl TypeEnv {
                 None => Err(JokerError::Resolver(ResolverError::Struct(
                     StructError::report_error(
                         name,
-                        format!("Unknown type for variable '{}'", name.lexeme),
+                        format!(
+                            "[TypeEnv::get_type] Unknown type for variable '{}'",
+                            name.lexeme
+                        ),
                     ),
                 ))),
             },
@@ -101,7 +104,7 @@ impl TypeEnv {
         Err(JokerError::Env(EnvError::report_error(
             name,
             format!(
-                "Undefined variable '{}' at line {}.",
+                "[TypeEnv::assign_with_depth] Undefined variable '{}' at line {}.",
                 name.lexeme, name.line
             ),
         )))
@@ -115,7 +118,7 @@ impl TypeEnv {
                 Some(enclosing) => enclosing.borrow_mut().assign(name, value),
                 None => Err(JokerError::Env(EnvError::report_error(
                     name,
-                    format!("Undefined variable '{}'.", name.lexeme),
+                    format!("[TypeEnv::assign] Undefined variable '{}'.", name.lexeme),
                 ))),
             }
         }

@@ -73,7 +73,7 @@ impl Env {
         Err(JokerError::Env(EnvError::report_error(
             name,
             format!(
-                "Undefined variable '{}' at line {}.",
+                "[Env::get_with_depth] Undefined variable '{}' at line {}.",
                 name.lexeme, name.line
             ),
         )))
@@ -85,7 +85,7 @@ impl Env {
                 Some(enclosing) => enclosing.borrow().get(name),
                 None => Err(JokerError::Env(EnvError::report_error(
                     name,
-                    format!("Undefined variable '{}'.", name.lexeme),
+                    format!("[Env::get] Undefined variable '{}'.", name.lexeme),
                 ))),
             },
         }
@@ -118,7 +118,7 @@ impl Env {
         Err(JokerError::Env(EnvError::report_error(
             name,
             format!(
-                "Undefined variable '{}' at line {}.",
+                "[Env::assign_with_depth] Undefined variable '{}' at line {}.",
                 name.lexeme, name.line
             ),
         )))

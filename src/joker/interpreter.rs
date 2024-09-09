@@ -815,20 +815,6 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         //     "[{:>10}][{:>20}]:\t{:<5}: {}",
         //     "inter", "visit_setter", "expr", expr
         // );
-        /*
-            Setter(
-                l_expr: This(keyword: This),
-                name: x,
-                r_expr: Binary(
-                    l_expr: Getter(
-                        expr: This(keyword: This),
-                        name: x
-                    ),
-                    m_opera: +,
-                    r_expr: Literal(value: 1)
-                )
-            )
-        */
         let object: Object = self.value_or_raise(
             &expr.name,
             &expr.l_expr,

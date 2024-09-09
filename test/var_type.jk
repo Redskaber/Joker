@@ -192,20 +192,56 @@ main();
     print p1;
 */
 
+class Point {
+    var x: i32;
+    var y: i32;
+    fn init(this, x: i32, y: i32) {
+        this.x = x;
+        this.y = y;
+    }
+    fn move(this, dx: i32, dy: i32) {
+        this.x = this.x + dx;
+        this.y = this.y + dy;
+
+        // can used this.x and this.y in class method.
+        // print this.x;
+        // print this.y;
+    }
+    fn aux_display(point: Point) -> None {
+        print point.x;
+        print point.y;
+    }
+}
+
+class Circle: Point {
+    var radius: f64;
+    fn init(this, x: i32, y: i32, radius: f64) -> This {
+        super.init(x, y);
+        this.radius = radius;
+    }
+    fn area(this) -> f64 {
+        return 3.1415926 * this.radius * this.radius;
+    }
+}
+
+class CirSc: Circle {
+    var color: str;
+    fn init(this, x: i32, y: i32, radius: f64, color: str) -> This {
+        super.init(x, y, radius);
+        this.color = color;
+    }
+}
+
 fn main() {
-    var a: i32 = 10;
-    var b: f64 = 3.14;
-    print a;
-    print b;
+    var p: Point = Point(10, 20);
+    var c: Circle = Circle(100, 200, 3.0);
+    var cs: CirSc = CirSc(1000, 2000, 4.0, "red");
+    
+    // p.move(100, 200);
+    // print p;
+    c.aux_display(c);
+    cs.aux_display(cs);
 
-    var c: bool = true;
-    print c;
-
-    var d: str = "Hello, world!";
-    print d;
-
-    var e = null;
-    print e;
 }
 
 main();

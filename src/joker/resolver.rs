@@ -200,6 +200,14 @@ impl Resolver {
         }
         Ok(())
     }
+    fn used(&self, name: &Token) -> Result<(), JokerError> {
+        if let Some(scope) = self.scopes_stack.borrow().last() {
+            scope
+                .borrow_mut()
+                .insert(Key(name.clone()), VarStatus::Used);
+        }
+        Ok(())
+    }
     fn check_var_status(&self, name: &Key, value_status: &VarStatus) -> Result<(), JokerError> {
         match value_status {
             VarStatus::Declare | VarStatus::Define => {
@@ -248,9 +256,20 @@ impl Resolver {
     }
     // wait type keyword
     // type name = expression;
-    pub fn declare_type(&self, name: String, ty: Type) {
+    pub fn declare_type(&self, name: &Token, ty: Type) -> Result<(), JokerError> {
         if let Some(scope) = self.type_env.borrow().last() {
-            scope.borrow_mut().insert(name, ty);
+            scope.borrow_mut().insert(name.lexeme.clone(), ty);
+            Ok(())
+        } else {
+            Err(JokerError::Resolver(ResolverError::Struct(
+                StructError::report_error(
+                    &name,
+                    format!(
+                        "[resolve::declare_type] Current scope is None.\ntype env: {:#?}",
+                        self.type_env
+                    ),
+                ),
+            )))
         }
     }
     pub fn get_type(&self, name: &Token) -> Result<Type, JokerError> {
@@ -260,7 +279,7 @@ impl Resolver {
             }
         }
         Err(JokerError::Resolver(ResolverError::Env(
-            EnvError::report_error(name, String::from("type env exist but type is None.")),
+            EnvError::report_error(name, String::from("Expected find type, but not find type.")),
         )))
     }
     pub fn last_fn(&self) -> Option<ReturnType> {
@@ -286,7 +305,7 @@ impl StmtResolver<()> for Resolver {
         Ok(())
     }
     fn resolve_function(&self, stmt: &FnStmt) -> Result<(), JokerError> {
-        if self.contains_any(&[
+        if self.last_any(&[
             ContextStatus::Class(ClassStatus::Class),
             ContextStatus::Class(ClassStatus::SuperClass),
         ]) {
@@ -311,7 +330,17 @@ impl StmtResolver<()> for Resolver {
                     self.declare(param)?;
                     self.define(param)?;
                     // type check
-                    self.declare_type(param.lexeme.clone(), type_.clone());
+                    let type_: Type = if let Type::UserDefined(token) = type_ {
+                        TypeInferrer::infer_type(
+                            self,
+                            &Expr::Variable(Variable {
+                                name: token.clone(),
+                            }),
+                        )?
+                    } else {
+                        type_.clone()
+                    };
+                    self.declare_type(param, type_)?;
                 } else {
                     return Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
@@ -344,7 +373,7 @@ impl StmtResolver<()> for Resolver {
         }
     }
     fn resolve_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
-        let exist_super = if let Some(super_expr) = stmt.super_class.as_ref() {
+        let exist_super: bool = if let Some(super_expr) = stmt.super_class.as_ref() {
             if let Expr::Variable(super_variable) = super_expr {
                 if super_variable.name.lexeme.eq(&stmt.name.lexeme) {
                     return Err(JokerError::Resolver(ResolverError::Env(
@@ -359,20 +388,12 @@ impl StmtResolver<()> for Resolver {
             // local -> this(instance) -> >super class< -> global
             self.begin_scope();
             // value check
-            self.scopes_stack
-                .borrow()
-                .last()
-                .unwrap()
-                .borrow_mut()
-                .insert(Key(Token::super_(0)), VarStatus::Used);
+            self.declare(&Token::super_(stmt.name.line))?;
+            self.define(&Token::super_(stmt.name.line))?;
+            self.used(&Token::super_(stmt.name.line))?;
             // type check
             let super_type: Type = TypeInferrer::infer_type(self, super_expr)?;
-            self.type_env
-                .borrow()
-                .last()
-                .unwrap()
-                .borrow_mut()
-                .insert(String::from("super"), super_type);
+            self.declare_type(&Token::super_(stmt.name.line), super_type)?;
 
             true
         } else {
@@ -385,7 +406,19 @@ impl StmtResolver<()> for Resolver {
             ContextStatus::Class(ClassStatus::Class)
         });
 
+        // this(instance env)
         self.begin_scope();
+        // type check
+        // used This && class name do Type name.
+        let class_type: Type = TypeInferrer::infer_class_stmt(self, stmt)?;
+        self.declare_type(&stmt.name, Type::This(Box::new(class_type)))?;
+
+        // TODO: add This Type ?
+        // self.declare_type(
+        //     &Token::this_type(stmt.name.line),
+        //     Type::This(Box::new(class_type)),
+        // )?;
+
         if let Some(stmts) = stmt.fields.as_ref() {
             for stmt in stmts {
                 StmtResolver::resolve(self, stmt)?;
@@ -393,20 +426,9 @@ impl StmtResolver<()> for Resolver {
         }
         if let Some(stmts) = stmt.methods.as_ref() {
             // value check
-            self.scopes_stack
-                .borrow()
-                .last()
-                .unwrap()
-                .borrow_mut()
-                .insert(Key(Token::this(0)), VarStatus::Used);
-            // type check
-            self.type_env
-                .borrow()
-                .last()
-                .unwrap()
-                .borrow_mut()
-                .insert(stmt.name.lexeme.clone(), Type::This(stmt.name.clone()));
-
+            self.declare(&Token::this(stmt.name.line))?;
+            self.define(&Token::this(stmt.name.line))?;
+            self.used(&Token::this(stmt.name.line))?;
             for stmt in stmts {
                 if let Stmt::FnStmt(func) = stmt {
                     StmtResolver::resolve_method(self, func)?;
@@ -461,17 +483,22 @@ impl StmtResolver<()> for Resolver {
                         self.declare(param)?;
                         self.define(param)?;
                         // type check
-                        self.type_env
-                            .borrow()
-                            .last()
-                            .unwrap()
-                            .borrow_mut()
-                            .insert(param.lexeme.clone(), type_.clone());
+                        let type_: Type = if let Type::UserDefined(token) = type_ {
+                            TypeInferrer::infer_type(
+                                self,
+                                &Expr::Variable(Variable {
+                                    name: token.clone(),
+                                }),
+                            )?
+                        } else {
+                            type_.clone()
+                        };
+                        self.declare_type(param, type_)?;
                     } else {
                         return Err(JokerError::Resolver(ResolverError::Struct(
                             StructError::report_error(
                                 &stmt.name,
-                                String::from("Invalid parameter type"),
+                                String::from("Invalid parameter type."),
                             ),
                         )));
                     }
@@ -555,7 +582,7 @@ impl StmtResolver<()> for Resolver {
             if let Some(declared_type) = declared_type {
                 if !declared_type.eq_type(&value_type) {
                     if !IsInstance::is_instance(&value_type, &declared_type)? {
-                        Err(JokerError::Resolver(ResolverError::Struct(
+                        return Err(JokerError::Resolver(ResolverError::Struct(
                             StructError::report_error(
                                 &stmt.name,
                                 format!(
@@ -563,27 +590,19 @@ impl StmtResolver<()> for Resolver {
                                     declared_type, value_type
                                 ),
                             ),
-                        )))
-                    } else {
-                        self.declare_type(stmt.name.lexeme.clone(), value_type);
-                        Ok(())
+                        )));
                     }
-                } else {
-                    self.declare_type(stmt.name.lexeme.clone(), value_type);
-                    Ok(())
                 }
-            } else {
-                self.declare_type(stmt.name.lexeme.clone(), value_type);
-                Ok(())
             }
+            self.declare_type(&stmt.name, value_type)?;
+            return Ok(());
         } else if let Some(declared_type) = declared_type {
-            self.declare_type(stmt.name.lexeme.clone(), declared_type);
-            Ok(())
-        } else {
-            Err(JokerError::Resolver(ResolverError::Struct(
-                StructError::report_error(&stmt.name, String::from("Missing type information")),
-            )))
+            self.declare_type(&stmt.name, declared_type)?;
+            return Ok(());
         }
+        Err(JokerError::Resolver(ResolverError::Struct(
+            StructError::report_error(&stmt.name, String::from("Missing type information")),
+        )))
     }
 }
 impl ExprResolver<()> for Resolver {
@@ -621,7 +640,17 @@ impl ExprResolver<()> for Resolver {
                     self.declare(param)?;
                     self.define(param)?;
                     // type check
-                    self.declare_type(param.lexeme.clone(), type_.clone());
+                    let type_: Type = if let Type::UserDefined(token) = type_ {
+                        TypeInferrer::infer_type(
+                            self,
+                            &Expr::Variable(Variable {
+                                name: token.clone(),
+                            }),
+                        )?
+                    } else {
+                        type_.clone()
+                    };
+                    self.declare_type(param, type_)?;
                 } else {
                     return Err(JokerError::Resolver(ResolverError::Struct(
                         StructError::report_error(
@@ -827,22 +856,19 @@ impl StmtVisitor<()> for Resolver {
         self.define(&stmt.name)?;
         StmtResolver::resolve_function(self, stmt)?;
         self.declare_type(
-            stmt.name.lexeme.clone(),
+            &stmt.name,
             Type::Fn {
                 params: stmt.params.clone(),
                 return_type: stmt.return_type.clone(),
             },
-        );
+        )?;
         Ok(())
     }
     fn visit_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
         self.declare(&stmt.name)?;
         self.define(&stmt.name)?;
         StmtResolver::resolve_class(self, stmt)?;
-        self.declare_type(
-            stmt.name.lexeme.clone(),
-            TypeInferrer::infer_class_stmt(self, stmt)?,
-        );
+        self.declare_type(&stmt.name, TypeInferrer::infer_class_stmt(self, stmt)?)?;
         Ok(())
     }
     fn visit_expr(&self, stmt: &ExprStmt) -> Result<(), JokerError> {
@@ -954,7 +980,7 @@ impl ExprVisitor<()> for Resolver {
     }
     fn visit_getter(&self, expr: &Getter) -> Result<(), JokerError> {
         ExprResolver::resolve(self, &expr.expr)?;
-        ExprResolver::resolve_local(self, *expr.expr.clone(), &expr.name)?;
+        ExprResolver::resolve_local(self, Expr::Getter(expr.clone()), &expr.name)?;
         Ok(())
     }
     fn visit_setter(&self, expr: &Setter) -> Result<(), JokerError> {
@@ -963,7 +989,7 @@ impl ExprVisitor<()> for Resolver {
         {
             ExprResolver::resolve(self, &expr.r_expr)?;
             ExprResolver::resolve(self, &expr.l_expr)?;
-            ExprResolver::resolve_local(self, *expr.r_expr.clone(), &expr.name)?;
+            ExprResolver::resolve_local(self, Expr::Setter(expr.clone()), &expr.name)?;
             Ok(())
         } else {
             Err(JokerError::Resolver(ResolverError::Env(
