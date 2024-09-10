@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::joker::{
-    callable::StructError, env::EnvError, error::JokerError, resolver::ResolverError, token::Token,
+    callable::StructError, env::EnvError, error::JokerError, resolver::Error::Struct, token::Token,
 };
 
 use super::Type;
@@ -71,15 +71,13 @@ impl TypeEnv {
             Some(value) => Ok(value.clone()),
             None => match &self.enclosing {
                 Some(enclosing) => enclosing.borrow().get_type(name),
-                None => Err(JokerError::Resolver(ResolverError::Struct(
-                    StructError::report_error(
-                        name,
-                        format!(
-                            "[TypeEnv::get_type] Unknown type for variable '{}'",
-                            name.lexeme
-                        ),
+                None => Err(JokerError::Resolver(Struct(StructError::report_error(
+                    name,
+                    format!(
+                        "[TypeEnv::get_type] Unknown type for variable '{}'",
+                        name.lexeme
                     ),
-                ))),
+                )))),
             },
         }
     }

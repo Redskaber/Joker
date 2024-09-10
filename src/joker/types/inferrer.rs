@@ -8,13 +8,13 @@ use std::collections::HashMap;
 use crate::joker::{
     ast::{
         Assign, Binary, Call, ClassStmt, Expr, Getter, Grouping, Lambda, Literal, Logical, Stmt,
-        Super, Trinomial, Unary, Variable,
+        Super, This, Trinomial, Unary, Variable,
     },
     callable::StructError,
     error::JokerError,
     object::{literal_null, Caller, Function, Literal as ObL, Object as OEnum},
     parse::Parser,
-    resolver::{Resolver, ResolverError},
+    resolver::{Error::Struct, Resolver},
     token::{Token, TokenType},
 };
 
@@ -36,7 +36,7 @@ impl TypeInferrer {
     // parse time:
     pub fn parse_type(parser: &mut Parser) -> Result<Type, JokerError> {
         let type_name: Token = parser.consume(
-            &[TokenType::Identifier],
+            &[TokenType::Identifier, TokenType::Null],
             String::from("[TypeInferrer::parse_type] Expect type. but this not is."),
         )?;
         match type_name.lexeme.as_str() {
@@ -219,7 +219,7 @@ impl TypeInferrer {
                 if matches!(right_type, Type::I32 | Type::F64) {
                     Ok(right_type)
                 } else {
-                    Err(JokerError::Resolver(ResolverError::Struct(
+                    Err(JokerError::Resolver(Struct(
                         StructError::report_error(
                             l_opera,
                             format!(
@@ -240,7 +240,7 @@ impl TypeInferrer {
                 if left_type.eq_type(&right_type) {
                     Ok(left_type)
                 } else {
-                    Err(JokerError::Resolver(ResolverError::Struct(
+                    Err(JokerError::Resolver(Struct(
                         StructError::report_error(
                             m_opera,
                             format!("[TypeInferrer::infer_type] Type mismatch in binary expression, left type '{}' and right type '{}'",
@@ -252,12 +252,12 @@ impl TypeInferrer {
                 }
             }
             Expr::Grouping(Grouping { expr }) => TypeInferrer::infer_type(resolver, expr),
-            Expr::Assign(Assign { name, value: _ }) => Err(JokerError::Resolver(
-                ResolverError::Struct(StructError::report_error(
+            Expr::Assign(Assign { name, value: _ }) => {
+                Err(JokerError::Resolver(Struct(StructError::report_error(
                     name,
                     String::from("[TypeInferrer::infer_type] Assign don't inferrer type."),
-                )),
-            )),
+                ))))
+            }
             Expr::Logical(Logical {
                 l_expr,
                 m_opera,
@@ -268,7 +268,7 @@ impl TypeInferrer {
                 if left_type.eq_type(&right_type) {
                     Ok(left_type)
                 } else {
-                    Err(JokerError::Resolver(ResolverError::Struct(
+                    Err(JokerError::Resolver(Struct(
                         StructError::report_error(
                             m_opera,
                             format!("[TypeInferrer::infer_type] Type mismatch in logical expression, left type '{}' and right type '{}'",
@@ -291,7 +291,7 @@ impl TypeInferrer {
                     if left_type.eq_type(&right_type) {
                         Ok(left_type)
                     } else {
-                        Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+                        Err(JokerError::Resolver(Struct(StructError::report_error(
                             &Token::eof(0),
                             format!("[TypeInferrer::infer_type] Type mismatch in binary expression, left type '{}' and right type '{}'",
                                 left_type,
@@ -300,7 +300,7 @@ impl TypeInferrer {
                         ))))
                     }
                 } else {
-                    Err(JokerError::Resolver(ResolverError::Struct(
+                    Err(JokerError::Resolver(Struct(
                         StructError::report_error(
                             &Token::eof(0),
                             String::from(
@@ -349,7 +349,7 @@ impl TypeInferrer {
                         if let Some(sub_type) = caller_type.get_type(name)? {
                             Ok(sub_type.clone())
                         } else {
-                            Err(JokerError::Resolver(ResolverError::Struct(
+                            Err(JokerError::Resolver(Struct(
                                 StructError::report_error(
                                     name,
                                     format!(
@@ -367,18 +367,18 @@ impl TypeInferrer {
                         if let Some(sub_type) = caller_type.get_type(name)? {
                             Ok(sub_type.clone())
                         } else {
-                            Err(JokerError::Resolver(ResolverError::Struct(
+                            Err(JokerError::Resolver(Struct(
                                 StructError::report_error(
                                     name,
                                     format!(
-                                        "[TypeInferrer::infer_type] Expected getter instance type, found get '{}'.",
+                                        "[TypeInferrer::infer_type] Expected getter instance type, But don't found '{}' type.",
                                         name.lexeme
                                     ),
                                 ),
                             )))
                         }
                     }
-                    _ => Err(JokerError::Resolver(ResolverError::Struct(
+                    _ => Err(JokerError::Resolver(Struct(
                         StructError::report_error(
                             name,
                             String::from("[TypeInferrer::infer_type] Expected getter need left variable is impl getter."),
@@ -392,7 +392,7 @@ impl TypeInferrer {
                     if let Some(method_type) = IsInstance::get_type(&super_type, method)? {
                         Ok(method_type.clone())
                     } else {
-                        Err(JokerError::Resolver(ResolverError::Struct(
+                        Err(JokerError::Resolver(Struct(
                             StructError::report_error(
                                 keyword,
                                 format!(
@@ -403,7 +403,7 @@ impl TypeInferrer {
                         )))
                     }
                 } else {
-                    Err(JokerError::Resolver(ResolverError::Struct(
+                    Err(JokerError::Resolver(Struct(
                         StructError::report_error(
                             keyword,
                             format!("[TypeInferrer::infer_type] This keyword is not super class object. '{}'", super_type),
@@ -411,15 +411,14 @@ impl TypeInferrer {
                     )))
                 }
             }
-            _ => Err(JokerError::Resolver(ResolverError::Struct(
-                StructError::report_error(
-                    &Token::eof(0),
-                    format!(
-                        "[TypeInferrer::infer_type] Unsupported type inference: '{}'.",
-                        expr
-                    ),
+            Expr::This(This { keyword }) => resolver.get_type(keyword),
+            _ => Err(JokerError::Resolver(Struct(StructError::report_error(
+                &Token::eof(0),
+                format!(
+                    "[TypeInferrer::infer_type] Unsupported type inference: '{}'.",
+                    expr
                 ),
-            ))),
+            )))),
         }
     }
     pub fn infer_class_stmt(resolver: &Resolver, stmt: &ClassStmt) -> Result<Type, JokerError> {
@@ -439,15 +438,13 @@ impl TypeInferrer {
                     } else if let Some(declared_type) = var_stmt.type_.as_ref() {
                         declared_type.clone()
                     } else {
-                        return Err(JokerError::Resolver(ResolverError::Struct(
-                            StructError::report_error(
-                                &var_stmt.name,
-                                format!(
-                                    "class fields variable need some type, but this '{}' not.",
-                                    var_stmt.name.lexeme
-                                ),
+                        return Err(JokerError::Resolver(Struct(StructError::report_error(
+                            &var_stmt.name,
+                            format!(
+                                "class fields variable need some type, but this '{}' not.",
+                                var_stmt.name.lexeme
                             ),
-                        )));
+                        ))));
                     };
                     fields_type.insert(var_stmt.name.lexeme.clone(), value_type);
                 } else {

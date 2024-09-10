@@ -12,7 +12,7 @@ use crate::joker::{
     callable::StructError,
     error::JokerError,
     parse::Parser,
-    resolver::ResolverError,
+    resolver::Error::Struct,
     token::{Token, TokenType},
 };
 
@@ -26,13 +26,14 @@ pub trait IsInstance {
     fn get_type(&self, name: &Token) -> Result<Option<&Type>, Self::Err>;
 }
 
+// TODO: ADD Type more info? position, ...
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     I32,
     F64,
     Str,
     Bool,
-    Null,
+    Null, // Null is empty(empty value is value), None is not have anything(not value).
     Fn {
         params: Option<Vec<ParamPair>>,
         return_type: Option<Box<Type>>,
@@ -88,7 +89,7 @@ impl Type {
                     methods: _,
                     functions: _,
                 },
-            ) => other.eq(&class),
+            ) => other.eq(class),
             _ => self.eq_type(other),
         }
     }
@@ -232,54 +233,55 @@ impl IsInstance for Type {
                     IsInstance::is_inherit(class.as_ref(), parent)
                 }
             } else {
-                Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+                Err(JokerError::Resolver(Struct(StructError::report_error(
                     &Token::eof(0),
-                    format!("[IsInstance::is_instance] Type mismatch: instance '{}', parent '{}'. Current type not's Class.",
+                    format!("[IsInstance::is_instance] Type mismatch: instance '{}', parent '{}'.\n\t\tCurrent type not's Class.",
                     self, parent,
                     )
                 ))))
             }
         } else {
-            Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+            Err(JokerError::Resolver(Struct(StructError::report_error(
                 &Token::eof(0),
-                format!("[IsInstance::is_instance] Type mismatch: instance '{}', parent '{}'. Current type not's Instance.",
-                self, parent,
+                format!("[IsInstance::is_instance] Type mismatch: left type '{}', right type '{}'.\n\t\tCurrent type not's Instance.",
+                parent, self
                 )
             ))))
         }
     }
+    // TODO: INHERIT STORE? cache inherit info.
     fn is_inherit(&self, parent: &Self) -> Result<bool, JokerError> {
-        if let Type::Class {
-            name: _,
-            super_class,
-            fields: _,
-            methods: _,
-            functions: _,
-        } = self
-        {
-            if parent.is_class() {
+        if parent.is_class() {
+            let mut current: &Type = self;
+            while let Type::Class {
+                name: _,
+                super_class,
+                fields: _,
+                methods: _,
+                functions: _,
+            } = current
+            {
                 if let Some(super_class) = super_class {
                     if super_class.eq_type(parent) {
-                        Ok(true)
-                    } else {
-                        IsInstance::is_inherit(super_class.as_ref(), parent)
+                        return Ok(true);
                     }
+                    current = super_class.as_ref();
                 } else {
-                    Ok(false)
+                    return Ok(false);
                 }
-            } else {
-                Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
-                    &Token::eof(0),
-                    format!("[IsInstance::is_inherit] Type mismatch: Expected right Class type, found '{}'.",
-                    parent,
-                    )
-                ))))
             }
-        } else {
-            Err(JokerError::Resolver(ResolverError::Struct(StructError::report_error(
+            Err(JokerError::Resolver(Struct(StructError::report_error(
                 &Token::eof(0),
-                format!("[IsInstance::is_inherit] Type mismatch: Expected left Class type, found '{}'.",
-                self,
+                format!(
+                    "[IsInstance::is_inherit] Type mismatch: Expected left Class type, found '{}'.",
+                    self,
+                ),
+            ))))
+        } else {
+            Err(JokerError::Resolver(Struct(StructError::report_error(
+                &Token::eof(0),
+                format!("[IsInstance::is_inherit] Type mismatch: Expected right Class type, found '{}'.",
+                parent,
                 )
             ))))
         }
@@ -329,18 +331,20 @@ impl IsInstance for Type {
                 }
                 Ok(false)
             }
-            _ => Err(JokerError::Resolver(ResolverError::Struct(
-                StructError::report_error(
-                    name,
-                    format!(
-                        "[IsInstance::contain_key] This type '{}' is not call.",
-                        self
-                    ),
+            _ => Err(JokerError::Resolver(Struct(StructError::report_error(
+                name,
+                format!(
+                    "[IsInstance::contains_key] This type '{}' is not call.",
+                    self
                 ),
-            ))),
+            )))),
         }
     }
     fn get_type(&self, name: &Token) -> Result<Option<&Type>, Self::Err> {
+        if let Type::This(class_type) = self {
+            return class_type.get_type(name);
+        }
+
         match self {
             Type::Class {
                 name: _,
@@ -385,7 +389,7 @@ impl IsInstance for Type {
                 }
                 Ok(None)
             }
-            _ => Err(JokerError::Resolver(ResolverError::Struct(
+            _ => Err(JokerError::Resolver(Struct(
                 StructError::report_error(
                     name,
                     format!(

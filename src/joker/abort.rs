@@ -14,7 +14,7 @@
 //!
 //!
 
-use std::{error::Error, fmt::Display};
+use std::fmt::Display;
 
 use super::{
     error::ReportError,
@@ -23,26 +23,26 @@ use super::{
 };
 
 #[derive(Debug)]
-pub enum AbortError {
+pub enum Error {
     ControlFlow(ControlFlowAbort),
     // Argument(ArgumentAbort),
 }
 
-impl Display for AbortError {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AbortError::ControlFlow(control) => Display::fmt(control, f),
+            Error::ControlFlow(control) => Display::fmt(control, f),
             // AbortError::Argument(arg) => Display::fmt(arg, f),
         }
     }
 }
 
-impl Error for AbortError {}
+impl std::error::Error for Error {}
 
-impl ReportError for AbortError {
+impl ReportError for Error {
     fn report(&self) {
         match &self {
-            AbortError::ControlFlow(control_flow) => ReportError::report(control_flow),
+            Error::ControlFlow(control_flow) => ReportError::report(control_flow),
             // AbortError::Argument(argument) => ReportError::report(argument),
         }
     }

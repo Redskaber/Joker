@@ -7,3 +7,5 @@ pub mod resolve;
 pub mod types;
 pub mod interpreter;
 pub mod object_operator;
+pub mod error_manager;
+

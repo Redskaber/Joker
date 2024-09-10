@@ -195,9 +195,14 @@ main();
 class Point {
     var x: i32;
     var y: i32;
+    // TODO: class init static resolve check.
     fn init(this, x: i32, y: i32) {
         this.x = x;
         this.y = y;
+    
+        // TODO: instance variable what check type?
+        // setter(getter, value), so in setter check type.
+        this.instance_var = 100;
     }
     fn move(this, dx: i32, dy: i32) {
         this.x = this.x + dx;
@@ -226,11 +231,21 @@ class Circle: Point {
 
 class CirSc: Circle {
     var color: str;
-    fn init(this, x: i32, y: i32, radius: f64, color: str) -> This {
+    fn init(this, x: i32, y: i32, radius: f64, color: str) -> CirSc {
         super.init(x, y, radius);
         this.color = color;
     }
 }
+
+fn move_point(p: Point, dx: i32, dy: i32) -> null {
+    p.move(dx, dy);
+
+    // null is empty value, it's value type.
+    // TODO: what check function inner return value type?
+    // return statement visit outside function declare return type.
+    return null;
+}
+
 
 fn main() {
     var p: Point = Point(10, 20);
@@ -241,6 +256,33 @@ fn main() {
     // print p;
     c.aux_display(c);
     cs.aux_display(cs);
+
+    print "p move:";
+    var rp: null = move_point(p, 100, 200);
+    if (rp == null) {
+        print "move_point return null";
+    } else {
+        print "move_point return not null";
+    }
+
+    var p1: Point = Point(10, 20);
+    p1.new_var = 100;
+    print p1.new_var;
+
+    // TODO: will static resolve type info store to runtime ?
+    p1.new_var = "hello, world!";
+    print p1.new_var;
+    // TODO: will add instance variable type check. error: expected type 'i32', found 'str'
+    p1.new_var = 100;
+    print p1.new_var;
+
+    // var a: i32 = 10;        // variable statement type check.
+    // a = "hello, world!";    // add: assign type check. -> handler {resolve::assign add type check}.
+    // print a;
+
+    // var instance_var: i32 = p.instance_var;
+    // print instance_var;
+    // var p1: Point = Point.init(10, 20);      // error: 'this' ? 
 
 }
 

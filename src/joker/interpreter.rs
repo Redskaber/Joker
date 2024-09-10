@@ -7,14 +7,18 @@ use std::{cell::RefCell, collections::HashMap, error::Error, fmt::Display, hash:
 use crate::joker::{object::Lambda, types::DeepClone};
 
 use super::{
-    abort::{AbortError, ControlFlowAbort},
+    abort::{ControlFlowAbort, Error::ControlFlow},
     ast::{
         Assign, Binary, BlockStmt, BreakStmt, Call, ClassStmt, ContinueStmt, Expr, ExprAcceptor,
         ExprStmt, ExprVisitor, FnStmt, ForStmt, Getter, Grouping, IfStmt, Lambda as LambdaExpr,
         Literal, Logical, PrintStmt, ReturnStmt, Setter, Stmt, StmtAcceptor, StmtVisitor, Super,
         This, Trinomial, Unary, VarStmt, Variable, WhileStmt,
     },
-    callable::{ArgumentError, CallError, Callable, NonCallError},
+    callable::{
+        ArgumentError, Callable,
+        Error::{Argument, NonCallable},
+        NonError,
+    },
     env::Env,
     error::{JokerError, ReportError, SystemError, SystemTimeError},
     object::{
@@ -193,17 +197,15 @@ impl StmtVisitor<()> for Interpreter {
         while self.is_true(&self.evaluate(&stmt.condition)?.unwrap()) {
             if let Err(err) = self.execute(&stmt.body) {
                 match err {
-                    JokerError::Abort(AbortError::ControlFlow(control_flow)) => {
-                        match control_flow {
-                            ControlFlowAbort::Break => break,
-                            ControlFlowAbort::Continue => continue,
-                            ControlFlowAbort::Return(return_value) => {
-                                return Err(JokerError::Abort(AbortError::ControlFlow(
-                                    ControlFlowAbort::Return(return_value),
-                                )));
-                            }
+                    JokerError::Abort(ControlFlow(control_flow)) => match control_flow {
+                        ControlFlowAbort::Break => break,
+                        ControlFlowAbort::Continue => continue,
+                        ControlFlowAbort::Return(return_value) => {
+                            return Err(JokerError::Abort(ControlFlow(ControlFlowAbort::Return(
+                                return_value,
+                            ))));
                         }
-                    }
+                    },
                     _ => return Err(err),
                 }
             }
@@ -218,22 +220,20 @@ impl StmtVisitor<()> for Interpreter {
         while self.is_true(&self.evaluate(&stmt.condition)?.unwrap()) {
             if let Err(err) = self.execute(&stmt.body) {
                 match err {
-                    JokerError::Abort(AbortError::ControlFlow(control_flow)) => {
-                        match control_flow {
-                            ControlFlowAbort::Break => break,
-                            ControlFlowAbort::Continue => {
-                                if let Some(increment) = &stmt.increment {
-                                    self.evaluate(increment)?;
-                                }
-                                continue;
+                    JokerError::Abort(ControlFlow(control_flow)) => match control_flow {
+                        ControlFlowAbort::Break => break,
+                        ControlFlowAbort::Continue => {
+                            if let Some(increment) = &stmt.increment {
+                                self.evaluate(increment)?;
                             }
-                            ControlFlowAbort::Return(return_value) => {
-                                return Err(JokerError::Abort(AbortError::ControlFlow(
-                                    ControlFlowAbort::Return(return_value),
-                                )));
-                            }
+                            continue;
                         }
-                    }
+                        ControlFlowAbort::Return(return_value) => {
+                            return Err(JokerError::Abort(ControlFlow(ControlFlowAbort::Return(
+                                return_value,
+                            ))));
+                        }
+                    },
                     _ => return Err(err),
                 }
             }
@@ -245,14 +245,10 @@ impl StmtVisitor<()> for Interpreter {
         Ok(())
     }
     fn visit_break(&self, _stmt: &BreakStmt) -> Result<(), JokerError> {
-        Err(JokerError::Abort(AbortError::ControlFlow(
-            ControlFlowAbort::Break,
-        )))
+        Err(JokerError::Abort(ControlFlow(ControlFlowAbort::Break)))
     }
     fn visit_continue(&self, _stmt: &ContinueStmt) -> Result<(), JokerError> {
-        Err(JokerError::Abort(AbortError::ControlFlow(
-            ControlFlowAbort::Continue,
-        )))
+        Err(JokerError::Abort(ControlFlow(ControlFlowAbort::Continue)))
     }
     fn visit_fn(&self, stmt: &FnStmt) -> Result<(), JokerError> {
         let func: Object = Object::new(OEnum::Caller(Caller::Func(Function::User(
@@ -269,9 +265,9 @@ impl StmtVisitor<()> for Interpreter {
             Some(expr) => self.evaluate(expr)?,
             None => None,
         };
-        Err(JokerError::Abort(AbortError::ControlFlow(
-            ControlFlowAbort::Return(value),
-        )))
+        Err(JokerError::Abort(ControlFlow(ControlFlowAbort::Return(
+            value,
+        ))))
     }
     fn visit_class(&self, stmt: &ClassStmt) -> Result<(), JokerError> {
         self.run_env
@@ -736,25 +732,21 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         let result: Result<Option<Object>, JokerError> =
             if let OEnum::Caller(caller) = &*callee.get() {
                 if arguments.len() != caller.arity() {
-                    return Err(JokerError::Call(CallError::Argument(
-                        ArgumentError::report_error(
-                            &expr.paren,
-                            format!(
-                                "call expected {} arguments but got {}.",
-                                caller.arity(),
-                                arguments.len()
-                            ),
+                    return Err(JokerError::Call(Argument(ArgumentError::report_error(
+                        &expr.paren,
+                        format!(
+                            "call expected {} arguments but got {}.",
+                            caller.arity(),
+                            arguments.len()
                         ),
-                    )));
+                    ))));
                 }
                 caller.call(self, &arguments)
             } else {
-                Err(JokerError::Call(CallError::NonCallable(
-                    NonCallError::report_error(
-                        &expr.paren,
-                        format!("caller this object is not callable object: '{}'", callee),
-                    ),
-                )))
+                Err(JokerError::Call(NonCallable(NonError::report_error(
+                    &expr.paren,
+                    format!("caller this object is not callable object: '{}'", callee),
+                ))))
             };
 
         result

@@ -2,16 +2,13 @@
 //!
 //! - Callable Trait
 //!
-//! - CallError
-//!     - NonCallError
+//! - Error
+//!     - NonError
 //!     - ArgumentError
 //!
 //!
 
-use std::{
-    error::Error,
-    fmt::{Debug, Display},
-};
+use std::fmt::{Debug, Display};
 
 use super::{
     error::{JokerError, ReportError},
@@ -30,74 +27,74 @@ pub trait Callable: Debug + Display {
 }
 
 #[derive(Debug)]
-pub enum CallError {
-    NonCallable(NonCallError),
+pub enum Error {
+    NonCallable(NonError),
     Argument(ArgumentError),
     Struct(StructError),
 }
 
-impl Display for CallError {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CallError::Argument(arg) => Display::fmt(arg, f),
-            CallError::NonCallable(non_call) => Display::fmt(non_call, f),
-            CallError::Struct(struct_) => Display::fmt(struct_, f),
+            Error::Argument(arg) => Display::fmt(arg, f),
+            Error::NonCallable(non_call) => Display::fmt(non_call, f),
+            Error::Struct(struct_) => Display::fmt(struct_, f),
         }
     }
 }
 
-impl Error for CallError {}
+impl std::error::Error for Error {}
 
-impl ReportError for CallError {
+impl ReportError for Error {
     fn report(&self) {
         match self {
-            CallError::NonCallable(non_call) => ReportError::report(non_call),
-            CallError::Argument(arg) => ReportError::report(arg),
-            CallError::Struct(struct_) => ReportError::report(struct_),
+            Error::NonCallable(non_call) => ReportError::report(non_call),
+            Error::Argument(arg) => ReportError::report(arg),
+            Error::Struct(struct_) => ReportError::report(struct_),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct NonCallError {
+pub struct NonError {
     line: usize,
     where_: String,
     msg: String,
 }
 
-impl NonCallError {
-    pub fn new(token: &Token, msg: String) -> NonCallError {
+impl NonError {
+    pub fn new(token: &Token, msg: String) -> NonError {
         let where_: String = if token.ttype == TokenType::Eof {
             String::from(" at end")
         } else {
             format!(" at '{}'", token.lexeme)
         };
-        NonCallError {
+        NonError {
             line: token.line,
             where_,
             msg,
         }
     }
-    pub fn report_error(token: &Token, msg: String) -> NonCallError {
-        let non_err = NonCallError::new(token, msg);
+    pub fn report_error(token: &Token, msg: String) -> NonError {
+        let non_err = NonError::new(token, msg);
         non_err.report();
         non_err
     }
 }
 
-impl Display for NonCallError {
+impl Display for NonError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "NonCallError(line: {}, where: {}, msg: {})",
+            "NonError(line: {}, where: {}, msg: {})",
             self.line, self.where_, self.msg
         )
     }
 }
 
-impl Error for NonCallError {}
+impl std::error::Error for NonError {}
 
-impl ReportError for NonCallError {
+impl ReportError for NonError {
     fn report(&self) {
         eprintln!(
             "[line {}] where: '{}', \n\tmsg: {}\n",
@@ -143,7 +140,7 @@ impl Display for ArgumentError {
     }
 }
 
-impl Error for ArgumentError {}
+impl std::error::Error for ArgumentError {}
 
 impl ReportError for ArgumentError {
     fn report(&self) {
@@ -191,7 +188,7 @@ impl Display for StructError {
     }
 }
 
-impl Error for StructError {}
+impl std::error::Error for StructError {}
 
 impl ReportError for StructError {
     fn report(&self) {

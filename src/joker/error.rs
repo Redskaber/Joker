@@ -3,15 +3,7 @@
 //!
 //!
 
-use std::{
-    error::Error,
-    fmt::{Debug, Display},
-};
-
-use super::{
-    abort::AbortError, callable::CallError, env::EnvError, interpreter::InterpreterError,
-    parse::ParserError, resolver::ResolverError, scanner::ScannerError,
-};
+use std::fmt::{Debug, Display};
 
 pub trait ReportError {
     fn report(&self);
@@ -19,13 +11,13 @@ pub trait ReportError {
 
 #[derive(Debug)]
 pub enum JokerError {
-    Scanner(ScannerError),
-    Parser(ParserError),
-    Env(EnvError),
-    Interpreter(InterpreterError),
-    Resolver(ResolverError),
-    Abort(AbortError),
-    Call(CallError),
+    Scanner(super::scanner::ScannerError),
+    Parser(super::parse::ParserError),
+    Env(super::env::EnvError),
+    Interpreter(super::interpreter::InterpreterError),
+    Resolver(super::resolver::Error),
+    Abort(super::abort::Error),
+    Call(super::callable::Error),
     System(SystemError),
 }
 
@@ -44,7 +36,7 @@ impl Display for JokerError {
     }
 }
 
-impl Error for JokerError {}
+impl std::error::Error for JokerError {}
 
 impl ReportError for JokerError {
     fn report(&self) {
@@ -74,7 +66,7 @@ impl Display for SystemError {
     }
 }
 
-impl Error for SystemError {}
+impl std::error::Error for SystemError {}
 
 impl ReportError for SystemError {
     fn report(&self) {
@@ -106,7 +98,7 @@ impl Display for SystemTimeError {
     }
 }
 
-impl Error for SystemTimeError {}
+impl std::error::Error for SystemTimeError {}
 
 impl ReportError for SystemTimeError {
     fn report(&self) {

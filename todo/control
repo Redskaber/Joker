@@ -45,6 +45,10 @@ TODO:
         - [v] error: already mutably borrowed: BorrowError
         - [v] update resolve local variable log, update setter and getter log logical.
         - [v] add class type inheritance and instance type inheritance.
+      - [v] update poject error manager system. remove enum middle layer.
+      - [] add or update function and lambda function return type check.
+      - [] add class method and function return type check.
+      - [] add type more info for error message.
       - [] remove instance type, remove class constructor pin name.
       - [] add class method and parameter public, private, protected.
         - [] add root keyword {pub} , default is private, need add pub set?.

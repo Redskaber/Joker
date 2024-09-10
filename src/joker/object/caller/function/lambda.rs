@@ -12,9 +12,9 @@ use std::{
 };
 
 use crate::joker::{
-    abort::{AbortError, ControlFlowAbort},
+    abort::{ControlFlowAbort, Error::ControlFlow},
     ast::{ExprStmt, Lambda as LambdaExpr, Stmt},
-    callable::{CallError, Callable, StructError},
+    callable::{Callable, Error::Struct, StructError},
     env::Env,
     error::JokerError,
     interpreter::Interpreter,
@@ -90,9 +90,7 @@ impl Callable for Lambda {
             Stmt::BlockStmt(block) => {
                 if let Err(err) = interpreter.execute_block(&block.stmts, lambda_env) {
                     match err {
-                        JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
-                            return_value,
-                        ))) => {
+                        JokerError::Abort(ControlFlow(ControlFlowAbort::Return(return_value))) => {
                             return Ok(return_value);
                         }
                         _ => return Err(err),
@@ -103,12 +101,10 @@ impl Callable for Lambda {
                 return interpreter.evaluate_local(expr, lambda_env)
             }
             _ => {
-                return Err(JokerError::Call(CallError::Struct(
-                    StructError::report_error(
-                        &self.expr.pipe,
-                        String::from("lambda structure: | params | expr '1' or block '{}'."),
-                    ),
-                )))
+                return Err(JokerError::Call(Struct(StructError::report_error(
+                    &self.expr.pipe,
+                    String::from("lambda structure: | params | expr '1' or block '{}'."),
+                ))))
             }
         }
         Ok(None)

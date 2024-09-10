@@ -15,7 +15,7 @@ use std::{
 };
 
 use crate::joker::{
-    abort::{AbortError, ControlFlowAbort},
+    abort::{ControlFlowAbort, Error::ControlFlow},
     ast::FnStmt,
     callable::Callable,
     env::Env,
@@ -237,9 +237,7 @@ impl Callable for UserFunction {
         }
         if let Err(err) = interpreter.execute_block(&self.stmt.body, fun_env) {
             match err {
-                JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
-                    return_value,
-                ))) => {
+                JokerError::Abort(ControlFlow(ControlFlowAbort::Return(return_value))) => {
                     return Ok(return_value);
                 }
                 _ => return Err(err),

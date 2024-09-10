@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::joker::{
-    abort::{AbortError, ControlFlowAbort},
+    abort::{ControlFlowAbort, Error::ControlFlow},
     ast::FnStmt,
     callable::Callable,
     env::Env,
@@ -112,9 +112,7 @@ impl Callable for MethodFunction {
                 }
             }
             Err(err) => match err {
-                JokerError::Abort(AbortError::ControlFlow(ControlFlowAbort::Return(
-                    return_value,
-                ))) => {
+                JokerError::Abort(ControlFlow(ControlFlowAbort::Return(return_value))) => {
                     if self.stmt.name.lexeme.eq("init") {
                         if let Some(this) = self.closure.borrow().symbol.get("this") {
                             return Ok(this.clone());

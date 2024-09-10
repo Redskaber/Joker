@@ -8,7 +8,6 @@
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
-    error::Error,
     fmt::Display,
     hash::Hash,
     rc::Rc,
@@ -66,7 +65,7 @@ impl ContextStatus {
 pub enum ClassStatus {
     Class,
     SuperClass,
-    Method,
+    Method(ReturnType),
     Fn(ReturnType),
 }
 
@@ -174,15 +173,15 @@ impl Resolver {
         if let Some(scope) = self.scopes_stack.borrow().last() {
             match scope.borrow_mut().entry(Key(name.clone())) {
                 Entry::Occupied(_) => {
-                    return Err(JokerError::Resolver(ResolverError::Var(
-                        VarError::Redefine(RedefineError::report_error(
+                    return Err(JokerError::Resolver(Error::Var(VarError::Redefine(
+                        RedefineError::report_error(
                             name,
                             format!(
                                 "Variable '{}' is already declared in this scope.",
                                 name.lexeme
                             ),
-                        )),
-                    )));
+                        ),
+                    ))));
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(VarStatus::Declare);
@@ -228,12 +227,10 @@ impl Resolver {
                 .borrow()
                 .iter()
                 .try_for_each(|(name, value_status)| self.check_var_status(name, value_status)),
-            None => Err(JokerError::Resolver(ResolverError::Env(
-                EnvError::report_error(
-                    &Token::eof(0),
-                    String::from("No current environment to check variables"),
-                ),
-            ))),
+            None => Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+                &Token::eof(0),
+                String::from("No current environment to check variables"),
+            )))),
         }
     }
     fn contains_any(&self, items: &[ContextStatus]) -> bool {
@@ -250,9 +247,16 @@ impl Resolver {
         }
     }
     fn last_any(&self, items: &[ContextStatus]) -> bool {
-        items
-            .iter()
-            .any(|item| self.context_status_stack.borrow().last().eq(&Some(item)))
+        let stack = self.context_status_stack.borrow();
+        if stack.len() < 2 {
+            items
+                .iter()
+                .any(|item| self.context_status_stack.borrow().first().eq(&Some(item)))
+        } else {
+            items
+                .iter()
+                .any(|item| self.context_status_stack.borrow().last().eq(&Some(item)))
+        }
     }
     // wait type keyword
     // type name = expression;
@@ -261,9 +265,9 @@ impl Resolver {
             scope.borrow_mut().insert(name.lexeme.clone(), ty);
             Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::Struct(
+            Err(JokerError::Resolver(Error::Struct(
                 StructError::report_error(
-                    &name,
+                    name,
                     format!(
                         "[resolve::declare_type] Current scope is None.\ntype env: {:#?}",
                         self.type_env
@@ -278,16 +282,19 @@ impl Resolver {
                 return Ok(type_.clone());
             }
         }
-        Err(JokerError::Resolver(ResolverError::Env(
-            EnvError::report_error(name, String::from("Expected find type, but not find type.")),
-        )))
+        Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+            name,
+            String::from("Expected find type, but not find type."),
+        ))))
     }
-    pub fn last_fn(&self) -> Option<ReturnType> {
+    pub fn last_fn_return_type(&self) -> Option<ReturnType> {
         self.context_status_stack
             .borrow()
             .last()
             .and_then(|context| match context {
-                ContextStatus::Fn(v) | ContextStatus::Class(ClassStatus::Fn(v)) => Some(v.clone()),
+                ContextStatus::Fn(v)
+                | ContextStatus::Class(ClassStatus::Fn(v))
+                | ContextStatus::Class(ClassStatus::Method(v)) => Some(v.clone()),
                 _ => None,
             })
     }
@@ -342,7 +349,7 @@ impl StmtResolver<()> for Resolver {
                     };
                     self.declare_type(param, type_)?;
                 } else {
-                    return Err(JokerError::Resolver(ResolverError::Struct(
+                    return Err(JokerError::Resolver(Error::Struct(
                         StructError::report_error(
                             &stmt.name,
                             String::from("Invalid parameter type"),
@@ -364,7 +371,7 @@ impl StmtResolver<()> for Resolver {
         match stmt {
             Stmt::BlockStmt(block) => StmtResolver::resolve_block(self, &block.stmts),
             Stmt::ExprStmt(expr) => ExprResolver::resolve(self, &expr.expr),
-            _ => Err(JokerError::Resolver(ResolverError::Struct(
+            _ => Err(JokerError::Resolver(Error::Struct(
                 StructError::report_error(
                     pipe,
                     String::from("lambda structure: | params | expr '1' or block '{}'."),
@@ -376,12 +383,10 @@ impl StmtResolver<()> for Resolver {
         let exist_super: bool = if let Some(super_expr) = stmt.super_class.as_ref() {
             if let Expr::Variable(super_variable) = super_expr {
                 if super_variable.name.lexeme.eq(&stmt.name.lexeme) {
-                    return Err(JokerError::Resolver(ResolverError::Env(
-                        EnvError::report_error(
-                            &stmt.name,
-                            String::from("a class can't inherit from itself."),
-                        ),
-                    )));
+                    return Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+                        &stmt.name,
+                        String::from("a class can't inherit from itself."),
+                    ))));
                 }
             }
             ExprResolver::resolve(self, super_expr)?;
@@ -429,6 +434,14 @@ impl StmtResolver<()> for Resolver {
             self.declare(&Token::this(stmt.name.line))?;
             self.define(&Token::this(stmt.name.line))?;
             self.used(&Token::this(stmt.name.line))?;
+            // type check
+            self.declare_type(
+                &Token::this(stmt.name.line),
+                Type::Instance {
+                    class: Box::new(self.get_type(&stmt.name)?),
+                    fields: None,
+                },
+            )?;
             for stmt in stmts {
                 if let Stmt::FnStmt(func) = stmt {
                     StmtResolver::resolve_method(self, func)?;
@@ -460,14 +473,16 @@ impl StmtResolver<()> for Resolver {
         ]) {
             self.context_status_stack
                 .borrow_mut()
-                .push(ContextStatus::Class(ClassStatus::Method));
+                .push(ContextStatus::Class(ClassStatus::Method(
+                    ReturnType::Specific(stmt.return_type.clone()),
+                )));
 
             self.begin_scope();
             if let Some(params) = stmt.params.as_ref() {
                 // resolve fun init(this, ...) {...}
                 // this 'this' can shadow outer this.
                 if !params[0].is_this() {
-                    return Err(JokerError::Resolver(ResolverError::Struct(
+                    return Err(JokerError::Resolver(Error::Struct(
                         StructError::report_error(
                             &stmt.name,
                             format!(
@@ -495,7 +510,7 @@ impl StmtResolver<()> for Resolver {
                         };
                         self.declare_type(param, type_)?;
                     } else {
-                        return Err(JokerError::Resolver(ResolverError::Struct(
+                        return Err(JokerError::Resolver(Error::Struct(
                             StructError::report_error(
                                 &stmt.name,
                                 String::from("Invalid parameter type."),
@@ -513,12 +528,10 @@ impl StmtResolver<()> for Resolver {
             self.context_status_stack.borrow_mut().pop();
             Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::Env(
-                EnvError::report_error(
-                    &stmt.name,
-                    String::from("class instance method is need inside class."),
-                ),
-            )))
+            Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+                &stmt.name,
+                String::from("class instance method is need inside class."),
+            ))))
         }
     }
     // var a: declared_type = value;
@@ -580,18 +593,18 @@ impl StmtResolver<()> for Resolver {
 
         if let Some(value_type) = value_type {
             if let Some(declared_type) = declared_type {
-                if !declared_type.eq_type(&value_type) {
-                    if !IsInstance::is_instance(&value_type, &declared_type)? {
-                        return Err(JokerError::Resolver(ResolverError::Struct(
-                            StructError::report_error(
-                                &stmt.name,
-                                format!(
-                                    "Type mismatch: expected {}, found {}",
-                                    declared_type, value_type
-                                ),
+                if !declared_type.eq_type(&value_type)
+                    && !IsInstance::is_instance(&value_type, &declared_type)?
+                {
+                    return Err(JokerError::Resolver(Error::Struct(
+                        StructError::report_error(
+                            &stmt.name,
+                            format!(
+                                "Type mismatch: expected {}, found {}",
+                                declared_type, value_type
                             ),
-                        )));
-                    }
+                        ),
+                    )));
                 }
             }
             self.declare_type(&stmt.name, value_type)?;
@@ -600,7 +613,7 @@ impl StmtResolver<()> for Resolver {
             self.declare_type(&stmt.name, declared_type)?;
             return Ok(());
         }
-        Err(JokerError::Resolver(ResolverError::Struct(
+        Err(JokerError::Resolver(Error::Struct(
             StructError::report_error(&stmt.name, String::from("Missing type information")),
         )))
     }
@@ -652,7 +665,7 @@ impl ExprResolver<()> for Resolver {
                     };
                     self.declare_type(param, type_)?;
                 } else {
-                    return Err(JokerError::Resolver(ResolverError::Struct(
+                    return Err(JokerError::Resolver(Error::Struct(
                         StructError::report_error(
                             &expr.pipe,
                             String::from("Invalid parameter type"),
@@ -689,7 +702,7 @@ impl ExprResolver<()> for Resolver {
                         p.len() != expr.arguments.len()
                     }
                 }) {
-                    return Err(JokerError::Resolver(ResolverError::Struct(
+                    return Err(JokerError::Resolver(Error::Struct(
                         StructError::report_error(
                             &expr.paren,
                             format!(
@@ -720,7 +733,7 @@ impl ExprResolver<()> for Resolver {
                                 if !arg_type.eq_type(&param_type)
                                     && !IsInstance::is_instance(&arg_type, &param_type)?
                                 {
-                                    return Err(JokerError::Resolver(ResolverError::Struct(
+                                    return Err(JokerError::Resolver(Error::Struct(
                                         StructError::report_error(
                                             &expr.paren,
                                             format!(
@@ -731,7 +744,7 @@ impl ExprResolver<()> for Resolver {
                                     )));
                                 }
                             } else {
-                                return Err(JokerError::Resolver(ResolverError::Struct(
+                                return Err(JokerError::Resolver(Error::Struct(
                                     StructError::report_error(
                                         &expr.paren,
                                         String::from("Invalid parameter type in method call."),
@@ -756,7 +769,7 @@ impl ExprResolver<()> for Resolver {
                                 if !arg_type.eq_type(&param_type)
                                     && !IsInstance::is_instance(&arg_type, &param_type)?
                                 {
-                                    return Err(JokerError::Resolver(ResolverError::Struct(
+                                    return Err(JokerError::Resolver(Error::Struct(
                                         StructError::report_error(
                                             &expr.paren,
                                             format!(
@@ -767,7 +780,7 @@ impl ExprResolver<()> for Resolver {
                                     )));
                                 }
                             } else {
-                                return Err(JokerError::Resolver(ResolverError::Struct(
+                                return Err(JokerError::Resolver(Error::Struct(
                                     StructError::report_error(
                                         &expr.paren,
                                         String::from("Invalid parameter type in function call."),
@@ -789,7 +802,7 @@ impl ExprResolver<()> for Resolver {
                 let _class_type: Type = self.get_type(&name)?;
                 Ok(())
             }
-            _ => Err(JokerError::Resolver(ResolverError::Struct(
+            _ => Err(JokerError::Resolver(Error::Struct(
                 StructError::report_error(
                     &expr.paren,
                     String::from("Can only call functions and classes."),
@@ -815,7 +828,7 @@ impl StmtVisitor<()> for Resolver {
             ContextStatus::Loop,
             ContextStatus::Class(ClassStatus::Class),
             ContextStatus::Class(ClassStatus::SuperClass),
-            ContextStatus::Class(ClassStatus::Method),
+            ContextStatus::Class(ClassStatus::Method(ReturnType::Any)),
             ContextStatus::Class(ClassStatus::Fn(ReturnType::Any)),
         ]) {
             StmtResolver::resolve_var(self, stmt)?;
@@ -827,9 +840,10 @@ impl StmtVisitor<()> for Resolver {
             }
             Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::Env(
-                EnvError::report_error(&stmt.name, String::from("var need in block.")),
-            )))
+            Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+                &stmt.name,
+                String::from("var need in block."),
+            ))))
         }
     }
     fn visit_for(&self, stmt: &ForStmt) -> Result<(), JokerError> {
@@ -882,7 +896,7 @@ impl StmtVisitor<()> for Resolver {
     fn visit_block(&self, stmt: &BlockStmt) -> Result<(), JokerError> {
         if self.contains_any(&[
             ContextStatus::Fn(ReturnType::Any),
-            ContextStatus::Class(ClassStatus::Method),
+            ContextStatus::Class(ClassStatus::Method(ReturnType::Any)),
             ContextStatus::Class(ClassStatus::Fn(ReturnType::Any)),
         ]) {
             self.begin_scope();
@@ -893,12 +907,12 @@ impl StmtVisitor<()> for Resolver {
             self.end_scope();
             return Ok(());
         }
-        Err(JokerError::Resolver(ResolverError::KeyWord(
-            KeyWordError::Pos(PosError::report_error(
+        Err(JokerError::Resolver(Error::KeyWord(KeyWordError::Pos(
+            PosError::report_error(
                 &Token::eof(0),
                 String::from("Cannot use 'block' outside of a fun statement."),
-            )),
-        )))
+            ),
+        ))))
     }
     fn visit_while(&self, stmt: &WhileStmt) -> Result<(), JokerError> {
         ExprResolver::resolve(self, &stmt.condition)?;
@@ -916,59 +930,85 @@ impl StmtVisitor<()> for Resolver {
         if self.contains_any(&[ContextStatus::Loop]) {
             return Ok(());
         }
-        Err(JokerError::Resolver(ResolverError::KeyWord(
-            KeyWordError::Pos(PosError::report_error(
+        Err(JokerError::Resolver(Error::KeyWord(KeyWordError::Pos(
+            PosError::report_error(
                 &stmt.name,
                 String::from("Cannot use 'break' outside of a loop statement."),
-            )),
-        )))
+            ),
+        ))))
     }
     fn visit_return(&self, stmt: &ReturnStmt) -> Result<(), JokerError> {
         if self.last_any(&[
             ContextStatus::Fn(ReturnType::Any),
-            ContextStatus::Class(ClassStatus::Method),
+            ContextStatus::Class(ClassStatus::Method(ReturnType::Any)),
             ContextStatus::Class(ClassStatus::Fn(ReturnType::Any)),
         ]) || self.contains_any(&[ContextStatus::Fn(ReturnType::Any)])
         {
-            // value check
-            if let Some(expr) = stmt.value.as_ref() {
-                ExprResolver::resolve(self, expr)?;
-                // type check
-                if let Some(expected_return_type) = self.last_fn() {
-                    let actual_return_type = TypeInferrer::infer_type(self, expr)?;
-                    if !expected_return_type.eq_type(&actual_return_type) {
-                        return Err(JokerError::Resolver(ResolverError::Struct(
+            match (stmt.value.as_ref(), self.last_fn_return_type()) {
+                (Some(expr), Some(expected_type)) => {
+                    // value check
+                    ExprResolver::resolve(self, expr)?;
+                    // type check
+                    let found_type: Type = TypeInferrer::infer_type(self, expr)?;
+                    if !expected_type.eq_type(&found_type) {
+                        return Err(JokerError::Resolver(Error::Struct(
                             StructError::report_error(
                                 &stmt.keyword,
                                 format!(
-                                    "Return type mismatch: expected '{}', found '{}'.",
-                                    expected_return_type, actual_return_type
+                                    "Return type mismatch: Expected type '{}', Found type '{}'.",
+                                    expected_type, found_type
                                 ),
                             ),
                         )));
                     }
+                    Ok(())
                 }
+                (Some(expr), None) => {
+                    // value check
+                    ExprResolver::resolve(self, expr)?;
+                    // type check
+                    let found_type: Type = TypeInferrer::infer_type(self, expr)?;
+                    Err(JokerError::Resolver(Error::Struct(
+                        StructError::report_error(
+                            &stmt.keyword,
+                            format!(
+                                "Return type mismatch: Expected don't type, Found type '{}'.",
+                                found_type
+                            ),
+                        ),
+                    )))
+                }
+                (None, Some(expected_type)) => Err(JokerError::Resolver(Error::Struct(
+                    StructError::report_error(
+                        &stmt.keyword,
+                        format!(
+                            "Return type mismatch: Expected type '{}', But not found type.",
+                            expected_type
+                        ),
+                    ),
+                ))),
+                // TODO: Function default return 'null' or 'None' ?
+                (None, None) => Ok(()),
             }
-            Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::KeyWord(
-                KeyWordError::Pos(PosError::report_error(
+            Err(JokerError::Resolver(Error::KeyWord(KeyWordError::Pos(
+                PosError::report_error(
                     &stmt.keyword,
                     String::from("Cannot use 'return' outside of a function statement."),
-                )),
-            )))
+                ),
+            ))))
         }
     }
     fn visit_continue(&self, stmt: &ContinueStmt) -> Result<(), JokerError> {
         if self.last_any(&[ContextStatus::Loop]) {
             Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::KeyWord(
-                KeyWordError::Pos(PosError::report_error(
+            Err(JokerError::Resolver(Error::KeyWord(KeyWordError::Pos(
+                PosError::report_error(
                     &stmt.name,
                     String::from("Cannot use 'continue' outside of a loop statement."),
-                )),
-            )))
+                ),
+            ))))
         }
     }
 }
@@ -984,37 +1024,67 @@ impl ExprVisitor<()> for Resolver {
         Ok(())
     }
     fn visit_setter(&self, expr: &Setter) -> Result<(), JokerError> {
-        if self.last_any(&[ContextStatus::Class(ClassStatus::Method)])
+        if self.last_any(&[ContextStatus::Class(ClassStatus::Method(ReturnType::Any))])
             || matches!(*expr.l_expr, Expr::Variable(_))
         {
+            // value check
             ExprResolver::resolve(self, &expr.r_expr)?;
             ExprResolver::resolve(self, &expr.l_expr)?;
+            // TODO: type check: class instance
+            // Type(enum) -> Type(struct{enum}) ?
+            if let Expr::This(This { keyword }) = expr.l_expr.as_ref() {
+                if let Type::Instance {
+                    class: _,
+                    ref mut fields,
+                } = self.get_type(keyword)?
+                {
+                    let key: String = expr.name.lexeme.clone();
+                    let value_type: Type = TypeInferrer::infer_type(self, &expr.r_expr)?;
+
+                    if let Some(fields) = fields {
+                        match fields.entry(key) {
+                            Entry::Occupied(o) => {
+                                if !o.get().eq_type(&value_type) {
+                                    return Err(JokerError::Resolver(Error::Struct(StructError::report_error(
+                                        keyword,
+                                        format!("Setter type mismatch: Expected type '{}', Found type '{}'.", 
+                                            o.get(), value_type
+                                        )
+                                    ))));
+                                }
+                            }
+                            Entry::Vacant(v) => {
+                                v.insert(value_type);
+                            }
+                        }
+                    } else {
+                        *fields = Some(HashMap::from([(key, value_type)]))
+                    }
+                }
+            }
+            // label
             ExprResolver::resolve_local(self, Expr::Setter(expr.clone()), &expr.name)?;
             Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::Env(
-                EnvError::report_error(
-                    &expr.name,
-                    String::from("setter class attribute only in class method or instance."),
-                ),
-            )))
+            Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+                &expr.name,
+                String::from("Setter class attribute only in class method or instance."),
+            ))))
         }
     }
     fn visit_this(&self, expr: &This) -> Result<(), JokerError> {
         if self.last_previous_any(&[
             ContextStatus::Class(ClassStatus::Class),
             ContextStatus::Class(ClassStatus::SuperClass),
-        ]) && self.last_any(&[ContextStatus::Class(ClassStatus::Method)])
+        ]) && self.last_any(&[ContextStatus::Class(ClassStatus::Method(ReturnType::Any))])
         {
             ExprResolver::resolve_local(self, Expr::This(expr.clone()), &expr.keyword)?;
             Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::Env(
-                EnvError::report_error(
-                    &expr.keyword,
-                    String::from("can't use 'this' outside of a class."),
-                ),
-            )))
+            Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+                &expr.keyword,
+                String::from("can't use 'this' outside of a class."),
+            ))))
         }
     }
     fn visit_unary(&self, expr: &Unary) -> Result<(), JokerError> {
@@ -1027,7 +1097,23 @@ impl ExprVisitor<()> for Resolver {
         Ok(())
     }
     fn visit_assign(&self, expr: &Assign) -> Result<(), JokerError> {
+        // value check
         ExprResolver::resolve(self, &expr.value)?;
+        // type check
+        let assign_type: Type = self.get_type(&expr.name)?;
+        let value_type: Type = TypeInferrer::infer_type(self, &expr.value)?;
+        if !assign_type.eq(&value_type) {
+            return Err(JokerError::Resolver(Error::Struct(
+                StructError::report_error(
+                    &expr.name,
+                    format!(
+                        "Assign type mismatch: Expected type '{}', Found type '{}'.",
+                        assign_type, value_type,
+                    ),
+                ),
+            )));
+        }
+
         ExprResolver::resolve_local(self, Expr::Assign(expr.clone()), &expr.name)?;
         Ok(())
     }
@@ -1050,7 +1136,7 @@ impl ExprVisitor<()> for Resolver {
     fn visit_variable(&self, expr: &Variable) -> Result<(), JokerError> {
         if let Some(scope) = self.scopes_stack.borrow().last() {
             if let Some(VarStatus::Declare) = scope.borrow().get(&Key(expr.name.clone())) {
-                return Err(JokerError::Resolver(ResolverError::Var(VarError::Init(
+                return Err(JokerError::Resolver(Error::Var(VarError::Init(
                     InitError::report_error(
                         &expr.name,
                         String::from("Can't read local variable in its own initializer."),
@@ -1069,49 +1155,47 @@ impl ExprVisitor<()> for Resolver {
     }
     fn visit_super(&self, expr: &Super) -> Result<(), JokerError> {
         if self.last_previous_any(&[ContextStatus::Class(ClassStatus::SuperClass)])
-            && self.last_any(&[ContextStatus::Class(ClassStatus::Method)])
+            && self.last_any(&[ContextStatus::Class(ClassStatus::Method(ReturnType::Any))])
         {
             ExprResolver::resolve_local(self, Expr::Super(expr.clone()), &expr.keyword)?;
             Ok(())
         } else {
-            Err(JokerError::Resolver(ResolverError::Env(
-                EnvError::report_error(
-                    &expr.keyword,
-                    String::from("super keyword need in inherit class instance function used."),
-                ),
-            )))
+            Err(JokerError::Resolver(Error::Env(EnvError::report_error(
+                &expr.keyword,
+                String::from("super keyword need in inherit class instance function used."),
+            ))))
         }
     }
 }
 
 #[derive(Debug)]
-pub enum ResolverError {
+pub enum Error {
     Env(EnvError),
     Var(VarError),
     KeyWord(KeyWordError),
     Struct(StructError),
 }
 
-impl Display for ResolverError {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ResolverError::Env(env) => Display::fmt(env, f),
-            ResolverError::Var(var) => Display::fmt(var, f),
-            ResolverError::KeyWord(keyword) => Display::fmt(keyword, f),
-            ResolverError::Struct(struct_) => Display::fmt(struct_, f),
+            Error::Env(env) => Display::fmt(env, f),
+            Error::Var(var) => Display::fmt(var, f),
+            Error::KeyWord(keyword) => Display::fmt(keyword, f),
+            Error::Struct(struct_) => Display::fmt(struct_, f),
         }
     }
 }
 
-impl Error for ResolverError {}
+impl std::error::Error for Error {}
 
-impl ReportError for ResolverError {
+impl ReportError for Error {
     fn report(&self) {
         match self {
-            ResolverError::Env(env) => ReportError::report(env),
-            ResolverError::Var(var) => ReportError::report(var),
-            ResolverError::KeyWord(keyword) => ReportError::report(keyword),
-            ResolverError::Struct(struct_) => ReportError::report(struct_),
+            Error::Env(env) => ReportError::report(env),
+            Error::Var(var) => ReportError::report(var),
+            Error::KeyWord(keyword) => ReportError::report(keyword),
+            Error::Struct(struct_) => ReportError::report(struct_),
         }
     }
 }
@@ -1131,7 +1215,7 @@ impl Display for VarError {
     }
 }
 
-impl Error for VarError {}
+impl std::error::Error for VarError {}
 
 impl ReportError for VarError {
     fn report(&self) {
@@ -1179,7 +1263,7 @@ impl Display for InitError {
     }
 }
 
-impl Error for InitError {}
+impl std::error::Error for InitError {}
 
 impl ReportError for InitError {
     fn report(&self) {
@@ -1227,7 +1311,7 @@ impl Display for RedefineError {
     }
 }
 
-impl Error for RedefineError {}
+impl std::error::Error for RedefineError {}
 
 impl ReportError for RedefineError {
     fn report(&self) {
@@ -1251,7 +1335,7 @@ impl Display for KeyWordError {
     }
 }
 
-impl Error for KeyWordError {}
+impl std::error::Error for KeyWordError {}
 
 impl ReportError for KeyWordError {
     fn report(&self) {
@@ -1298,7 +1382,7 @@ impl Display for PosError {
     }
 }
 
-impl Error for PosError {}
+impl std::error::Error for PosError {}
 
 impl ReportError for PosError {
     fn report(&self) {
@@ -1346,7 +1430,7 @@ impl Display for StatusError {
     }
 }
 
-impl Error for StatusError {}
+impl std::error::Error for StatusError {}
 
 impl ReportError for StatusError {
     fn report(&self) {
