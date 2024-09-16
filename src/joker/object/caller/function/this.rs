@@ -26,7 +26,7 @@ use crate::joker::{
     types::{DeepClone, Object},
 };
 
-use super::MethodFunction;
+use super::{Lambda, MethodFunction};
 
 pub trait Binder {
     fn bind(&self, instance: Instance) -> Function;
@@ -37,6 +37,7 @@ pub enum Function {
     Native(NativeFunction),
     User(UserFunction),
     Method(MethodFunction),
+    Lambda(Lambda),
 }
 
 impl DeepClone for Function {
@@ -45,6 +46,7 @@ impl DeepClone for Function {
             Function::Native(native) => Function::Native(DeepClone::deep_clone(native)),
             Function::User(user) => Function::User(DeepClone::deep_clone(user)),
             Function::Method(method) => Function::Method(DeepClone::deep_clone(method)),
+            Function::Lambda(lambda) => Function::Lambda(DeepClone::deep_clone(lambda)),
         }
     }
 }
@@ -55,6 +57,7 @@ impl UpCast<OEnum> for Function {
             Function::Native(native) => UpCast::upcast(native),
             Function::User(user) => UpCast::upcast(user),
             Function::Method(method) => UpCast::upcast(method),
+            Function::Lambda(lambda) => UpCast::upcast(lambda),
         }
     }
     fn upcast_into(self) -> OEnum {
@@ -62,6 +65,7 @@ impl UpCast<OEnum> for Function {
             Function::Native(native) => UpCast::upcast_into(native),
             Function::User(user) => UpCast::upcast_into(user),
             Function::Method(method) => UpCast::upcast_into(method),
+            Function::Lambda(lambda) => UpCast::upcast_into(lambda),
         }
     }
 }
@@ -72,6 +76,7 @@ impl Display for Function {
             Function::Native(native) => Display::fmt(native, f),
             Function::User(user) => Display::fmt(user, f),
             Function::Method(method) => Display::fmt(method, f),
+            Function::Lambda(lambda) => Display::fmt(lambda, f),
         }
     }
 }
@@ -86,6 +91,7 @@ impl Callable for Function {
             Function::Native(native) => Callable::call(native, interpreter, arguments),
             Function::User(user) => Callable::call(user, interpreter, arguments),
             Function::Method(method) => Callable::call(method, interpreter, arguments),
+            Function::Lambda(lambda) => Callable::call(lambda, interpreter, arguments),
         }
     }
     fn arity(&self) -> usize {
@@ -93,6 +99,7 @@ impl Callable for Function {
             Function::Native(native) => Callable::arity(native),
             Function::User(user) => Callable::arity(user),
             Function::Method(method) => Callable::arity(method),
+            Function::Lambda(lambda) => Callable::arity(lambda),
         }
     }
 }

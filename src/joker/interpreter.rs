@@ -752,17 +752,12 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         result
     }
     fn visit_lambda(&self, expr: &LambdaExpr) -> Result<Option<Object>, JokerError> {
-        let lambda: Object = Object::new(OEnum::Caller(Caller::Lambda(Lambda::new(
-            expr,
-            Rc::clone(&self.run_env.borrow()),
+        let lambda: Object = Object::new(OEnum::Caller(Caller::Func(Function::Lambda(
+            Lambda::new(expr, Rc::clone(&self.run_env.borrow())),
         ))));
         Ok(Some(lambda))
     }
     fn visit_getter(&self, expr: &Getter) -> Result<Option<Object>, JokerError> {
-        // println!(
-        //     "[{:>10}][{:>20}]:\t{:<5}: {}",
-        //     "inter", "visit_getter", "expr", expr
-        // );
         let object: Object = self.value_or_raise(
             &expr.name,
             &expr.expr,
@@ -803,10 +798,6 @@ impl ExprVisitor<Option<Object>> for Interpreter {
         result
     }
     fn visit_setter(&self, expr: &Setter) -> Result<Option<Object>, JokerError> {
-        // println!(
-        //     "[{:>10}][{:>20}]:\t{:<5}: {}",
-        //     "inter", "visit_setter", "expr", expr
-        // );
         let object: Object = self.value_or_raise(
             &expr.name,
             &expr.l_expr,

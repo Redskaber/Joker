@@ -172,9 +172,161 @@ pub fn resolve_main(){
 
 
 
+mod scope_worker {
+    use std::{collections::{hash_map::Entry, HashMap}, fmt::Debug, hash::Hash};
+
+    #[derive(Debug)]
+    pub struct JokerError;
+
+    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    pub struct ParamPair {
+        pub label: String,
+        pub type_: Type,
+    }
+
+
+    #[derive(Debug, PartialEq, Eq, Clone)]
+    pub enum Type {
+        I32,
+        F64,
+        Str,
+        Fn {
+            params: Option<Vec<ParamPair>>,
+            return_type: Option<Box<Type>>,
+        },
+        Class {
+            name: String,
+            methods: Option<HashMap<String, Type>>,
+            fields: Option<HashMap<String, Type>>,
+        },
+        Instance {
+            class: String,
+            fields: Option<HashMap<String, Type>>,
+        },
+    }
+    impl Hash for Type {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            match self {
+                Type::I32 => 0.hash(state),
+                Type::F64 => 1.hash(state),
+                Type::Str => 2.hash(state),
+                Type::Fn { params, return_type } => {
+                    3.hash(state);
+                    if let Some(params) = params {
+                        for param in params {
+                            param.hash(state);
+                        }
+                    }
+                    if let Some(return_type) = return_type {
+                        return_type.hash(state);
+                    }
+                }
+                Type::Class { name, methods, fields } => {
+                    4.hash(state);
+                    name.hash(state);
+                    if let Some(methods) = methods {
+                        for (k, v) in methods {
+                            k.hash(state);
+                            v.hash(state);
+                        }
+                    }
+                    if let Some(fields) = fields {
+                        for (k, v) in fields {
+                            k.hash(state);
+                            v.hash(state);
+                        }
+                    }
+                }
+                Type::Instance { class, fields } => {
+                    5.hash(state);
+                    class.hash(state);
+                    if let Some(fields) = fields {
+                        for (k, v) in fields {
+                            k.hash(state);
+                            v.hash(state);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    #[derive(Debug)]
+    pub struct ScopeStack<K: Eq + Hash + Clone, V: Eq + Hash + Clone> {
+        inner: Vec<HashMap<K, V>>,
+    }
+
+    impl<K: Eq + Hash + Clone, V: Eq + Hash + Clone> ScopeStack<K, V> {
+        pub fn new() -> Self {
+            ScopeStack {
+                inner: Vec::new()
+            }
+        }
+        // scope operator
+        pub fn push_scope(&mut self) {
+            self.inner.push(HashMap::new())
+        }
+        pub fn pop_scope(&mut self) -> Option<HashMap<K, V>> {
+            self.inner.pop()
+        }
+        // element operator
+        pub fn declared_type(&mut self, name: K, value: V) -> Result<(), JokerError> {
+            // check stack inner have scope?
+            if self.inner.is_empty() {
+                return Err(JokerError{});
+            }
+
+            let length: usize = self.inner.len();
+            self.inner[length - 1].insert(name, value);
+
+            Ok(())
+        }
+        pub fn get_type(&self, name: &K) -> Option<&V> {
+            if  self.inner.is_empty() {
+                return None;
+            }
+            let length: usize = self.inner.len();
+            self.inner[length-1].get(name)
+        }
+        pub fn assign_value(&mut self, name: K, value: V) -> Result<(), JokerError> {
+            if self.inner.is_empty() {
+                return Err(JokerError);
+            }
+            let length: usize = self.inner.len();
+            match  self.inner[length -1].entry(name) {
+                Entry::Occupied(ref mut occ) => {
+                    if occ.get() == &value {
+                        *occ.get_mut() = value;
+                    } else {
+                        return Err(JokerError);
+                    }
+                },
+                Entry::Vacant(_vac) => {
+                    return Err(JokerError);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    // impl<K: Debug +  Eq + Hash + Clone, V: Debug +  Eq + Hash + Clone> Debug for ScopeStack<K, V> {
+    //     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            
+    //     }
+    // }
+}
+
+
+pub fn scope_worker() {
+
+}
+
 
 #[cfg(test)]
 mod tests {
+    use scope_worker::{JokerError, ParamPair, ScopeStack, Type};
+
     use super::*;
 
     #[test]
@@ -229,5 +381,101 @@ mod tests {
         println!("fn get var_stores len: {}", var_stores.len());
         println!("fn get last var: {:?}", var_stores.get(var_stores.len() - 1));
         println!("var_stores: {:?}", var_stores);
+    }
+
+
+    #[test]
+    fn test_scope_stack_declared_type() -> Result<(), JokerError>{
+        /*
+            fn main() {
+                var a: i32 = 100;
+                var b: str = "100";
+                fn inner() {
+                    var inner_a: i32 = 100;
+                    var inner_b: str = "100";
+                }
+            }
+        
+         */
+        let mut scopes_stack: ScopeStack<String, Type> = ScopeStack::new();
+        scopes_stack.push_scope();
+            scopes_stack.declared_type(String::from("a"), Type::I32)?;
+            scopes_stack.declared_type(String::from("b"), Type::Str)?;
+            scopes_stack.push_scope();
+                scopes_stack.declared_type(String::from("inner_a"), Type::I32)?;
+                scopes_stack.declared_type(String::from("inner_b"), Type::Str)?;
+
+                // show 
+                println!("ScopesStack: {:#?}", scopes_stack);
+            scopes_stack.pop_scope();
+        scopes_stack.pop_scope();
+        println!("ScopesStack: {:#?}", scopes_stack);
+
+        Ok(())
+    }
+    
+    #[test]
+    fn test_scope_stack_declared_class_instance_type() -> Result<(), JokerError> {
+        /*
+            class Point {
+                var a: i32;
+                var b: i32;
+                fn init(this, a: i32, b: i32) -> This {
+                    this.a = a;
+                    this.b = b;
+                    this.other = "other operator..";  // instance parameter.
+                }
+            }
+            var instance = Point(10, 20);
+         */
+        let mut scopes_stack: ScopeStack<String, Type> = ScopeStack::new();
+        scopes_stack.push_scope();      // main
+            scopes_stack.push_scope();      // class
+                scopes_stack.declared_type(
+                    String::from("Point"), 
+                    Type::Class { 
+                        name: String::from("Point"), 
+                        methods: Some(HashMap::from([
+                            (
+                                String::from("init"), 
+                                Type::Fn { 
+                                    params: Some(vec![
+                                        ParamPair { label: String::from("a"), type_: Type::I32 },
+                                        ParamPair { label: String::from("b"), type_: Type::I32 },
+                                    ]), 
+                                    return_type: Some(Box::new(Type::Instance { 
+                                        class: String::from("Point"),  
+                                        fields: Some(HashMap::from([
+                                            (String::from("other"), Type::Str),
+                                        ])) 
+                                    }))
+                                }
+                            ),
+                            ])), 
+                        fields: Some(HashMap::from([
+                            (String::from("a"), Type::I32),
+                            (String::from("b"), Type::I32),
+                        ])) 
+                    }
+                )?;
+
+                println!("ScopesStack: {:#?}", scopes_stack);
+
+                let point: Option<&Type> = scopes_stack.get_type(&String::from("Point"));
+                point.map(|p| println!("point: {:#?}", p));
+                
+                // mo ni new
+                let new_instance_type_success: Type = point.unwrap().clone();
+                scopes_stack.assign_value(
+                    String::from("Point"), 
+                    new_instance_type_success
+                )?;
+                let point: Option<&Type> = scopes_stack.get_type(&String::from("Point"));
+                point.map(|p| println!("point: {:#?}", p));
+
+            scopes_stack.pop_scope();
+        scopes_stack.pop_scope();
+
+        Ok(())
     }
 }

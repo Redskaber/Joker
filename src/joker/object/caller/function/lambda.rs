@@ -23,6 +23,8 @@ use crate::joker::{
     types::{DeepClone, Object},
 };
 
+use super::Function;
+
 #[derive(Clone)]
 pub struct Lambda {
     pub expr: Rc<LambdaExpr>,
@@ -40,10 +42,10 @@ impl DeepClone for Lambda {
 
 impl UpCast<OEnum> for Lambda {
     fn upcast(&self) -> OEnum {
-        OEnum::Caller(Caller::Lambda(self.clone()))
+        OEnum::Caller(Caller::Func(Function::Lambda(self.clone())))
     }
     fn upcast_into(self) -> OEnum {
-        OEnum::Caller(Caller::Lambda(self))
+        OEnum::Caller(Caller::Func(Function::Lambda(self)))
     }
 }
 

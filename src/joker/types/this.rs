@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::joker::object::Object as OEnum;
+use crate::joker::object::{Caller, Object as OEnum};
 
 pub trait DeepClone {
     fn deep_clone(&self) -> Self;
@@ -40,6 +40,9 @@ impl Object {
             inner: Rc::new(RefCell::new(inner)),
         }
     }
+    pub fn is_fn(&self) -> bool {
+        matches!(&*self.get(), OEnum::Caller(Caller::Func(_)))
+    }
     pub fn set(&self, inner: OEnum) {
         *self.inner.borrow_mut() = inner;
     }
@@ -51,6 +54,10 @@ impl Object {
     }
     pub fn parse<F: FromObject>(&self) -> Result<F, F::Err> {
         FromObject::from_object(self)
+    }
+    pub fn into_inner(self) -> OEnum {
+        self.inner
+            .replace(OEnum::Literal(crate::joker::object::Literal::Null))
     }
 }
 

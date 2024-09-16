@@ -22,12 +22,13 @@ use crate::joker::{
     types::{DeepClone, Object},
 };
 
-use super::{Binder, Class, UpCast};
+use super::{Caller, Class, Function, UpCast};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Instance {
     pub class: Rc<RefCell<Box<Class>>>,
     pub fields: Rc<RefCell<HashMap<String, Object>>>,
+    pub methods: Rc<RefCell<HashMap<String, Function>>>,
 }
 
 impl DeepClone for Instance {
@@ -35,6 +36,7 @@ impl DeepClone for Instance {
         Instance {
             class: Rc::new(RefCell::new((*self.class.borrow()).clone())),
             fields: Rc::new(RefCell::new((*self.fields.borrow()).clone())),
+            methods: Rc::new(RefCell::new((*self.methods.borrow()).clone())),
         }
     }
 }
@@ -44,6 +46,7 @@ impl DeepClone for Box<Instance> {
         Box::new(Instance {
             class: Rc::new(RefCell::new((*self.class.borrow()).clone())),
             fields: Rc::new(RefCell::new((*self.fields.borrow()).clone())),
+            methods: Rc::new(RefCell::new((*self.methods.borrow()).clone())),
         })
     }
 }
@@ -68,15 +71,20 @@ impl Instance {
         Instance {
             class: Rc::new(RefCell::new(class)),
             fields: Rc::new(RefCell::new(HashMap::new())),
+            methods: Rc::new(RefCell::new(HashMap::new())),
         }
     }
-    // find link: instance fields -> class fields -> super fields
-    // -> class method -> class function -> super method -> super function
+    // find link: instance fields -> instance methods -> class fields -> class methods -> class functions
+    // -> super fields -> super methods -> super functions
     pub fn getter(&self, name: &Token) -> Result<Option<Object>, JokerError> {
+        // instance fields -> instance methods
         if let Some(instance_value) = self.fields.borrow().get(&name.lexeme) {
             return Ok(Some(instance_value.clone()));
         }
-
+        if let Some(instance_md) = self.methods.borrow().get(&name.lexeme) {
+            return Ok(Some(Object::new(instance_md.clone().upcast_into())));
+        }
+        // class fields -> class methods -> class functions
         if let Some(class_value_status) = self.class.borrow().get_field(&name.lexeme) {
             if let Some(class_value) = class_value_status {
                 return Ok(Some(class_value.clone()));
@@ -90,7 +98,10 @@ impl Instance {
                 )));
             }
         }
-
+        if let Some(class_method) = self.class.borrow().get_method(&name.lexeme) {
+            return Ok(Some(Object::new(class_method.upcast_into())));
+        }
+        // super fields -> super methods -> super functions
         if let Some(super_class) = self.class.borrow().super_class.as_ref() {
             if let Some(super_value_status) = super_class.get_field(&name.lexeme) {
                 if let Some(super_value) = super_value_status {
@@ -105,24 +116,29 @@ impl Instance {
                     )));
                 }
             }
-        }
-
-        if let Some(method) = self.class.borrow().get_method(&name.lexeme) {
-            return Ok(Some(Object::new(method.bind(self.clone()).upcast_into())));
+            if let Some(super_method) = super_class.get_method(&name.lexeme) {
+                return Ok(Some(Object::new(super_method.upcast_into())));
+            }
         }
 
         Ok(None)
     }
     // first find name: getter, if have modify else insert.
     pub fn setter(&mut self, name: &Token, value: Object) -> Result<(), JokerError> {
-        if let Ok(op_obj) = self.getter(name) {
-            match op_obj {
-                Some(object) => {
-                    let new_value = value.get().clone();
-                    object.set(new_value);
+        if let Ok(defined_value) = self.getter(name) {
+            match defined_value {
+                Some(defined_value) => {
+                    let new_value: OEnum = value.get().clone();
+                    defined_value.set(new_value);
                 }
                 None => {
-                    self.fields.borrow_mut().insert(name.to_string(), value);
+                    if value.is_fn() {
+                        if let OEnum::Caller(Caller::Func(func)) = value.into_inner() {
+                            self.methods.borrow_mut().insert(name.lexeme.clone(), func);
+                        }
+                    } else {
+                        self.fields.borrow_mut().insert(name.lexeme.clone(), value);
+                    }
                 }
             }
         } else {
@@ -155,9 +171,10 @@ impl Display for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Instance(class: {}, fields: {:?})",
+            "Instance(class: {}, fields: {:?}, methods: {:?})",
             self.class.borrow(),
-            self.fields
+            self.fields,
+            self.methods,
         )
     }
 }

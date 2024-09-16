@@ -190,6 +190,45 @@ main();
     var p1: Point = Point(10, 20);
     move_point(p1, 100, 200);
     print p1;
+
+// impl class variable type check.
+    var p: Point = Point(10, 20);
+    var c: Circle = Circle(100, 200, 3.0);
+    var cs: CirSc = CirSc(1000, 2000, 4.0, "red");
+    
+    // p.move(100, 200);
+    // print p;
+    c.aux_display(c);
+    cs.aux_display(cs);
+
+    print "p move:";
+    var rp: null = move_point(p, 100, 200);
+    if (rp == null) {
+        print "move_point return null";
+    } else {
+        print "move_point return not null";
+    }
+
+    var p1: Point = Point(10, 20);
+    // p.x = "hello, world!";    // error: expected type 'i32', found 'str'
+    // print p.x;                // add: setter(getter, value) type check.
+
+    // TODO: will static resolve type info store to runtime ?
+    p1.new_var = "hello, world!";
+    print p1.new_var;
+
+    // TODO: will add instance variable type check. error: expected type 'i32', found 'str'
+    p1.new_var = 100;
+    print p1.new_var;
+
+    // var a: i32 = 10;        // variable statement type check.
+    // a = "hello, world!";    // add: assign type check. -> handler {resolve::assign add type check}.
+    // print a;
+
+    // var instance_var: i32 = p.instance_var;
+    // print instance_var;
+    // var p1: Point = Point.init(10, 20);      // error: 'this' ? 
+
 */
 
 class Point {
@@ -202,7 +241,12 @@ class Point {
     
         // TODO: instance variable what check type?
         // setter(getter, value), so in setter check type.
+        
+        /* success: class initializer inner variable type check.
         this.instance_var = 100;
+        this.instance_var = "hello, world!";
+        */
+
     }
     fn move(this, dx: i32, dy: i32) {
         this.x = this.x + dx;
@@ -251,39 +295,40 @@ fn main() {
     var p: Point = Point(10, 20);
     var c: Circle = Circle(100, 200, 3.0);
     var cs: CirSc = CirSc(1000, 2000, 4.0, "red");
+
+    /*
+    p.instance_var = 100;               // static check: setter type check.
+    p.instance_var = "hello, world!";   // success: setter type check.
+    // msg: Setter type mismatch: Expected type 'i32', Found type 'str'. 
+    */
+
+    // instance add new variable.
+    print p;
     
-    // p.move(100, 200);
-    // print p;
-    c.aux_display(c);
-    cs.aux_display(cs);
 
-    print "p move:";
-    var rp: null = move_point(p, 100, 200);
-    if (rp == null) {
-        print "move_point return null";
-    } else {
-        print "move_point return not null";
+    // TODO: instance add new variable.
+    // dynamic add new variable.
+    // add to fields
+    p.new_var = "hello, world!";
+    print p;
+    
+    // add to methods
+    // TODO: lambda function => methods
+    p.new_method = |x: i32, y: i32| -> i32 {
+        return x + y;
+    };
+    print p;
+
+    print p.new_method(10, 20);
+
+    // add function => methods.
+    fn add(a: i32, b: i32) -> i32 {
+        return a + b;
     }
+    p.add = add;
+    print p;
 
-    var p1: Point = Point(10, 20);
-    p1.new_var = 100;
-    print p1.new_var;
-
-    // TODO: will static resolve type info store to runtime ?
-    p1.new_var = "hello, world!";
-    print p1.new_var;
-    // TODO: will add instance variable type check. error: expected type 'i32', found 'str'
-    p1.new_var = 100;
-    print p1.new_var;
-
-    // var a: i32 = 10;        // variable statement type check.
-    // a = "hello, world!";    // add: assign type check. -> handler {resolve::assign add type check}.
-    // print a;
-
-    // var instance_var: i32 = p.instance_var;
-    // print instance_var;
-    // var p1: Point = Point.init(10, 20);      // error: 'this' ? 
-
+    print p.add(10, 20);
 }
 
 main();

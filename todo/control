@@ -46,8 +46,11 @@ TODO:
         - [v] update resolve local variable log, update setter and getter log logical.
         - [v] add class type inheritance and instance type inheritance.
       - [v] update poject error manager system. remove enum middle layer.
-      - [] add or update function and lambda function return type check.
-      - [] add class method and function return type check.
+      - [v] update lambda enum layer to function enum layer.
+      - [v] add instance fields and methods used to  instance dynamic add instance self unique parameter.
+      - [v] add instance fields and methods static resolve static check.
+      - [v] add or update function and lambda function return type check.
+      - [v] add class method and function return type check.
       - [] add type more info for error message.
       - [] remove instance type, remove class constructor pin name.
       - [] add class method and parameter public, private, protected.

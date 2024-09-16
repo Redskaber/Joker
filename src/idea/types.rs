@@ -1,4 +1,7 @@
+use std::{cell::Ref, collections::HashMap};
+
 use obj_enum::{Class, ClassInstance};
+use type_scope::{Array, Set, Str, I32};
 
 
 mod obj_enum {
@@ -108,4 +111,79 @@ pub fn types_main() {
     println!("obj get_mut: {:?}", obj.get_mut());
     
 }
+
+
+
+    mod type_scope {
+        use std::marker::PhantomData;
+    
+        #[derive(Debug)]
+        pub enum Type<'a> {
+            I32(I32),
+            Str(Str<'a>),
+            Set(Set<'a, Type<'a>>),
+            Array(Array<'a, Type<'a>>),
+        }
+    
+        #[derive(Debug)]
+        pub struct I32(pub i32);
+    
+        #[derive(Debug)]
+        pub struct Str<'a>(pub &'a str);
+    
+        #[derive(Debug)]
+        pub struct Set<'a, T: Sized + 'a>(pub &'a [T]);
+    
+        #[derive(Debug)]
+        pub struct Array<'a, T: Sized + 'a>(pub &'a [T], PhantomData<&'a T>);
+    
+        impl<'a, T: Sized + 'a> Array<'a, T> {
+            pub fn new(data: &'a [T]) -> Self {
+                Array(data, PhantomData)
+            }
+        }
+    }
+    
+
+pub fn type_manager() {
+    use type_scope::Type;
+    // let set = type_scope::Type::Set(Box::new([
+    //     type_scope::Type::I32,
+    //     type_scope::Type::Str,
+    //     type_scope::Type::Set(Box::new([
+    //         type_scope::Type::I32,
+    //     ])),
+    // ]));
+
+    let set_i32: Set<'_, I32> = Set::<I32>(&[I32(100), I32(200), I32(300)]);
+    let set_str: Set<'_, Str> = Set::<Str>(&[Str("100"), Str("200"), Str("300")]);
+    let set_type: Set<'_, Type> = Set::<Type>(&[
+        Type::I32(I32(100)),
+        Type::Str(Str("100")),
+        Type::Set(Set(&[
+            Type::I32(I32(200)),
+            Type::Str(Str("200")),
+            Type::Set(Set(&[
+                Type::I32(I32(300)),
+                Type::Str(Str("300")),
+            ]))
+        ])),
+    ]);
+    
+    let d = Set::<Type>(&[
+        Type::Array(Array::new(&[
+            Type::I32(I32(1000)),
+            Type::Str(Str("300")),  // this need error, don't same type
+        ]))
+    ]);
+
+
+    println!("set: {set_i32:#?}");
+    println!("set: {set_str:#?}");
+    println!("set: {set_type:#?}");
+    // println!("array: {array:#?}");
+}
+
+
+
 

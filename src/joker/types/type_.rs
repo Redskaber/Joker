@@ -48,12 +48,22 @@ pub enum Type {
     Instance {
         class: Box<Type>,
         fields: Option<HashMap<String, Type>>,
+        methods: Option<HashMap<String, Type>>,
     },
     This(Box<Type>),
     UserDefined(Token),
 }
 
 impl Type {
+    pub fn is_fn(&self) -> bool {
+        matches!(
+            self,
+            Type::Fn {
+                params: _,
+                return_type: _
+            }
+        )
+    }
     pub fn is_this(&self) -> bool {
         matches!(self, Type::This(_))
     }
@@ -74,7 +84,8 @@ impl Type {
             self,
             Type::Instance {
                 class: _,
-                fields: _
+                methods: _,
+                fields: _,
             }
         )
     }
@@ -209,10 +220,12 @@ impl Type {
             (
                 Type::Instance {
                     class: c1,
+                    methods: _,
                     fields: _,
                 },
                 Type::Instance {
                     class: c2,
+                    methods: _,
                     fields: _,
                 },
             ) => c1.eq_type(c2),
@@ -220,12 +233,20 @@ impl Type {
             _ => false,
         }
     }
+    pub fn as_ref(&self) -> &Self {
+        self
+    }
 }
 
 impl IsInstance for Type {
     type Err = JokerError;
     fn is_instance(&self, parent: &Self) -> Result<bool, Self::Err> {
-        if let Type::Instance { class, fields: _ } = self {
+        if let Type::Instance {
+            class,
+            fields: _,
+            methods: _,
+        } = self
+        {
             if parent.is_class() {
                 if class.eq_type(parent) {
                     Ok(true)
@@ -320,7 +341,11 @@ impl IsInstance for Type {
                 }
                 Ok(false)
             }
-            Type::Instance { class, fields } => {
+            Type::Instance {
+                class,
+                fields,
+                methods: _,
+            } => {
                 if let Some(fields) = fields {
                     if fields.contains_key(&name.lexeme) {
                         return Ok(true);
@@ -378,12 +403,19 @@ impl IsInstance for Type {
                 }
                 Ok(None)
             }
-            Type::Instance { class, fields } => {
+            Type::Instance { class, fields , methods } => {
                 if let Some(fields) = fields {
                     if let Some(type_) = fields.get(&name.lexeme) {
                         return Ok(Some(type_));
                     }
                 }
+
+                if let Some(methods) = methods {
+                    if let Some(type_) = methods.get(&name.lexeme) {
+                        return Ok(Some(type_));
+                    }
+                }
+
                 if let Some(type_) = class.get_type(name)? {
                     return Ok(Some(type_));
                 }
@@ -454,11 +486,21 @@ impl Hash for Type {
                     }
                 }
             }
-            Type::Instance { class, fields } => {
+            Type::Instance {
+                class,
+                fields,
+                methods,
+            } => {
                 7.hash(state);
                 class.hash(state);
                 if let Some(fields) = fields {
                     for (key, value) in fields {
+                        key.hash(state);
+                        value.hash(state);
+                    }
+                }
+                if let Some(methods) = methods {
+                    for (key, value) in methods {
                         key.hash(state);
                         value.hash(state);
                     }
@@ -508,7 +550,11 @@ impl Display for Type {
                 methods: _,
                 functions: _,
             } => write!(f, "class({})", name.lexeme),
-            Type::Instance { class, fields: _ } => write!(f, "instance({})", class),
+            Type::Instance {
+                class,
+                fields: _,
+                methods: _,
+            } => write!(f, "instance({})", class),
             Type::This(class) => write!(f, "{}", class),
             Type::UserDefined(name) => write!(f, "{}", name.lexeme),
         }

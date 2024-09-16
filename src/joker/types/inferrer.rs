@@ -96,7 +96,7 @@ impl TypeInferrer {
                     params: method.stmt.params.clone(),
                     return_type: method.stmt.return_type.clone(),
                 }),
-                OEnum::Caller(Caller::Lambda(lambda)) => Ok(Type::Fn {
+                OEnum::Caller(Caller::Func(Function::Lambda(lambda))) => Ok(Type::Fn {
                     params: lambda.expr.params.clone(),
                     return_type: lambda.expr.return_type.clone(),
                 }),
@@ -197,10 +197,24 @@ impl TypeInferrer {
                         }),
                     )?);
 
+                    let methods: Option<HashMap<String, Type>> = {
+                        let mut methods: HashMap<String, Type> = HashMap::new();
+                        for (key, value) in instance.methods.borrow().iter() {
+                            let value_type: Type = TypeInferrer::infer_type(
+                                resolver,
+                                &Expr::Literal(Literal {
+                                    value: OEnum::Caller(Caller::Func(value.clone())),
+                                }),
+                            )?;
+                            methods.insert(key.clone(), value_type);
+                        }
+                        Some(methods)
+                    };
+
                     let fields: Option<HashMap<String, Type>> = {
                         let mut fields: HashMap<String, Type> = HashMap::new();
                         for (key, value) in instance.fields.borrow().iter() {
-                            let value_type = TypeInferrer::infer_type(
+                            let value_type: Type = TypeInferrer::infer_type(
                                 resolver,
                                 &Expr::Literal(Literal {
                                     value: value.get().clone(),
@@ -211,7 +225,11 @@ impl TypeInferrer {
                         Some(fields)
                     };
 
-                    Ok(Type::Instance { class, fields })
+                    Ok(Type::Instance {
+                        class,
+                        methods,
+                        fields,
+                    })
                 }
             },
             Expr::Unary(Unary { l_opera, r_expr }) => {
@@ -362,6 +380,7 @@ impl TypeInferrer {
                     }
                     Type::Instance {
                         class: _,
+                        methods: _,
                         fields: _,
                     } => {
                         if let Some(sub_type) = caller_type.get_type(name)? {

@@ -25,7 +25,7 @@ use super::{
     error::{JokerError, ReportError},
     interpreter::Interpreter,
     token::{Token, TokenType},
-    types::{IsInstance, ParamPair, Type, TypeInferrer},
+    types::{IsInstance, ParamPair, Type, TypeEnv, TypeInferrer},
 };
 
 pub trait StmtResolver<T> {
@@ -141,7 +141,7 @@ pub struct Resolver {
     interpreter: Rc<Interpreter>,
     scopes_stack: RefCell<Vec<RefCell<HashMap<Key, VarStatus>>>>,
     context_status_stack: RefCell<Vec<ContextStatus>>,
-    pub type_env: RefCell<Vec<RefCell<HashMap<String, Type>>>>,
+    pub type_env: RefCell<TypeEnv>,
 }
 
 impl Resolver {
@@ -150,7 +150,7 @@ impl Resolver {
             interpreter,
             scopes_stack: RefCell::new(Vec::new()),
             context_status_stack: RefCell::new(Vec::new()),
-            type_env: RefCell::new(vec![RefCell::new(HashMap::new())]),
+            type_env: RefCell::new(TypeEnv::new_global()),
         }
     }
     pub fn resolve(&self, stmts: &[Stmt]) -> Result<(), JokerError> {
@@ -161,12 +161,10 @@ impl Resolver {
         self.scopes_stack
             .borrow_mut()
             .push(RefCell::new(HashMap::new()));
-        self.type_env
-            .borrow_mut()
-            .push(RefCell::new(HashMap::new()));
+        self.type_env.borrow_mut().begin_scope();
     }
     fn end_scope(&self) {
-        self.type_env.borrow_mut().pop();
+        self.type_env.borrow_mut().end_scope();
         self.scopes_stack.borrow_mut().pop();
     }
     fn declare(&self, name: &Token) -> Result<(), JokerError> {
@@ -261,31 +259,13 @@ impl Resolver {
     // wait type keyword
     // type name = expression;
     pub fn declare_type(&self, name: &Token, ty: Type) -> Result<(), JokerError> {
-        if let Some(scope) = self.type_env.borrow().last() {
-            scope.borrow_mut().insert(name.lexeme.clone(), ty);
-            Ok(())
-        } else {
-            Err(JokerError::Resolver(Error::Struct(
-                StructError::report_error(
-                    name,
-                    format!(
-                        "[resolve::declare_type] Current scope is None.\ntype env: {:#?}",
-                        self.type_env
-                    ),
-                ),
-            )))
-        }
+        self.type_env.borrow_mut().declare_type(name, ty)
     }
     pub fn get_type(&self, name: &Token) -> Result<Type, JokerError> {
-        for scope in self.type_env.borrow().iter().rev() {
-            if let Some(type_) = scope.borrow().get(&name.lexeme) {
-                return Ok(type_.clone());
-            }
-        }
-        Err(JokerError::Resolver(Error::Env(EnvError::report_error(
-            name,
-            String::from("Expected find type, but not find type."),
-        ))))
+        self.type_env.borrow().get_type(name)
+    }
+    pub fn assign_type(&self, name: &Token, ty: Type) -> Result<(), JokerError> {
+        self.type_env.borrow_mut().assign_type(name, ty)
     }
     pub fn last_fn_return_type(&self) -> Option<ReturnType> {
         self.context_status_stack
@@ -439,7 +419,8 @@ impl StmtResolver<()> for Resolver {
                 &Token::this(stmt.name.line),
                 Type::Instance {
                     class: Box::new(self.get_type(&stmt.name)?),
-                    fields: None,
+                    methods: None, // dynamic function store
+                    fields: None,  // dynamic fields store
                 },
             )?;
             for stmt in stmts {
@@ -542,10 +523,12 @@ impl StmtResolver<()> for Resolver {
             if let Expr::Call(call) = expr {
                 let type_: Type = TypeInferrer::infer_type(self, &call.callee)?;
                 match type_ {
+                    // function return type
                     Type::Fn {
                         params: _,
                         return_type,
                     } => return_type.map(|return_type| *return_type),
+                    // class return instance base, dynamic (methods && fields => {None})
                     Type::Class {
                         name: _,
                         super_class: _,
@@ -554,6 +537,7 @@ impl StmtResolver<()> for Resolver {
                         functions: _,
                     } => Some(Type::Instance {
                         class: Box::new(type_),
+                        methods: None,
                         fields: None,
                     }),
                     _ => Some(type_),
@@ -1032,35 +1016,217 @@ impl ExprVisitor<()> for Resolver {
             ExprResolver::resolve(self, &expr.l_expr)?;
             // TODO: type check: class instance
             // Type(enum) -> Type(struct{enum}) ?
-            if let Expr::This(This { keyword }) = expr.l_expr.as_ref() {
-                if let Type::Instance {
-                    class: _,
-                    ref mut fields,
-                } = self.get_type(keyword)?
-                {
+            match expr.l_expr.as_ref() {
+                // class outside setter variable.
+                Expr::Variable(Variable { name }) => {
+                    let caller_type: Type = self.get_type(name)?;
                     let key: String = expr.name.lexeme.clone();
                     let value_type: Type = TypeInferrer::infer_type(self, &expr.r_expr)?;
 
-                    if let Some(fields) = fields {
-                        match fields.entry(key) {
-                            Entry::Occupied(o) => {
-                                if !o.get().eq_type(&value_type) {
+                    if caller_type.is_instance() {
+                        // find instance parameter exit?
+                        match caller_type.get_type(&expr.name)? {
+                            Some(expected_type) => {
+                                if !value_type.eq_type(expected_type) {
                                     return Err(JokerError::Resolver(Error::Struct(StructError::report_error(
-                                        keyword,
-                                        format!("Setter type mismatch: Expected type '{}', Found type '{}'.", 
-                                            o.get(), value_type
+                                        &expr.name,
+                                        format!("Setter type mismatch: Expected type '{}', Found type '{}'.",
+                                            expected_type, value_type,
                                         )
                                     ))));
                                 }
                             }
-                            Entry::Vacant(v) => {
-                                v.insert(value_type);
+                            // TODO: class instance type update new parameter type, {fields, method}.
+                            // add: new parameter
+                            None => {
+                                if let Type::Instance {
+                                    class,
+                                    fields,
+                                    methods,
+                                } = caller_type
+                                {
+                                    // first check parameter is ? Fn type
+                                    if value_type.is_fn() {
+                                        match methods {
+                                            Some(mut methods) => {
+                                                methods
+                                                    .insert(key, value_type);
+                                                self.assign_type(
+                                                    name,
+                                                    Type::Instance {
+                                                        class,
+                                                        fields,
+                                                        methods: Some(methods),
+                                                    },
+                                                )?;
+                                                return Ok(());
+                                            }
+                                            None => {
+                                                let methods = HashMap::from([(
+                                                    key,
+                                                    value_type,
+                                                )]);
+                                                self.assign_type(
+                                                    name,
+                                                    Type::Instance {
+                                                        class,
+                                                        fields,
+                                                        methods: Some(methods),
+                                                    },
+                                                )?;
+                                                return Ok(());
+                                            }
+                                        }
+                                    }
+                                    // other type add to fields
+                                    match fields {
+                                        Some(mut fields) => {
+                                            fields.insert(expr.name.lexeme.clone(), value_type);
+                                            self.assign_type(
+                                                name,
+                                                Type::Instance {
+                                                    class,
+                                                    fields: Some(fields),
+                                                    methods,
+                                                },
+                                            )?;
+                                            return Ok(());
+                                        }
+                                        None => {
+                                            let fields: HashMap<String, Type> = HashMap::from([(
+                                                expr.name.lexeme.clone(),
+                                                value_type,
+                                            )]);
+                                            self.assign_type(
+                                                name,
+                                                Type::Instance {
+                                                    class,
+                                                    fields: Some(fields),
+                                                    methods,
+                                                },
+                                            )?;
+                                            return Ok(());
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
-                        *fields = Some(HashMap::from([(key, value_type)]))
+                        println!("[Resolve::visit_setter] Expr::Variable caller_type not instance.")
                     }
-                }
+                },
+                // class inside setter variable.
+                // first, check class parameters, after instance parameters.
+                Expr::This(This { keyword }) => {
+                    let caller_type: Type = self.get_type(keyword)?;
+                    let key: String = expr.name.lexeme.clone();
+                    let value_type: Type = TypeInferrer::infer_type(self, &expr.r_expr)?;
+
+                    if caller_type.is_instance() {
+                        // find instance parameter exit?
+                        match caller_type.get_type(&expr.name)? {
+                            Some(expected_type) => {
+                                if !value_type.eq_type(expected_type) {
+                                    return Err(JokerError::Resolver(Error::Struct(StructError::report_error(
+                                        &expr.name,
+                                        format!("Setter type mismatch: Expected type '{}', Found type '{}'.",
+                                            expected_type, value_type,
+                                        )
+                                    ))));
+                                }
+                            }
+                            // TODO: class instance type update new parameter type, {fields, method}.
+                            // add: new parameter
+                            None => {
+                                if let Type::Instance {
+                                    class,
+                                    fields,
+                                    methods,
+                                } = caller_type
+                                {
+                                    // first check parameter is ? Fn type
+                                    if value_type.is_fn() {
+                                        match methods {
+                                            Some(mut methods) => {
+                                                methods
+                                                    .insert(key, value_type);
+                                                self.assign_type(
+                                                    keyword,
+                                                    Type::Instance {
+                                                        class,
+                                                        fields,
+                                                        methods: Some(methods),
+                                                    },
+                                                )?;
+                                                return Ok(());
+                                            }
+                                            None => {
+                                                let methods = HashMap::from([(
+                                                    key,
+                                                    value_type,
+                                                )]);
+                                                self.assign_type(
+                                                    keyword,
+                                                    Type::Instance {
+                                                        class,
+                                                        fields,
+                                                        methods: Some(methods),
+                                                    },
+                                                )?;
+                                                return Ok(());
+                                            }
+                                        }
+                                    }
+                                    // other type add to fields
+                                    match fields {
+                                        Some(mut fields) => {
+                                            fields.insert(expr.name.lexeme.clone(), value_type);
+                                            self.assign_type(
+                                                keyword,
+                                                Type::Instance {
+                                                    class,
+                                                    fields: Some(fields),
+                                                    methods,
+                                                },
+                                            )?;
+                                            return Ok(());
+                                        }
+                                        None => {
+                                            let fields: HashMap<String, Type> = HashMap::from([(
+                                                expr.name.lexeme.clone(),
+                                                value_type,
+                                            )]);
+                                            self.assign_type(
+                                                keyword,
+                                                Type::Instance {
+                                                    class,
+                                                    fields: Some(fields),
+                                                    methods,
+                                                },
+                                            )?;
+                                            return Ok(());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        return Err(JokerError::Resolver(Error::Struct(StructError::report_error(
+                            keyword,
+                            format!(
+                                "[Resolve::visit_setter] Setter type mismatch: Expected left type 'Instance', Found type '{}'.",
+                                caller_type
+                            )
+                        ))))
+                    }
+                },
+                _ => return Err(JokerError::Resolver(Error::Struct(StructError::report_error(
+                    &expr.name,
+                    format!(
+                        "[Resolve::visit_setter] Setter type mismatch: Expected  'Expr::Variable' or ' Expr::This', Found type '{}'.", 
+                        expr.l_expr
+                    ),
+                ))))
             }
             // label
             ExprResolver::resolve_local(self, Expr::Setter(expr.clone()), &expr.name)?;
@@ -1068,7 +1234,7 @@ impl ExprVisitor<()> for Resolver {
         } else {
             Err(JokerError::Resolver(Error::Env(EnvError::report_error(
                 &expr.name,
-                String::from("Setter class attribute only in class method or instance."),
+                String::from("Setter scope mismatch: Expected 'in method | used variable'."),
             ))))
         }
     }
