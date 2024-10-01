@@ -1,0 +1,6 @@
+﻿  compiler.c
+  parser.c
+E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\parser.c(62,18): warning C4133: “=”: 从“TokenNode *”到“TokenNode *”的类型不兼容
+E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\parser.c(160,52): warning C4020: “atoi”: 实参太多
+  正在生成代码...
+  joker_c.vcxproj -> E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\x64\Debug\joker_c.exe

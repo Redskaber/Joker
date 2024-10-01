@@ -1,0 +1,32 @@
+// joker-lauguage comment
+
+left_paren;
+right_paren;
+
+for
+class
+else
+fn
+break
+while
+continue
+
+// this is comment.
+// this is comment.
+// this is comment.
+if;
+
+
+/*
+	this is comment.
+	this is comment.
+	this is comment.
+	\n\n
+*/
+
+joker;
+
+print 1 + 2;
+
+"${}";
+

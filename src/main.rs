@@ -13,5 +13,5 @@ fn main() {
     // idea::interpreter::interpreter_main();
     // idea::object_operator::object_operator();
     // idea::error_manager::error_manager();
-    // idea::resolve::scope_worker();
+    // idea::resolve::scope_worker()
 }
