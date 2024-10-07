@@ -101,7 +101,7 @@ void reset_token(Token* token);
 void print_token(Token* token);
 
 
-typedef struct {
+typedef struct TokenNode {		// self pointer need typedef used struct name, because struct name is used in TokenNode struct
 	Token token;
 	struct TokenNode* next;
 } TokenNode;

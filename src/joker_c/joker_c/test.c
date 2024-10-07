@@ -21,7 +21,7 @@ void test_op_return() {
 
 	/* add some constants to the chunk, return their offsets */
 	/* so: constant_instruction => (uint8_t)op_code + (uint8_t)value_offset */
-	write_constant(&chunk, 1000, 1);
+	write_constant(&chunk, macro_i32_from_val(1000), 1);
 
 
 	/* op_return will add to code array, and add line to line array.
@@ -55,7 +55,7 @@ void test_op_constant() {
 	init_chunk(&chunk);
 
 	/*  so: constant_instruction => (uint8_t)op_code + (uint8_t)value_offset */
-	write_constant(&chunk, 1000, 2);
+	write_constant(&chunk, macro_i32_from_val(1000), 2);
 
 	/* so: simple_instruction => (uint8_t)op_code */
 	write_chunk(&chunk, op_return, 2);
@@ -89,11 +89,11 @@ void test_op_constant_long() {
 
 	// 0x0000 ~ 0x00ff(255): op_constant
 	for (int i = 0; i < 256; i++) {
-		write_constant(&chunk, 1000, 3);
+		write_constant(&chunk, macro_i32_from_val(1000), 3);
 	}
 	// 0x0100 ~ 0xffff(65535): op_constant_long
 	for (int i = 0; i < 5; i++) {
-		write_constant(&chunk, 1001, 3);
+		write_constant(&chunk, macro_i32_from_val(1000), 3);
 	}
 
 	write_chunk(&chunk, op_return, 3);
@@ -120,7 +120,7 @@ void test_op_negate() {
 	Chunk chunk;
 	init_chunk(&chunk);
 	/*  so: constant_long_instruction => (uint8_t)op_code + (uint16_t)value_offset */
-	write_constant(&chunk, 1000, 4);
+	write_constant(&chunk, macro_i32_from_val(1000), 4);
 
 	write_chunk(&chunk, op_negate, 4);				// write: operation code
 	write_chunk(&chunk, op_return, 4);
@@ -147,8 +147,8 @@ void test_op_add() {
 
 	Chunk chunk;
 	init_chunk(&chunk);
-	write_constant(&chunk, 1000, 5);				// [1000]		left operand
-	write_constant(&chunk, 2000, 5);				// [1000][2000] right operand
+	write_constant(&chunk, macro_i32_from_val(1000), 5);				// [1000]		left operand
+	write_constant(&chunk, macro_i32_from_val(2000), 5);				// [1000][2000] right operand
 
 	write_chunk(&chunk, op_add, 5);					// write: operation code
 	write_chunk(&chunk, op_return, 5);
@@ -174,8 +174,8 @@ void test_op_subtract() {
 
 	Chunk chunk;
 	init_chunk(&chunk);
-	write_constant(&chunk, 1000, 6);				// [1000]		left operand
-	write_constant(&chunk, 2000, 6);				// [1000][2000] right operand
+	write_constant(&chunk, macro_i32_from_val(1000), 6);				// [1000]		left operand
+	write_constant(&chunk, macro_i32_from_val(2000), 6);				// [1000][2000] right operand
 
 	write_chunk(&chunk, op_subtract, 6);				// write: operation code
 	write_chunk(&chunk, op_return, 6);
@@ -202,8 +202,8 @@ void test_op_multiply() {
 	Chunk chunk;
 	init_chunk(&chunk);
 
-	write_constant(&chunk, 1000, 7);				// [1000]		left operand
-	write_constant(&chunk, 2000, 7);				// [1000][2000] right operand
+	write_constant(&chunk, macro_i32_from_val(1000), 7);				// [1000]		left operand
+	write_constant(&chunk, macro_i32_from_val(2000), 7);				// [1000][2000] right operand
 
 	write_chunk(&chunk, op_multiply, 7);				// write: operation code
 	write_chunk(&chunk, op_return, 7);
@@ -230,8 +230,8 @@ void test_op_divide() {
 	Chunk chunk;
 	init_chunk(&chunk);
 
-	write_constant(&chunk, 1000, 8);				// [1000]		left operand
-	write_constant(&chunk, 2000, 8);				// [1000][2000] right operand
+	write_constant(&chunk, macro_i32_from_val(1000), 8);				// [1000]		left operand
+	write_constant(&chunk, macro_i32_from_val(2000), 8);				// [1000][2000] right operand
 
 	write_chunk(&chunk, op_divide, 8);				// write: operation code
 	write_chunk(&chunk, op_return, 8);
@@ -270,9 +270,9 @@ void test_expression_1() {
 	* 
 	*  preorder traversal: 1, 2, *, 3, +
 	*/
-	write_constant(&chunk, 1, 1001);				// Value Array: [1]
-	write_constant(&chunk, 2, 1001);				// Value Array: [1][2]
-	write_constant(&chunk, 3, 1001);				// Value Array: [1][2][3]
+	write_constant(&chunk, macro_i32_from_val(1), 1001);				// Value Array: [1]
+	write_constant(&chunk, macro_i32_from_val(2), 1001);				// Value Array: [1][2]
+	write_constant(&chunk, macro_i32_from_val(3), 1001);				// Value Array: [1][2][3]
 
 	write_chunk(&chunk, op_add, 1001);
 	write_chunk(&chunk, op_return, 1001);
@@ -311,9 +311,9 @@ void test_expression_2() {
 	* 
 	*  preorder traversal: 1, 2, 3, *, +
 	*/
-	write_constant(&chunk, 1, 1002);				// Value Array: [1]
-	write_constant(&chunk, 2, 1002);				// Value Array: [1][2]
-	write_constant(&chunk, 3, 1002);				// Value Array: [1][2][3]
+	write_constant(&chunk, macro_i32_from_val(1), 1002);				// Value Array: [1]
+	write_constant(&chunk, macro_i32_from_val(2), 1002);				// Value Array: [1][2]
+	write_constant(&chunk, macro_i32_from_val(3), 1002);				// Value Array: [1][2][3]
 
 	write_chunk(&chunk, op_multiply, 1002);
 	write_chunk(&chunk, op_add, 1002);
@@ -351,9 +351,9 @@ void test_expression_3() {
 	* 
 	*  preorder traversal: 3, 2, -, 1, -
 	*/
-	write_constant(&chunk, 1, 1003);				// Value Array: [1]
-	write_constant(&chunk, 2, 1003);				// Value Array: [1][2]
-	write_constant(&chunk, 3, 1003);				// Value Array: [1][2][3]
+	write_constant(&chunk, macro_i32_from_val(1), 1003);				// Value Array: [1]
+	write_constant(&chunk, macro_i32_from_val(2), 1003);				// Value Array: [1][2]
+	write_constant(&chunk, macro_i32_from_val(3), 1003);				// Value Array: [1][2][3]
 
 	write_chunk(&chunk, op_subtract, 1003);
 	write_chunk(&chunk, op_return, 1003);
@@ -392,15 +392,15 @@ void test_expression_4() {
 	* 
 	*  preorder traversal: 1, 2, 3, *, +, 4, -5, /, -
 	*/
-	write_constant(&chunk, 1, 1003);				// Stack: [1]
-	write_constant(&chunk, 2, 1003);				// Stack: [1][2]
-	write_constant(&chunk, 3, 1003);				// Stack: [1][2][3]
+	write_constant(&chunk, macro_i32_from_val(1), 1003);				// Stack: [1]
+	write_constant(&chunk, macro_i32_from_val(2), 1003);				// Stack: [1][2]
+	write_constant(&chunk, macro_i32_from_val(3), 1003);				// Stack: [1][2][3]
 
 	write_chunk(&chunk, op_multiply, 1004);			// Stack: [1][6]
 	write_chunk(&chunk, op_add, 1004);				// Stack: [7]
 
-	write_constant(&chunk, 4, 1003);				// Stack: [7][4]
-	write_constant(&chunk, 5, 1003);				// Stack: [7][4][5]
+	write_constant(&chunk, macro_i32_from_val(4), 1003);				// Stack: [7][4]
+	write_constant(&chunk, macro_i32_from_val(5), 1003);				// Stack: [7][4][5]
 
 	write_chunk(&chunk, op_negate, 1004);			// Stack: [7][4][-5]
 	write_chunk(&chunk, op_divide, 1004);			// Stack: [7][-0.8]

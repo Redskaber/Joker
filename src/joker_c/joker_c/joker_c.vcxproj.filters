@@ -60,6 +60,15 @@
     <ClInclude Include="token.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="object.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="gc.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="error.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="chunk.c">
@@ -93,6 +102,15 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="parser.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="object.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="gc.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="error.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

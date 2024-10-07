@@ -33,7 +33,7 @@ InterpretResult interpret(VirtualMachine* vm, const char* source);
 /* Value stack operations */
 void push(VirtualMachine* vm, Value value);
 Value pop(VirtualMachine* vm);
-void negate(VirtualMachine* vm);
+InterpretResult negate(VirtualMachine* vm);
 
 
 

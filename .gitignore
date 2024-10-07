@@ -3,5 +3,11 @@
 /.vscode
 /Cargo.lock
 /src/joker/ast/build.rs
+/src/joker_c/.vs
+/src/joker_c/build
+/src/joker_c/x64/
+/src/joker_c/x86/
+/src/joker_c/Debug
+/src/joker_c/Release
 /tools/target/
 /tools/Cargo.lock

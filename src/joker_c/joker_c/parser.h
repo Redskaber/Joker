@@ -4,6 +4,7 @@
 #define joker_parser_h
 #include "token.h"
 #include "chunk.h"
+#include "object.h"
 
 
 typedef struct {
@@ -57,9 +58,11 @@ void parse_i32(Parser* parser, Chunk* chunk);
 void parse_f64(Parser* parser, Chunk* chunk);
 void parse_unary(Parser* parser, Chunk* chunk);
 void parse_binary(Parser* parser, Chunk* chunk);
+void parse_literal(Parser* parser, Chunk* chunk);
+void parse_string(Parser* parser, Chunk* chunk);
 
 
-/* parser rules table */
+/* parser rules table: Patttern-Action table */
 ParseRule static static_syntax_rules[] = {
 	/* entry: [index]	= {prefix,			infix,			infix_precedence} */
 	[token_left_paren]	= {parse_grouping,	NULL,			prec_none},
@@ -73,32 +76,32 @@ ParseRule static static_syntax_rules[] = {
 	[token_semicolon]	= {NULL,			NULL,			prec_none},
 	[token_slash]		= {NULL,			parse_binary,	prec_factor},
 	[token_star]		= {NULL,			parse_binary,	prec_factor},
-	[token_bang]		= {NULL,			NULL,			prec_none},
-	[token_bang_equal]	= {NULL,			NULL,			prec_none},
+	[token_bang]		= {parse_unary,	    NULL,			prec_none},
 	[token_equal]		= {NULL,			NULL,			prec_none},
-	[token_equal_equal]	= {NULL,			NULL,			prec_none},
-	[token_greater]		= {NULL,			NULL,			prec_none},
-	[token_greater_equal]= {NULL,			NULL,			prec_none},
-	[token_less]		= {NULL,			NULL,			prec_none},
-	[token_less_equal]	= {NULL,			NULL,			prec_none},
+	[token_bang_equal]	= {NULL,			parse_binary,   prec_equality},
+	[token_equal_equal]	= {NULL,			parse_binary,   prec_equality},
+	[token_greater]		= {NULL,			parse_binary,   prec_comparison},
+	[token_greater_equal]= {NULL,			parse_binary,   prec_comparison},
+	[token_less]		= {NULL,			parse_binary,   prec_comparison},
+	[token_less_equal]	= {NULL,			parse_binary,   prec_comparison},
 	[token_identifier]	= {NULL,			NULL,			prec_none},
-	[token_string]		= {NULL,			NULL,			prec_none},
+	[token_string]		= {parse_string,	NULL,			prec_none},
 	[token_i32]			= {parse_i32,		NULL,			prec_none},
 	[token_f64]			= {parse_f64,		NULL,			prec_none},
 	[token_and]			= {NULL,			NULL,			prec_none},
 	[token_class]		= {NULL,			NULL,			prec_none},
 	[token_else]		= {NULL,			NULL,			prec_none},
-	[token_false]		= {NULL,			NULL,			prec_none},
+	[token_false]		= {parse_literal,   NULL,			prec_none},
 	[token_for]			= {NULL,			NULL,			prec_none},
 	[token_fn]			= {NULL,			NULL,			prec_none},
 	[token_if]			= {NULL,			NULL,			prec_none},
-	[token_null]		= {NULL,			NULL,			prec_none},
+	[token_null]		= {parse_literal,   NULL,			prec_none},
 	[token_or]			= {NULL,			NULL,			prec_none},
 	[token_print]		= {NULL,			NULL,			prec_none},
 	[token_return]		= {NULL,			NULL,			prec_none},
 	[token_super]		= {NULL,			NULL,			prec_none},
 	[token_self]		= {NULL,			NULL,			prec_none},
-	[token_true]		= {NULL,			NULL,			prec_none},
+	[token_true]		= {parse_literal,   NULL,			prec_none},
 	[token_var]			= {NULL,			NULL,			prec_none},
 	[token_while]		= {NULL,			NULL,			prec_none},
 	[token_error]		= {NULL,			NULL,			prec_none},

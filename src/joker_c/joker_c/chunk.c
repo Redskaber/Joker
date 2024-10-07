@@ -4,7 +4,14 @@
 #include "chunk.h"
 #include "memory.h"
 
-
+/*
+* panic_error function is used to print error message and exit the program.
+* __declspec(noreturn) is used to indicate that the function does not return.
+*/
+static void __declspec(noreturn) panic_error(const char* message) {
+    fprintf(stderr, "PANIC: %s\n", message);
+    exit(EXIT_FAILURE);
+}
 
 
 void init_rle_lines(RleLines* rle_line) {
@@ -32,7 +39,7 @@ line_t get_rle_line(RleLines* lines, index_t code_count) {
             return lines->lines[i].line;
         }
     }
-    return (line_t)0;
+    panic_error("[Chunk::get_rle_line] code count out of range");
 }
 
 

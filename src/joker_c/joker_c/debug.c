@@ -39,25 +39,45 @@ uint32_t disassemble_instruction(Chunk* chunk, uint32_t offset) {
     // print instruction
     uint8_t instruction = chunk->code[offset];
     switch (instruction) {
-        case op_add:
-            return simple_instruction("op_add", offset);
-        case op_subtract:
-            return simple_instruction("op_subtract", offset);
-        case op_multiply:
-            return simple_instruction("op_multiply", offset);
-        case op_divide:
-            return simple_instruction("op_divide", offset);
-        case op_constant:
-            return constant_instruction("op_constant", chunk, offset);
-        case op_constant_long:
-            return constant_long_instruction("op_constant_long", chunk, offset);
-        case op_negate:                                                         // unary operator(-)
-            return simple_instruction("op_negate", offset); 
-        case op_return:
-            return simple_instruction("op_return", offset);
-        default:
-            printf("unknown opcode %d\n", instruction);
-            return offset + 1;
+    case op_null:
+        return simple_instruction("op_null", offset);
+    case op_true:
+        return simple_instruction("op_true", offset);
+    case op_false:
+        return simple_instruction("op_false", offset);
+    case op_equal:
+        return simple_instruction("op_equal", offset);
+    case op_not_equal:
+        return simple_instruction("op_not_equal", offset);
+    case op_greater:
+        return simple_instruction("op_greater", offset);
+    case op_less:
+        return simple_instruction("op_less", offset);
+    case op_greater_equal:
+        return simple_instruction("op_greater_equal", offset);
+    case op_less_equal:
+        return simple_instruction("op_less_equal", offset);
+    case op_add:
+        return simple_instruction("op_add", offset);
+    case op_subtract:
+        return simple_instruction("op_subtract", offset);
+    case op_multiply:
+        return simple_instruction("op_multiply", offset);
+    case op_divide:
+        return simple_instruction("op_divide", offset);
+    case op_constant:
+        return constant_instruction("op_constant", chunk, offset);
+    case op_constant_long:
+        return constant_long_instruction("op_constant_long", chunk, offset);
+    case op_not:
+        return simple_instruction("op_not", offset);
+    case op_negate:                                                         // unary operator(-)
+        return simple_instruction("op_negate", offset); 
+    case op_return:
+        return simple_instruction("op_return", offset);
+    default:
+        printf("unknown opcode %d\n", instruction);
+        return offset + 1;
      }
 }
 

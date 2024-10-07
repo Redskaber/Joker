@@ -4,6 +4,9 @@
 		The bytecode will be stored in a file.
 		The virtual machine will read the bytecode from the file and execute it.
 
+		GC， 垃圾回收机制， 自动释放不再使用的内存，减少内存碎片。
+		LCL(life cycle label) 局部变量表，存放函数调用时临时变量的生命周期。
+
 		TODO:
 			base Heap-Stack-Machine (slow and easy)
 			base Register-Machine	(quick and dirty)

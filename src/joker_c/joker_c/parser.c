@@ -157,13 +157,13 @@ void parse_expression(Parser* parser, Chunk* chunk) {
 /* TODO: add more types */
 void parse_i32(Parser* parser, Chunk* chunk) {
 	// atoi() converts a string to an integer
-	Value value = atoi(parser->previous->token.start, NULL);
-	emit_constant(parser, chunk, value);
+	int value = atoi(parser->previous->token.start);
+	emit_constant(parser, chunk, macro_i32_from_val(value));
 }
 void parse_f64(Parser* parser, Chunk* chunk) {
 	// strtod() converts a string to a double
-	Value value = strtod(parser->previous->token.start, NULL);
-	emit_constant(parser, chunk, value);
+    double value = strtod(parser->previous->token.start, NULL);
+	emit_constant(parser, chunk, macro_f64_from_val(value));
 }
 
 
@@ -182,6 +182,7 @@ void parse_unary(Parser* parser, Chunk* chunk) {
 
 	// emit the operator instruction
 	switch (operator_type) {
+	case token_bang: emit_byte(parser, chunk, op_not); break;
 	case token_minus: emit_byte(parser, chunk, op_negate); break;
 	default:
 		return; // Unreachable.
@@ -199,15 +200,37 @@ void parse_binary(Parser* parser, Chunk* chunk) {
 
 	// emit the operator instruction
 	switch (operator_type) {
-	case token_plus:  emit_byte(parser, chunk, op_add);			break;
-	case token_minus: emit_byte(parser, chunk, op_subtract);	break;
-	case token_star:  emit_byte(parser, chunk, op_multiply);	break;
-	case token_slash: emit_byte(parser, chunk, op_divide);		break;
+	case token_bang_equal:		emit_byte(parser, chunk, op_not_equal); break;
+	case token_equal_equal:		emit_byte(parser, chunk, op_equal); break;
+	case token_greater:			emit_byte(parser, chunk, op_greater); break;
+	case token_greater_equal:	emit_byte(parser, chunk, op_greater_equal); break;
+	case token_less:			emit_byte(parser, chunk, op_less); break;
+	case token_less_equal:		emit_byte(parser, chunk, op_less_equal); break;
+	case token_plus:			emit_byte(parser, chunk, op_add); break;
+	case token_minus:			emit_byte(parser, chunk, op_subtract); break;
+	case token_star:			emit_byte(parser, chunk, op_multiply); break;
+	case token_slash:			emit_byte(parser, chunk, op_divide); break;
 	default:
 		return; // Unreachable.
 	}
 }
 
+void parse_literal(Parser* parser, Chunk* chunk) {
+	switch (parser->previous->token.type) {
+	case token_false: emit_byte(parser, chunk, op_false); break;
+	case token_true:  emit_byte(parser, chunk, op_true);  break;
+	case token_null:  emit_byte(parser, chunk, op_null);  break;
+	default:
+		return; // Unreachable.
+	}
+}
+
+void parse_string(Parser* parser, Chunk* chunk) {
+	emit_constant(parser, chunk, macro_obj_from_val(new_string(
+		parser->previous->token.start + 1, 
+		parser->previous->token.length - 2
+	)));
+}
 
 
 void parse_error_at_current(Parser* parser, const char* message) {

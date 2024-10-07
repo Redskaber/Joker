@@ -6,8 +6,11 @@
 #include "common.h"
 #include "value.h"
 
-typedef uint32_t index_t;
+typedef ptrdiff_t index_t;
 typedef uint32_t line_t;
+
+/* Error */
+
 
 /*
  * OpCode: ²Ù×÷Âë
@@ -17,11 +20,21 @@ typedef enum
 	op_return,		  //  8 bit
 	op_constant,	  //  8 bit
 	op_constant_long, // 24 bit
+	op_null,		  //  8 bit
+	op_true,		  //  8 bit
+	op_false,		  //  8 bit
+	op_not,			  //  8 bit(unary!)
+	op_negate,		  //  8 bit(unary(-))
+	op_equal,		  //  8 bit(==)
+	op_not_equal,	  //  8 bit(!=)
+	op_less,		  //  8 bit(<)
+	op_less_equal,	  //  8 bit(<=)
+	op_greater,		  //  8 bit(>)
+	op_greater_equal, //  8 bit(>=)
 	op_add,			  //  8 bit(+)
 	op_subtract,	  //  8 bit(-)
 	op_multiply,	  //  8 bit(*)
 	op_divide,		  //  8 bit(/)
-	op_negate,		  //  8 bit(unary(-))
 } OpCode;
 
 typedef struct
