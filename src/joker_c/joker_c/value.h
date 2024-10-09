@@ -33,7 +33,7 @@
 
 /* forward-declares*/
 typedef struct Object Object;
-typedef struct StringObject StringObject;
+typedef struct String String;
 
 
 /* 值类型 */
@@ -47,14 +47,17 @@ typedef enum {
 
 
 
-/* 值: 存储在栈中的值 */
+/* 值: 存储在栈中的值 
+* 
+* TODO: Value Hasher
+*/
 typedef struct Value {
 	ValueType type;
 	union {
-		int32_t i32;
-		double f64;
-		bool boolean;
-		Object* object; // 指针, object 对象本身存储在堆上, 具体对象通过强转为Object* 类型来获取type 属性标签，通过二次强转获取具体对象类型
+		int32_t		i32;
+		double		f64;
+		bool	boolean;
+		Object*  object; // 指针, object 对象本身存储在堆上, 具体对象通过强转为Object* 类型来获取type 属性标签，通过二次强转获取具体对象类型
 	} as;
 } Value;
 
@@ -67,7 +70,7 @@ typedef struct Value {
 #define macro_i32_from_val(i32_)	((Value){ VAL_I32,	{ .i32 = (i32_) } })
 #define macro_f64_from_val(f64_)	((Value){ VAL_F64,	{ .f64 = (f64_) } })
 #define macro_bool_from_val(bool_)	((Value){ VAL_BOOL, { .boolean = (bool_) } })
-#define macro_obj_from_val(obj_)	((Value){ VAL_OBJECT, { .object = (Object*)(obj_) } })
+#define macro_obj_from_val(obj_)	((Value){ VAL_OBJECT, { .object = (Object*)(obj_) } })  // value need ownership of object
 #define macro_null_var				((Value){ VAL_NULL, { .i32 = 0 } })
 
 #define macro_is_i32(value)		((value).type == VAL_I32)
@@ -121,7 +124,7 @@ void write_value_array(ValueArray* array, Value value);
 bool values_equal(Value left, Value right);
 
 void print_value(Value value);
-
+void printf_value(Value value);
 
 
 #endif /* joker_value_h */

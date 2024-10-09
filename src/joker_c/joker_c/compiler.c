@@ -85,7 +85,7 @@ CompileResult compile(VirtualMachine* vm, Chunk* chunk, const char* source) {
 	Parser parser;
 	init_parser(&parser, scanner.tokens);
 
-	parse_expression(&parser, chunk);
+	parse_expression(&parser, vm, chunk);
 	parse_consume(&parser, token_eof, "Expected end of expression.");
 
 	end_compiler(&parser, chunk);

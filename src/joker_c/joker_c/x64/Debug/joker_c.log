@@ -1,2 +1,4 @@
-﻿  object.c
+﻿  option.c
+  string.c
+  正在生成代码...
   joker_c.vcxproj -> E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\x64\Debug\joker_c.exe

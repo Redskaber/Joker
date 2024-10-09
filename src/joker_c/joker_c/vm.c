@@ -8,6 +8,7 @@
 #include "common.h"
 #include "compiler.h"
 #include "value.h"
+#include "string.h"
 #include "memory.h"
 #include "object.h"
 #include "debug.h"
@@ -22,10 +23,11 @@ static InterpretResult run(VirtualMachine* vm);
 
 void init_virtual_machine(VirtualMachine* vm) {
 	reset_stack(vm);
+	init_hashmap(&vm->strings); // ×Ö·û´®×¤Áô
 }
 
 void free_virtual_machine(VirtualMachine* vm) {
-
+	free_hashmap(&vm->strings); // ×Ö·û´®×¤Áô
 }
 
 // Value stack operations
@@ -117,9 +119,9 @@ InterpretResult not_(VirtualMachine* vm) {
 }
 
 static void concatenate_string(VirtualMachine* vm) {
-	StringObject* right = macro_as_string(pop(vm));
-	StringObject* left = macro_as_string(pop(vm));
-	push(vm, macro_obj_from_val(concat_string(left, right)));
+	String* right = macro_as_string(pop(vm));
+	String* left = macro_as_string(pop(vm));
+	push(vm, macro_obj_from_val(concat_string(&vm->strings, left, right)));
 }
 
 /*

@@ -69,6 +69,15 @@
     <ClInclude Include="error.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="hashmap.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="option.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="string.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="chunk.c">
@@ -111,6 +120,15 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="error.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="hashmap.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="option.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="string.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

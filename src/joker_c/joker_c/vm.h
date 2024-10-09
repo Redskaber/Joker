@@ -5,6 +5,8 @@
 
 #include "chunk.h"
 #include "value.h"
+#include "hashmap.h"
+
 
 #define constent_stack_max 256  // static const int constent_stack_max = 256;
 
@@ -22,6 +24,7 @@ typedef struct {
     uint8_t* ip;                // instruction pointer (current executing instruction pointer)
     Value stack[constent_stack_max];        // the stack
     Value* stack_top;                       // top of the stack
+    HashMap strings;                         // string constants
 } VirtualMachine;
 
 

@@ -3,11 +3,14 @@ E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\compiler.c;E:
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\debug.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\debug.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\error.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\error.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\gc.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\gc.obj
+E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\hashmap.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\hashmap.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\joker_c.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\joker_c.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\memory.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\memory.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\object.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\object.obj
+E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\option.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\option.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\parser.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\parser.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\scanner.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\scanner.obj
+E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\string.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\string.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\test.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\test.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\token.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\token.obj
 E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\value.c;E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\joker_c\x64\Debug\value.obj

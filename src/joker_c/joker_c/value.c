@@ -53,3 +53,7 @@ void print_value(Value value) {
 	}
 }
 
+void printf_value(Value value) {
+	print_value(value);
+	printf("\n");
+}
