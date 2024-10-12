@@ -21,7 +21,6 @@ void free_parser(Parser* self);
 void print_parser(Parser* self);
 void parse_error_at_current(Parser* self, const char* message);
 void parse_error_at_previous(Parser* self, const char* message);
-TokenNode* parse_advance(Parser* self);
 void parse_consume(Parser* self, TokenType type, const char* message);
 void emit_byte(Parser* self, Chunk* chunk, uint8_t byte);
 void emit_constant(Parser* self, Chunk* chunk, Value value);
@@ -43,7 +42,7 @@ typedef enum {
 	prec_primary		// primary
 } Precedence;
 
-typedef void (*ParseFnPtr)(Parser* self, VirtualMachine* vm, Chunk* chunk);			// ParseFn -point-> void function()
+typedef void (*ParseFnPtr)(Parser* self, VirtualMachine* vm, bool can_assign);			// ParseFn -point-> void function()
 
 /* parser table of rules row */
 typedef struct {
@@ -53,14 +52,16 @@ typedef struct {
 } ParseRule;
 
 /* parser function prototypes */
-void parse_expression(Parser* self, VirtualMachine* vm, Chunk* chunk);
-void parse_grouping(Parser* self, VirtualMachine* vm, Chunk* chunk);
-void parse_i32(Parser* self, VirtualMachine* vm, Chunk* chunk);
-void parse_f64(Parser* self, VirtualMachine* vm, Chunk* chunk);
-void parse_unary(Parser* self, VirtualMachine* vm, Chunk* chunk);
-void parse_binary(Parser* self, VirtualMachine* vm, Chunk* chunk);
-void parse_literal(Parser* self, VirtualMachine* vm, Chunk* chunk);
-void parse_string(Parser* self, VirtualMachine* vm, Chunk* chunk);
+void parse_tokens(Parser* self, VirtualMachine* vm);
+void parse_grouping(Parser* self, VirtualMachine* vm, bool can_assign);
+void parse_i32(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_f64(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_unary(Parser* self, VirtualMachine* vm, bool can_assign);
+void parse_binary(Parser* self, VirtualMachine* vm, bool can_assign);
+void parse_literal(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_string(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_identifier(Parser* self, VirtualMachine* vm, bool _can_assign);
+
 
 
 /* parser rules table: Patttern-Action table */
@@ -85,7 +86,7 @@ ParseRule static static_syntax_rules[] = {
 	[token_greater_equal]= {NULL,			parse_binary,   prec_comparison},
 	[token_less]		= {NULL,			parse_binary,   prec_comparison},
 	[token_less_equal]	= {NULL,			parse_binary,   prec_comparison},
-	[token_identifier]	= {NULL,			NULL,			prec_none},
+	[token_identifier]	= {parse_identifier,NULL,			prec_none},
 	[token_string]		= {parse_string,	NULL,			prec_none},
 	[token_i32]			= {parse_i32,		NULL,			prec_none},
 	[token_f64]			= {parse_f64,		NULL,			prec_none},

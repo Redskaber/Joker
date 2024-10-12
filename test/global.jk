@@ -1,0 +1,54 @@
+/*
+This file is joker language file. used for global variable declaration.
+*/
+
+// var GLOBAL_VAR_A: i32 = 100;
+
+fn sum(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+
+fn executer(func: Fn(i32, i32) ->i32) -> i32 {
+    return func(10, 20);
+}
+
+class Person {
+    var name: str;
+    var age: i32;
+    fn init(this, name: str, age: i32) {
+        print this;
+        this.name = name;
+        this.age = age;
+    }
+
+    fn str_repr(this) -> str {
+        return "Person(" + this.name + ")";
+    }
+
+    fn static_method(name: str) -> str {
+        return "Hello, " + name;
+    }
+}
+
+fn main() {
+    var func: Fn(i32, i32) = |a: i32, b: i32| { print a + b; };
+    print(func(10, 20));
+
+    var func2: Fn(i32, i32) -> i32 = sum;
+    print func2(10, 20);
+
+    var result: i32 = executer(sum);
+    print result;
+
+    var person: Person = Person("John", 30);
+    print person;
+    print person.name;
+    print person.age;
+
+    print Person.static_method("Joker");
+    print Person.str_repr();
+}
+
+
+
+main();

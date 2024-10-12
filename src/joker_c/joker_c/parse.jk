@@ -1,0 +1,25 @@
+// this file is test joker laugnage parse base.
+
+var a = 100;
+var b = 200;
+
+var c = 10.0;
+var d = 20.0;
+
+var e = "string";
+var f = "dream";
+
+print a;
+print a + b;
+
+print c;
+print c + d;
+
+print e;
+print e + f;
+print e + f + "new";
+
+// set gloabl variable
+print a;
+a = 10000;
+print a;

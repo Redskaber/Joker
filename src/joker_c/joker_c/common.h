@@ -13,6 +13,9 @@
 #define debug_trace_execution
 /* optional struct Option {Some, None} */
 
+/* define local variable limit count store max*/
+#define max_local_variable_count (UINT8_MAX + 1)
+
 /* define exit code for joker */
 typedef enum
 {

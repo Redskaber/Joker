@@ -29,6 +29,10 @@ static Entry* find_entry(Entry* entries, size_t capacity, String* key);
 static void adjust_capacity(HashMap* map, size_t new_capacity);
 
 
+bool is_empty_entry(Entry* entry) {
+	return entry->key == NULL && macro_is_null(entry->value);
+}
+
 
 
 void init_hashmap(HashMap* self) {
@@ -171,3 +175,17 @@ String* hashmap_find_key(HashMap* self, const char* key, uint32_t len, uint32_t 
 	}
 }
 
+bool hashmap_contains_key(HashMap* self, String* key) {
+	if (self->count == 0) return false;
+	Entry* entry = find_entry(self->entries, self->capacity, key);
+	return entry->key != NULL;
+}
+
+/* note: this function used to get entry in hashmap, if not found return new entry. */
+Entry* hashmap_get_entry(HashMap* self, String* key) {
+	if (self->count + 1 > self->capacity * const_max_load_factor) {
+		size_t new_capacity = macro_grow_capacity(self->capacity);
+		adjust_capacity(self, new_capacity);
+	}
+	return find_entry(self->entries, self->capacity, key);
+}

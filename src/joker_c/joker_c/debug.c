@@ -12,21 +12,22 @@
 #include "chunk.h"
 
 // Forward declarations of helper functions
-static uint32_t simple_instruction(const char* name, uint32_t offset);
-static uint32_t constant_instruction(const char* name, Chunk* chunk, uint32_t offset);
-static uint32_t constant_long_instruction(const char* name, Chunk* chunk, uint32_t offset);
+static int simple_instruction(const char* name, int offset);
+static int constant_instruction(const char* name, Chunk* chunk, int offset);
+static int constant_long_instruction(const char* name, Chunk* chunk, int offset);
+static int byte_instruction(const char* name, Chunk* chunk, int offset);
 
 
 
 void disassemble_chunk(Chunk* chunk, const char* name) {
     printf("== %s ==\n", name);
-    for (uint32_t offset = 0; offset < chunk->count;) {
+    for (int offset = 0; offset < chunk->count;) {
         // return next instruction offset
         offset = disassemble_instruction(chunk, offset);
     }
 }
 
-uint32_t disassemble_instruction(Chunk* chunk, uint32_t offset) {
+int disassemble_instruction(Chunk* chunk, int offset) {
     printf("%04d ", offset);
 
     // print line number (if changed)
@@ -45,6 +46,18 @@ uint32_t disassemble_instruction(Chunk* chunk, uint32_t offset) {
         return simple_instruction("op_true", offset);
     case op_false:
         return simple_instruction("op_false", offset);
+    case op_pop:
+        return simple_instruction("op_pop", offset);
+    case op_define_global:
+        return constant_instruction("op_define_global", chunk, offset);
+    case op_set_global:
+        return constant_instruction("op_set_global", chunk, offset);
+    case op_get_global:
+        return constant_instruction("op_get_global", chunk, offset);
+    case op_set_local:
+        return byte_instruction("op_set_local", chunk, offset);
+    case op_get_local:
+        return byte_instruction("op_get_local", chunk, offset);
     case op_equal:
         return simple_instruction("op_equal", offset);
     case op_not_equal:
@@ -72,7 +85,9 @@ uint32_t disassemble_instruction(Chunk* chunk, uint32_t offset) {
     case op_not:
         return simple_instruction("op_not", offset);
     case op_negate:                                                         // unary operator(-)
-        return simple_instruction("op_negate", offset); 
+        return simple_instruction("op_negate", offset);
+    case op_print:
+        return simple_instruction("op_print", offset);
     case op_return:
         return simple_instruction("op_return", offset);
     default:
@@ -82,12 +97,12 @@ uint32_t disassemble_instruction(Chunk* chunk, uint32_t offset) {
 }
 
 
-static uint32_t simple_instruction(const char* name, uint32_t offset) {
+static int simple_instruction(const char* name, int offset) {
     printf("%-16s\n", name);
     return offset + 1;
 }
 
-static uint32_t constant_instruction(const char* name, Chunk* chunk, uint32_t offset) {
+static int constant_instruction(const char* name, Chunk* chunk, int offset) {
     uint8_t constant_offset = chunk->code[offset + 1];
     printf("%-16s %4d '", name, constant_offset);
     print_value(chunk->constants.values[constant_offset]);
@@ -95,11 +110,17 @@ static uint32_t constant_instruction(const char* name, Chunk* chunk, uint32_t of
     return offset + 2;
 }
 
-static uint32_t constant_long_instruction(const char* name, Chunk* chunk, uint32_t offset) {
+static int constant_long_instruction(const char* name, Chunk* chunk, int offset) {
     uint16_t constant_offset = (uint16_t)(chunk->code[offset + 1] << 8) | chunk->code[offset + 2];
     printf("%-16s %4d '", name, constant_offset);
     print_value(chunk->constants.values[constant_offset]);
     printf("'\n");
     return offset + 3;
+}
+
+static int byte_instruction(const char* name, Chunk* chunk, int offset) {
+    uint8_t slot = chunk->code[offset + 1];
+    printf("%-16s %4d\n", name, slot);
+    return offset + 2;
 }
 

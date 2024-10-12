@@ -60,6 +60,7 @@
   <ItemGroup>
     <None Include="control.md" />
     <None Include="cpp.hint" />
+    <None Include="parse.jk" />
     <None Include="test_base_constant_and_operator.jk" />
     <None Include="test_scanner.jk" />
   </ItemGroup>

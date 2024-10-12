@@ -143,5 +143,8 @@
     <None Include="control.md">
       <Filter>资源文件\control</Filter>
     </None>
+    <None Include="parse.jk">
+      <Filter>资源文件\tests\源文件</Filter>
+    </None>
   </ItemGroup>
 </Project>

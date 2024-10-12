@@ -1,6 +1,6 @@
 [workspace]
 members = [ 
-    "src/joker_bvm",        # run sub-project joker_bvm: cargo run -p joker_bvm
+    # "src/joker_bvm",        # run sub-project joker_bvm: cargo run -p joker_bvm
     "tools"                 # run sub-project tools: cargo run -p tools
 ]
 [package]
@@ -13,5 +13,5 @@ authors = ["redskaber@foxmail.com"]
 
 [dependencies]
 tools = { path = "tools" }
-joker_bvm = { path = "src/joker_bvm" }
+# joker_bvm = { path = "src/joker_bvm" }
 

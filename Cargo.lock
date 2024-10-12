@@ -6,13 +6,8 @@ version = 3
 name = "joker"
 version = "0.1.0"
 dependencies = [
- "joker_bvm",
  "tools",
 ]
-
-[[package]]
-name = "joker_bvm"
-version = "0.1.0"
 
 [[package]]
 name = "tools"

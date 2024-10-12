@@ -702,6 +702,7 @@ impl ExprResolver<()> for Resolver {
                     if param_types[0].is_this() {
                         for (arg, param_pair) in expr.arguments.iter().zip(param_types[1..].iter())
                         {
+                            // TODO: update param pair logical
                             if let ParamPair::Normal { param: _, type_ } = param_pair {
                                 let arg_type: Type = TypeInferrer::infer_type(self, arg)?;
                                 let param_type: Type = if let Type::UserDefined(token) = type_ {
@@ -738,7 +739,8 @@ impl ExprResolver<()> for Resolver {
                         }
                     } else {
                         for (arg, param_pair) in expr.arguments.iter().zip(param_types.iter()) {
-                            if let ParamPair::Normal { param: _, type_ } = param_pair {
+                            // Fn { params: Some([Label { type_: I32 }, Label { type_: I32 }]), return_type: Some(I32) }
+                            let executer = |arg: &Expr, type_: &Type| -> Result<(), JokerError> {
                                 let arg_type: Type = TypeInferrer::infer_type(self, arg)?;
                                 let param_type: Type = if let Type::UserDefined(token) = type_ {
                                     TypeInferrer::infer_type(
@@ -763,13 +765,12 @@ impl ExprResolver<()> for Resolver {
                                         ),
                                     )));
                                 }
-                            } else {
-                                return Err(JokerError::Resolver(Error::Struct(
-                                    StructError::report_error(
-                                        &expr.paren,
-                                        String::from("Invalid parameter type in function call."),
-                                    ),
-                                )));
+                                Ok(())
+                            };
+                            match param_pair {
+                                ParamPair::Label { type_ } => executer(arg, type_)?,
+                                ParamPair::Normal { param: _, type_ } => executer(arg, type_)?,
+                                ParamPair::This { param: _, type_ } => executer(arg, type_)?,
                             }
                         }
                     }
@@ -934,16 +935,45 @@ impl StmtVisitor<()> for Resolver {
                     ExprResolver::resolve(self, expr)?;
                     // type check
                     let found_type: Type = TypeInferrer::infer_type(self, expr)?;
-                    if !expected_type.eq_type(&found_type) {
-                        return Err(JokerError::Resolver(Error::Struct(
-                            StructError::report_error(
-                                &stmt.keyword,
-                                format!(
-                                    "Return type mismatch: Expected type '{}', Found type '{}'.",
-                                    expected_type, found_type
+                    // is call?
+                    if let Type::Fn { params: _, return_type } = found_type {
+                        match return_type {
+                            Some(return_type) => {
+                                if !expected_type.eq_type(&return_type) {
+                                    return Err(JokerError::Resolver(Error::Struct(
+                                        StructError::report_error(
+                                            &stmt.keyword,
+                                            format!(
+                                                "Return type mismatch: Expected type '{}', Found type '{}'.",
+                                                expected_type, return_type
+                                            ),
+                                        ),
+                                    )));
+                                }
+                                // auto(call other resolver check): check inner function parameters type.
+                            },
+                            None => return Err(JokerError::Resolver(Error::Struct(
+                                StructError::report_error(
+                                    &stmt.keyword,
+                                    format!(
+                                        "Return type mismatch: Expected type '{}', But not found type.",
+                                        expected_type
+                                    ),
                                 ),
-                            ),
-                        )));
+                            )))
+                        }
+                    } else {
+                        if !expected_type.eq_type(&found_type) {
+                            return Err(JokerError::Resolver(Error::Struct(
+                                StructError::report_error(
+                                    &stmt.keyword,
+                                    format!(
+                                        "Return type mismatch: Expected type '{}', Found type '{}'.",
+                                        expected_type, found_type
+                                    ),
+                                ),
+                            )));
+                        }
                     }
                     Ok(())
                 }

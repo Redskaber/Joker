@@ -6,7 +6,7 @@
 #include "common.h"
 #include "value.h"
 
-typedef ptrdiff_t index_t;
+typedef int index_t;
 typedef uint32_t line_t;
 
 /* Error */
@@ -25,6 +25,13 @@ typedef enum
 	op_false,		  //  8 bit
 	op_not,			  //  8 bit(unary!)
 	op_negate,		  //  8 bit(unary(-))
+	op_print,		  //  8 bit(print)
+	op_pop,			  //  8 bit(pop)
+	op_define_global, // 16 bit(define_global + index)
+	op_set_global,	  // 16 bit(set_global + index)
+	op_get_global,	  // 16 bit(get_global + index)
+	op_set_local,	  // 16 bit(set_local + index)
+	op_get_local,	  // 16 bit(get_local + index)
 	op_equal,		  //  8 bit(==)
 	op_not_equal,	  //  8 bit(!=)
 	op_less,		  //  8 bit(<)
@@ -40,13 +47,13 @@ typedef enum
 typedef struct
 {
 	line_t line;
-	uint32_t count;
+	int count;
 } RleLine;
 
 typedef struct
 {
-	uint32_t count;
-	uint32_t capacity;
+	int count;
+	int capacity;
 	RleLine *lines;
 } RleLines;
 void init_rle_lines(RleLines *lines);
@@ -63,8 +70,8 @@ line_t get_rle_line(RleLines *lines, index_t code_count);
  */
 typedef struct
 {
-	uint32_t count;
-	uint32_t capacity;
+	int count;
+	int capacity;
 	uint8_t *code;		  // 指令数组 (操作码 | 操作数)
 	RleLines lines;		  // 行号数组
 	ValueArray constants; // 常量数组
@@ -73,6 +80,7 @@ void init_chunk(Chunk *chunk);
 void free_chunk(Chunk *chunk);
 void write_chunk(Chunk *chunk, uint8_t code, line_t line);
 
+index_t add_constant(Chunk* chunk, Value value);
 void write_constant(Chunk *chunk, Value value, line_t line);
 
 #endif /* joker_chunk_h */

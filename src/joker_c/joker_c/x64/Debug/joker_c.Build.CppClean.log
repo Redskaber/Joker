@@ -4,10 +4,16 @@ e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\vm.
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\value.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\token.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\test.obj
+e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\string.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\scanner.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\parser.obj
+e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\option.obj
+e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\object.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\memory.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\joker_c.obj
+e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\hashmap.obj
+e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\gc.obj
+e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\error.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\debug.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\compiler.obj
 e:\studyclass\database\rust\project\demo\joker\src\joker_c\joker_c\x64\debug\chunk.obj

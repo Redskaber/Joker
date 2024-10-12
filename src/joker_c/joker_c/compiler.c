@@ -68,6 +68,22 @@
 */
 
 
+void init_compiler(Compiler* self) {
+	self->local_count = 0;
+	self->scope_depth = 0;
+}
+void free_compiler(Compiler* self) {
+}
+
+void compile_begin_scope(Compiler* self) {
+	self->scope_depth++;
+}
+void compile_end_scope(Compiler* self) {
+	self->scope_depth--;
+}
+
+
+
 static void end_compiler(Parser* parser, Chunk* chunk) {
 	emit_byte(parser, chunk, op_return);
 #ifdef debug_print_code
@@ -77,7 +93,7 @@ static void end_compiler(Parser* parser, Chunk* chunk) {
 #endif
 }
 
-CompileResult compile(VirtualMachine* vm, Chunk* chunk, const char* source) {
+CompileResult compile(VirtualMachine* vm, const char* source) {
 	Scanner scanner;
 	init_scanner(&scanner, source);
 	scan_tokens(&scanner);
@@ -85,10 +101,13 @@ CompileResult compile(VirtualMachine* vm, Chunk* chunk, const char* source) {
 	Parser parser;
 	init_parser(&parser, scanner.tokens);
 
-	parse_expression(&parser, vm, chunk);
-	parse_consume(&parser, token_eof, "Expected end of expression.");
+	Compiler compiler;
+	init_compiler(&compiler);
 
-	end_compiler(&parser, chunk);
+	vm->compiler = &compiler;
+	parse_tokens(&parser, vm);
+
+	end_compiler(&parser, vm->chunk);
 
 	/*
 	* Parser:

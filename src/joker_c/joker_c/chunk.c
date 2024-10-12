@@ -31,9 +31,9 @@ void free_rle_lines(RleLines* rle_line) {
 //  Since it is called only when a runtime error occurs, 
 //  it is well off the critical path where performance matters. 
 line_t get_rle_line(RleLines* lines, index_t code_count) {
-    uint32_t count = 0;
+    int count = 0;
 
-    for (uint32_t i = 0; i < lines->count; i++) {
+    for (int i = 0; i < lines->count; i++) {
         count += lines->lines[i].count;
         if (code_count < count) {
             return lines->lines[i].line;
@@ -107,7 +107,10 @@ void write_chunk(Chunk* chunk, uint8_t code, line_t line) {
 }
 
 
-static index_t add_value_to_chunk(Chunk* chunk, Value value) {
+index_t add_constant(Chunk* chunk, Value value) {
+    if (chunk->constants.count >= UINT32_MAX) {
+        panic_error("[Chunk::add_constant] Expected constant index to be less than 2^32 - 1, Found additional constant beyond limit.");
+    }
     write_value_array(&chunk->constants, value);
     return chunk->constants.count - 1;  // index of the added constant
 }
@@ -120,14 +123,17 @@ static index_t add_value_to_chunk(Chunk* chunk, Value value) {
 *  answer: used double call of write_chunk() to write op_constant_long and uint16_t
 */
 void write_constant(Chunk* chunk, Value value, line_t line) {
-    index_t index = add_value_to_chunk(chunk, value);
+    index_t index = add_constant(chunk, value);
     if (index < UINT8_MAX) {
         write_chunk(chunk, op_constant, line);
         write_chunk(chunk, (uint8_t)index, line);
-    } else {
+    } else if (index < UINT16_MAX) {
         write_chunk(chunk, op_constant_long, line);
         write_chunk(chunk, (uint8_t)(index >> 8), line);
         write_chunk(chunk, (uint8_t)index, line);
+    }
+    else {
+        panic_error("[Chunk::write_constant] Expected constant index to be less than 2^16 - 1, Found constant beyond limit.");
     }
 }
 

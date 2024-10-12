@@ -54,13 +54,14 @@ void print_option(Option_* option) {
 	}
 }
 
-void printf_option(Option_* option) {
-	print_option(option);
-	printf("\n");
-}
 bool match(Option_* option, ValueType expected_type) {
 	if (option->state == SomeState) {
 		return ((Some_*)option)->value.type == expected_type;
 	}
 	return false;
+}
+
+void printf_option(Option_* option) {
+	print_option(option);
+	printf("\n");
 }
