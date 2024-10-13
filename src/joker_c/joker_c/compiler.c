@@ -54,9 +54,6 @@
 #include "scanner.h"
 #include "parser.h"
 
-#ifdef debug_print_code
-#include "debug.h"
-#endif
 
 
 /*
@@ -83,16 +80,6 @@ void compile_end_scope(Compiler* self) {
 }
 
 
-
-static void end_compiler(Parser* parser, Chunk* chunk) {
-	emit_byte(parser, chunk, op_return);
-#ifdef debug_print_code
-	if (!parser->had_error) {
-		disassemble_chunk(chunk, "=================code================");
-	}
-#endif
-}
-
 CompileResult compile(VirtualMachine* vm, const char* source) {
 	Scanner scanner;
 	init_scanner(&scanner, source);
@@ -106,8 +93,6 @@ CompileResult compile(VirtualMachine* vm, const char* source) {
 
 	vm->compiler = &compiler;
 	parse_tokens(&parser, vm);
-
-	end_compiler(&parser, vm->chunk);
 
 	/*
 	* Parser:
@@ -124,6 +109,7 @@ CompileResult compile(VirtualMachine* vm, const char* source) {
 	*   However, other attributes of the scanner itself do not need to be released 
 	*   because they are local variables and will be automatically released after the function is executed.
 	*/
+	free_compiler(&compiler);
 	free_parser(&parser); 
 	free_scanner(&scanner); 
 

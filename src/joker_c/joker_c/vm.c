@@ -64,6 +64,15 @@ static int current_code_index(VirtualMachine* self) {
 }
 
 
+static bool is_falsey(VirtualMachine* self, Value* value) {
+	switch (value->type) {
+	case VAL_BOOL: return !value->as.boolean;
+	default: 
+		//  raise runtime error, expected boolean for not operation, found...
+		runtime_error(self, "Expected boolean for not operation, Found...");
+		return false;
+	}
+}
 
 
 void init_virtual_machine(VirtualMachine* self) {
@@ -223,6 +232,8 @@ static InterpretResult run(VirtualMachine* self) {
 
 /* read a string from the constant pool */
 #define macro_read_string(vm) (macro_as_string(macro_read_constant(vm)))
+/* read a short from the current instruction pointer */
+#define macro_read_short(vm) (vm->ip +=2, ((uint16_t)(vm->ip[-2]) << 8) | (uint16_t)(vm->ip[-1]))
 
 
 	Value constant;
@@ -361,11 +372,30 @@ static InterpretResult run(VirtualMachine* self) {
 			push(self, self->stack[slot]);
 			break;
 		}
+		case op_jump_if_false: {
+			uint16_t offset = macro_read_short(self);  // short: 16-bit unsigned signed integer
+			if (is_falsey(self, peek(self, 0))) {      // e.g.: self->ip += falsey(peek(self, 0)) * offset;
+				self->ip += offset;
+			}
+			break;
+		}
+		case op_jump: {
+			uint16_t offset = macro_read_short(self);
+			self->ip += offset;
+			break;
+		}
+		case op_loop: {
+			uint16_t offset = macro_read_short(self);
+			self->ip -= offset;
+			break;
+		}
 		case op_return:
 			return interpret_ok;
 		}
 	}
 
+#undef macro_read_short
+#undef macro_is_false
 #undef macro_read_string 
 #undef macro_binary_op
 #undef macro_read_constant

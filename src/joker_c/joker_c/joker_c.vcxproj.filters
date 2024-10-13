@@ -146,5 +146,8 @@
     <None Include="parse.jk">
       <Filter>资源文件\tests\源文件</Filter>
     </None>
+    <None Include="test_block.jk">
+      <Filter>资源文件\tests\源文件</Filter>
+    </None>
   </ItemGroup>
 </Project>

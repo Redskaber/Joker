@@ -1,0 +1,15 @@
+// This file os joker language of block
+
+
+var name = "g_name_variable";
+
+{
+	var name = "l_name_variable";
+	print "local name: " + name;
+	 {
+		var name = "inner_name_variable";
+		print "inner name: " + name;
+	 }
+}
+
+print "global name: " + name;

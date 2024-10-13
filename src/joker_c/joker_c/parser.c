@@ -10,12 +10,18 @@
 *
 *   Statement      -> exprStmt -> expr -> precedence -> dispath { }
 *					| forStmt
-*					| ifStmt
+*					| ifStmt		-> "if" "(" expr ")" Statement ("else" Statement)?
 * 					| printStmt
 *					| returnStmt
 *					| whileStmt
 *				    | blockStmt		->  "{" Declaration* "}"
 *
+* 
+*	switchStmt     ¡ú "switch" "(" expression ")"
+*						"{" switchCase* defaultCase? "}" ;
+*	switchCase     ¡ú "case" expression ":" statement* ;
+*	defaultCase    ¡ú "default" ":" statement* ;
+* 
 * 
 * stack effect
 * 
@@ -33,6 +39,11 @@
 *   should in compile time error.?
 * 
 * TODO: add keyword 'const' to declare constant variable.
+* TODO: could have separate instructions for conditional jumps that implicitly pop and those that don¡¯t.
+* TODO: add match keyword to match pattern in switch statement. 
+* TODO: add ?: operator to handle ternary operator.
+* TODO£ºadd 'continue' and 'break' statement to loop statement.
+* TODO: 'goto'?
 */
 
 
@@ -49,17 +60,30 @@
 
 #include "parser.h"
 
+#ifdef debug_print_code
+#include "debug.h"
+#endif
 
 
 
-static void parse_error_at(Parser* self, Token* error, const char* message);
-void parse_error_at_current(Parser* self, const char* message);
-void parse_error_at_previous(Parser* self, const char* message);
+/* Parser */
+static index_t make_constent(Parser* self, Chunk* chunk, Value value);
+static index_t identifier_constant(Parser* self, VirtualMachine* vm, Token* token);
+static void emit_constant(Parser* self, Chunk* chunk, Value value);
+static void emit_byte(Parser* self, Chunk* chunk, uint8_t byte);
+static void emit_bytes(Parser* self, Chunk* chunk, uint8_t opcode, uint8_t operand);
+static int emit_jump(Parser* self, Chunk* chunk, uint8_t opcode);
+static void patch_jump(Parser* self, Chunk* chunk, int offset);
+
+static void synchronize(Parser* self);
 static TokenNode* parse_advance(Parser* self);
 static bool parse_check(Parser* self, TokenType type);
 static bool parse_match(Parser* self, TokenType type);
 static bool parse_is_at_end(Parser* self);
 static void parse_consume(Parser* self, TokenType type, const char* message);
+static void parse_error_at(Parser* self, Token* error, const char* message);
+void parse_error_at_current(Parser* self, const char* message);
+void parse_error_at_previous(Parser* self, const char* message);
 
 
 /* Abstract Syntax Tree(AST)*/
@@ -68,12 +92,14 @@ static void parse_var_declaraton(Parser* self, VirtualMachine* vm);
 static void parse_named_variable(Parser* self, VirtualMachine* vm, Token* variable, bool can_assign);
 static index_t parse_variable(Parser* self, VirtualMachine* vm, const char* message);
 static void parse_statement(Parser* self, VirtualMachine* vm);
+static void parse_if_statement(Parser* self, VirtualMachine* vm);
+static void parse_while_statement(Parser* self, VirtualMachine* vm);
+static void parse_for_statement(Parser* self, VirtualMachine* vm);
 static void parse_block_statement(Parser* self, VirtualMachine* vm);
 static void parse_print_stmtement(Parser* self, VirtualMachine* vm);
 static void parse_expr_statement(Parser* self, VirtualMachine* vm);
 static void parse_precedence(Parser* self, VirtualMachine* vm, Precedence outer_precedence);
 static void parse_expression(Parser* self, VirtualMachine* vm);
-static index_t identifier_constant(Parser* self, VirtualMachine* vm, Token* token);
 
 
 /* Compiler */
@@ -122,6 +148,15 @@ void print_parser(Parser* self) {
 	printf("panic_mode: %d\n", self->panic_mode);
 }
 
+static void end_parser(Parser* self, Chunk* chunk) {
+	emit_byte(self, chunk, op_return);
+#ifdef debug_print_code
+	if (!self->had_error) {
+		disassemble_chunk(chunk, "=================code================");
+	}
+#endif
+}
+
 /* check if is at end of file, return true if is at end of file, false otherwise */
 static bool parse_is_at_end(Parser* self) {
 	if (self->current == NULL) {
@@ -159,17 +194,82 @@ static void parse_consume(Parser* self, TokenType type, const char* message) {
 }
 
 
-void emit_byte(Parser* self, Chunk* chunk, uint8_t byte) {
+static void emit_byte(Parser* self, Chunk* chunk, uint8_t byte) {
 	write_chunk(chunk, byte, self->previous->token.line);
 }
 
-void emit_constant(Parser* self, Chunk* chunk, Value value) {
+static void emit_constant(Parser* self, Chunk* chunk, Value value) {
 	write_constant(chunk, value, self->previous->token.line);
 }
 
-void emit_bytes(Parser* self, Chunk* chunk, uint8_t opcode, uint8_t operand) {
+static void emit_bytes(Parser* self, Chunk* chunk, uint8_t opcode, uint8_t operand) {
 	emit_byte(self, chunk, opcode);
 	emit_byte(self, chunk, operand);
+}
+
+/*
+* chunk->count - 2: return index of jump offset
+*						|----------< -2 >---------|
+*						V						  V
+* [code, code , {code, jump_offset, jump_offset}, ...]
+*/
+static int emit_jump(Parser* self, Chunk* chunk, uint8_t opcode) {
+	emit_byte(self, chunk, opcode);
+	emit_byte(self, chunk, 0xff);		// placeholder for jump offset
+	emit_byte(self, chunk, 0xff);		// placeholder for jump offset 2^(8+8) = 65535
+	return chunk->count - 2;			// return index of jump offset
+}
+/*
+* patch_jump:
+*	- calculate jump offset: chunk->count - offset - 2
+*	- write high 8 bits of jump offset to chunk->code[offset]
+* 	- write low 8 bits of jump offset to chunk->code[offset+1]
+* 
+*   | --< offset >-- |									  |(chunk->count)
+*	V				 V |<---------(2)--------->|<-jump->| V
+* [code, code , {jump, jump_offset, jump_offset}, ......, code,code, ...]
+*/
+static void patch_jump(Parser* self, Chunk* chunk, int offset) {
+	int jump = chunk->count - offset - 2;
+	if (jump > UINT16_MAX) {
+		parse_error_at_current(self, "[Parser::patch_jump] Expected jump offset less than 2^16, Found jump offset greater than 2^16.");
+	}
+
+	chunk->code[offset] = (jump >> 8) & 0xff;   // high 8 bits of jump offset
+	chunk->code[offset + 1] = jump & 0xff;		// low 8 bits of jump offset
+}
+
+/*
+* emit_loop:
+*	- emit op_loop
+*	- calculate loop offset: chunk->count - loop_start + 2
+* 	- emit high 8 bits of loop offset
+* 	- emit low 8 bits of loop offset
+*
+*	while
+*    |     <- loop_start  <-¡ª¡ª--- loop_start
+*    |     (				¡ü
+*    |     condition		|
+*    |     )				|
+*    |     <- exit_jump		|
+*    |     {				|
+*    |         statement	|
+*    |     }				|
+*    |     <--- op_loop --->|
+*    |        | loop_offset |
+*    |        V loop_offset | <- chunck->count
+*	=> offset = chunk->count - loop_start + 2(loop_offset)
+*/
+static void emit_loop(Parser* self, Chunk* chunk, int loop_start) {
+	emit_byte(self, chunk, op_loop);
+
+	int offset = chunk->count - loop_start + 2;
+	if (offset > UINT16_MAX) {
+		parse_error_at_current(self, "[Parser::emit_loop] Expected loop offset less than 2^16, Found loop offset greater than 2^16.");
+	}
+
+	emit_byte(self, chunk, (offset >> 8) & 0xff);	// high 8 bits of loop offset
+	emit_byte(self, chunk, offset & 0xff);			// low 8 bits of loop offset
 }
 
 
@@ -290,6 +390,7 @@ void parse_tokens(Parser* self, VirtualMachine* vm) {
 		parse_declaration(self, vm);
 	}
 	parse_consume(self, token_eof, "Expected end of expression.");
+	end_parser(self, vm->chunk);
 }
 
 static void parse_declaration(Parser* self, VirtualMachine* vm) {
@@ -369,6 +470,15 @@ static void parse_statement(Parser* self, VirtualMachine* vm) {
 	if (parse_match(self, token_print)) {
 		parse_print_stmtement(self, vm);
 	}
+	else if (parse_match(self, token_for)) {
+		parse_for_statement(self, vm);
+	}
+	else if (parse_match(self, token_if)) {
+		parse_if_statement(self, vm);
+	}
+	else if (parse_match(self, token_while)) {
+		parse_while_statement(self, vm);
+	}
 	else if (parse_match(self, token_left_brace)) {
 		begin_scope(vm->compiler);
 		parse_block_statement(self, vm);
@@ -377,6 +487,129 @@ static void parse_statement(Parser* self, VirtualMachine* vm) {
 	else {
 		parse_expr_statement(self, vm);
 	}
+}
+
+// forStmt: for (varDecl | exprStmt | ; condition ; increment) statement;
+/*
+*	for
+*    |     (
+*    |     varDecl | exprStmt
+*    |     ;
+*    |     condition           <- loop_start (exit_jump)            <-           <-
+*    |     ;					|                                    |            |
+*    |     increment            |							<- increment_start    |
+*    |     )					|							 ¡ü                    |
+*    |     statement;			|¡ª body_jump --------------> -                    |
+*	 |     			            |- exit_jump -----------------------------------> -
+* 
+*/
+static void parse_for_statement(Parser* self, VirtualMachine* vm) {
+	begin_scope(vm->compiler);
+
+	parse_consume(self, token_left_paren, "[Parser::parse_for_statement] Expected '(' after 'for'.");
+	if (parse_match(self, token_semicolon)) {
+		// no initialization.
+	}
+	else if (parse_match(self, token_var)) {
+		parse_var_declaraton(self, vm);
+	}
+	else {
+		parse_expr_statement(self, vm);
+	}
+
+	// condition: expression
+	int loop_start = vm->chunk->count;
+	int exit_jump = -1;
+	if (!parse_match(self, token_semicolon)) {
+		parse_expression(self, vm);
+		parse_consume(self, token_semicolon, "[Parser::parse_for_statement] Expected ';' after loop condition.");
+
+		// jump to the end of the loop if the condition is false.
+		exit_jump = emit_jump(self, vm->chunk, op_jump_if_false);
+		emit_byte(self, vm->chunk, op_pop); // condition
+	}
+
+	// increment: expression; unconditional jump that hops over the increment clause¡¯s code to the body of the loop. 
+	if (!parse_match(self, token_right_paren)) {
+		int body_jump = emit_jump(self, vm->chunk, op_jump);
+		int increment_start = vm->chunk->count; // label for the increment clause.
+
+		parse_expression(self, vm);
+		emit_byte(self, vm->chunk, op_pop); // increment
+		parse_consume(self, token_right_paren, "[Parser::parse_for_statement] Expected ')' after for clauses.");
+		
+		emit_loop(self, vm->chunk, loop_start);  
+		loop_start = increment_start;
+		patch_jump(self, vm->chunk, body_jump);
+	}
+
+	// statement: statement;
+	parse_statement(self, vm);
+
+	// emit loop op_loop
+	emit_loop(self, vm->chunk, loop_start);
+	// patch exit_jump to here: update loop chunk [opcode, jump_offset, jump_offset]
+	if (exit_jump != -1) {
+		patch_jump(self, vm->chunk, exit_jump);
+		emit_byte(self, vm->chunk, op_pop); // condition
+	}
+
+	end_scope(self, vm->compiler, vm->chunk);
+}
+
+// whileStmt: while (expression) statement;
+/*
+*	while
+*    |     <- loop_start  <-¡ª¡ª--- loop_start
+*    |     (				¡ü
+*    |     condition		|
+*    |     )				|
+*    |     <- exit_jump		|
+*    |     {				|
+*    |         statement	|
+*    |     }				|
+*    |     <--- op_loop --->|
+*    |        | loop_offset |
+*    |        V loop_offset | <- chunck->count
+*	=> offset = chunk->count - loop_start + 2(loop_offset)
+*/
+static void parse_while_statement(Parser* self, VirtualMachine* vm) {
+	int loop_start = vm->chunk->count;
+
+	parse_consume(self, token_left_paren, "[Parser::parse_while_statement] Expected '(' after 'while'.");
+	parse_expression(self, vm);
+	parse_consume(self, token_right_paren, "[Parser::parse_while_statement] Expected ')' after condition.");
+
+	int exit_jump = emit_jump(self, vm->chunk, op_jump_if_false);
+	emit_byte(self, vm->chunk, op_pop);
+	parse_statement(self, vm);
+	emit_loop(self, vm->chunk, loop_start);
+
+	patch_jump(self, vm->chunk, exit_jump);
+	emit_byte(self, vm->chunk, op_pop);
+}
+
+// ifStmt: if (expression) statement else statement;
+static void parse_if_statement(Parser* self, VirtualMachine* vm) {
+	parse_consume(self, token_left_paren, "[Parser::parse_if_statement] Expected '(' after 'if'.");
+	parse_expression(self, vm);
+	parse_consume(self, token_right_paren, "[Parser::parse_if_statement] Expected ')' after condition.");
+
+	// backpatching later: chunk [opcode, tempslot, tempslot]
+	int then_jump = emit_jump(self, vm->chunk, op_jump_if_false);
+	emit_byte(self, vm->chunk, op_pop);
+	parse_statement(self, vm);
+	
+	// backpatching later: chunk [opcode, tempslot, tempslot]
+	int else_jump = emit_jump(self, vm->chunk, op_jump);  
+	// patch then_jump to here: update then chunk [opcode, jump_offset, jump_offset]
+	patch_jump(self, vm->chunk, then_jump);
+	
+	emit_byte(self, vm->chunk, op_pop);
+	if (parse_match(self, token_else)) parse_statement(self, vm);
+
+	// patch else_jump to here: update else chunk [opcode, jump_offset, jump_offset]
+	patch_jump(self, vm->chunk, else_jump);
 }
 
 static void parse_block_statement(Parser* self, VirtualMachine* vm) {
@@ -547,6 +780,22 @@ void parse_string(Parser* self, VirtualMachine* vm, bool _can_assign) {
 		self->previous->token.start + 1,
 		self->previous->token.length - 2
 	)));
+}
+
+void parse_and(Parser* self, VirtualMachine* vm, bool _can_assign) {
+	int end_jump = emit_jump(self, vm->chunk, op_jump_if_false);
+	emit_byte(self, vm->chunk, op_pop);
+	parse_precedence(self, vm, prec_and);
+	patch_jump(self, vm->chunk, end_jump);
+}
+
+void parse_or(Parser* self, VirtualMachine* vm, bool _can_assign) {
+	int else_jump = emit_jump(self, vm->chunk, op_jump_if_false);
+	int end_jump = emit_jump(self, vm->chunk, op_jump);
+	patch_jump(self, vm->chunk, else_jump);
+	emit_byte(self, vm->chunk, op_pop);
+	parse_precedence(self, vm, prec_or);
+	patch_jump(self, vm->chunk, end_jump);
 }
 
 

@@ -19,12 +19,6 @@ typedef struct {
 void init_parser(Parser* self, TokenList* tokens);
 void free_parser(Parser* self);
 void print_parser(Parser* self);
-void parse_error_at_current(Parser* self, const char* message);
-void parse_error_at_previous(Parser* self, const char* message);
-void parse_consume(Parser* self, TokenType type, const char* message);
-void emit_byte(Parser* self, Chunk* chunk, uint8_t byte);
-void emit_constant(Parser* self, Chunk* chunk, Value value);
-void emit_bytes(Parser* self, Chunk* chunk, uint8_t opcode, uint8_t operand);
 
 
 /* Precedence levels : lowest to highest */
@@ -61,6 +55,8 @@ void parse_binary(Parser* self, VirtualMachine* vm, bool can_assign);
 void parse_literal(Parser* self, VirtualMachine* vm, bool _can_assign);
 void parse_string(Parser* self, VirtualMachine* vm, bool _can_assign);
 void parse_identifier(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_and(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_or(Parser* self, VirtualMachine* vm, bool _can_assign);
 
 
 
@@ -90,7 +86,7 @@ ParseRule static static_syntax_rules[] = {
 	[token_string]		= {parse_string,	NULL,			prec_none},
 	[token_i32]			= {parse_i32,		NULL,			prec_none},
 	[token_f64]			= {parse_f64,		NULL,			prec_none},
-	[token_and]			= {NULL,			NULL,			prec_none},
+	[token_and]			= {NULL,			parse_and,		prec_and},
 	[token_class]		= {NULL,			NULL,			prec_none},
 	[token_else]		= {NULL,			NULL,			prec_none},
 	[token_false]		= {parse_literal,   NULL,			prec_none},
@@ -98,7 +94,7 @@ ParseRule static static_syntax_rules[] = {
 	[token_fn]			= {NULL,			NULL,			prec_none},
 	[token_if]			= {NULL,			NULL,			prec_none},
 	[token_null]		= {parse_literal,   NULL,			prec_none},
-	[token_or]			= {NULL,			NULL,			prec_none},
+	[token_or]			= {NULL,			parse_or,		prec_or},
 	[token_print]		= {NULL,			NULL,			prec_none},
 	[token_return]		= {NULL,			NULL,			prec_none},
 	[token_super]		= {NULL,			NULL,			prec_none},

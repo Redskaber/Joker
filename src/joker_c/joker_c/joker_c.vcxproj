@@ -62,6 +62,7 @@
     <None Include="cpp.hint" />
     <None Include="parse.jk" />
     <None Include="test_base_constant_and_operator.jk" />
+    <None Include="test_block.jk" />
     <None Include="test_scanner.jk" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
