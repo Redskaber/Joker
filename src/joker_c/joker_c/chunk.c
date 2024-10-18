@@ -1,17 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 
+#include "error.h"
 #include "chunk.h"
 #include "memory.h"
 
-/*
-* panic_error function is used to print error message and exit the program.
-* __declspec(noreturn) is used to indicate that the function does not return.
-*/
-static void __declspec(noreturn) panic_error(const char* message) {
-    fprintf(stderr, "PANIC: %s\n", message);
-    exit(EXIT_FAILURE);
-}
+
 
 
 void init_rle_lines(RleLines* rle_line) {
@@ -23,6 +18,15 @@ void init_rle_lines(RleLines* rle_line) {
 void free_rle_lines(RleLines* rle_line) {
     macro_free_array(RleLine, rle_line->lines, rle_line->capacity);
     init_rle_lines(rle_line);
+}
+
+
+static __declspec(noreturn) void panic_error(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    exit(EXIT_FAILURE);
 }
 
 // get the line of the given code count in the RLE lines
@@ -39,7 +43,7 @@ line_t get_rle_line(RleLines* lines, index_t code_count) {
             return lines->lines[i].line;
         }
     }
-    panic_error("[Chunk::get_rle_line] code count out of range");
+    panic_error("Panic: [Chunk::get_rle_line] Expected return line, Found code count out of range.");
 }
 
 
@@ -109,7 +113,7 @@ void write_chunk(Chunk* chunk, uint8_t code, line_t line) {
 
 index_t add_constant(Chunk* chunk, Value value) {
     if (chunk->constants.count >= UINT32_MAX) {
-        panic_error("[Chunk::add_constant] Expected constant index to be less than 2^32 - 1, Found additional constant beyond limit.");
+        panic("Panic: [Chunk::add_constant] Excpected constant count in uint32_t, Found up overflow.");
     }
     write_value_array(&chunk->constants, value);
     return chunk->constants.count - 1;  // index of the added constant
@@ -133,7 +137,7 @@ void write_constant(Chunk* chunk, Value value, line_t line) {
         write_chunk(chunk, (uint8_t)index, line);
     }
     else {
-        panic_error("[Chunk::write_constant] Expected constant index to be less than 2^16 - 1, Found constant beyond limit.");
+        panic("Panic: [Chunk::write_constant] Expected index in uint8_t or uint16_t, Found up overflow.");
     }
 }
 

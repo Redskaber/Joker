@@ -4,15 +4,32 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "error.h"
+#include "memory.h"
 #include "token.h"
 
 
-inline static void panic_error(const char* msg) {
-	fprintf(stderr, "Panic: %s\n", msg);
-	exit(1);
-}
 
 /* Token */
+Token* new_token(const char* start, uint32_t length, line_t line, TokenType type) {
+	Token* token = macro_allocate(Token, 1);
+	if (token == NULL) {
+		panic("Panic: [Token::create_token] Expected to allocate memory for token, Found NULL");
+		return NULL;
+	}
+	token->type = type;
+	token->start = start;
+	token->length = length;
+	token->line = line;
+	return token;
+}
+
+void free_token(Token* token) {
+	if (token != NULL) {
+		macro_free(Token, token);
+	}
+}
+
 inline void reset_token(Token* token) {
 	token->type = token_eof;
 	token->start = NULL;
@@ -51,7 +68,7 @@ Token eof_token(line_t line) {
 TokenNode* create_token_node(Token token) {
 	TokenNode* node = (TokenNode*)malloc(sizeof(TokenNode));
 	if (node == NULL) {
-		panic_error("Failed to allocate memory for token node");
+		panic("Panic: [TokenNode::create_token_node] Expected to allocate memory for token node, Found NULL");
 		return NULL;
 	}
 	node->token = token;
@@ -74,7 +91,7 @@ void print_token_node(TokenNode* node) {
 TokenList* create_token_list() {
 	TokenList* list = (TokenList*)malloc(sizeof(TokenList));
 	if (list == NULL) {
-		panic_error("Failed to allocate memory for token list");
+		panic("Panic: [TokenList::create_token_list] Expected to allocate memory for token list, Found NULL");
 		return NULL;
 	}
     init_token_list(list);

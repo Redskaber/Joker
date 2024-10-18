@@ -4,7 +4,6 @@
 #define joker_token_h
 
 #include "common.h"
-typedef uint32_t line_t;
 
 
 /* display Token type to string macro */
@@ -31,6 +30,8 @@ typedef uint32_t line_t;
 	(type == token_greater_equal)? "greater_equal" :\
 	(type == token_less)      ? "less" :			\
 	(type == token_less_equal) ? "less_equal" :		\
+	(type == token_arrow)     ? "arrow" :			\
+	(type == token_fat_arrow) ? "fat_arrow" :		\
 	(type == token_identifier) ? "identifier" :		\
 	(type == token_string)    ? "string" :			\
 	(type == token_i32)       ? "i32" :				\
@@ -53,6 +54,7 @@ typedef uint32_t line_t;
 	(type == token_while)     ? "while" :			\
 	(type == token_break)     ? "break" :			\
 	(type == token_continue)  ? "continue" :		\
+	(type == token_match)     ? "match" :			\
 	(type == token_error)     ? "error" :			\
 	(type == token_eof)       ? "eof" :				\
 	"unknown"
@@ -74,6 +76,8 @@ typedef enum {
 	token_equal, token_equal_equal,					// = ==
 	token_greater, token_greater_equal,				// > >=
 	token_less, token_less_equal,					// < <=
+	// -> (arrow), => (fat arrow)
+	token_arrow, token_fat_arrow,					// -> => _
 	// Literals.
 	token_identifier, token_string, token_i32, token_f64,
 	// string interpolation: {}
@@ -82,6 +86,7 @@ typedef enum {
 	token_for, token_fn, token_if, token_null, token_or,
 	token_print, token_return, token_super, token_self,
 	token_true, token_var, token_while, token_break, token_continue,
+	token_match,
 
 	token_error, token_eof
 } TokenType;
@@ -95,7 +100,8 @@ typedef struct {
 	TokenType type;
 } Token;
 
-
+Token* new_token(const char* start, uint32_t length, line_t line, TokenType type);
+void free_token(Token* token);
 Token eof_token(line_t line);
 void reset_token(Token* token);
 void print_token(Token* token);

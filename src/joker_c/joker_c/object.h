@@ -8,10 +8,13 @@
 #include "value.h"
 
 #define macro_obj_type(value) (macro_as_obj(value)->type)
+#define macro_obj_ptr_type(value_ptr) (macro_as_obj_ptr(value_ptr)->type)
 
 /* Object type */
 typedef enum ObjectType {
 	obj_string,
+	obj_function,
+	obj_native,
 } ObjectType;
 
 

@@ -198,14 +198,20 @@ Token scan_token(Scanner* scanner) {
 		case ';': return make_token(scanner, token_semicolon);
 		case ',': return make_token(scanner, token_comma);
 		case '.': return make_token(scanner, token_dot);
-		case '-': return make_token(scanner, token_minus);
+		case '-': return make_token(scanner, 
+			match(scanner, '>') ? token_arrow : token_minus);
 		case '+': return make_token(scanner, token_plus);
 		case '/': return make_token(scanner, token_slash);
 		case '*': return make_token(scanner, token_star);
-		case '!': return make_token(scanner, match(scanner, '=') ? token_bang_equal : token_bang);
-		case '=': return make_token(scanner, match(scanner, '=') ? token_equal_equal : token_equal);
-		case '<': return make_token(scanner, match(scanner, '=') ? token_less_equal : token_less);
-		case '>': return make_token(scanner, match(scanner, '=') ? token_greater_equal : token_greater);
+		case '!': return make_token(scanner, 
+			match(scanner, '=') ? token_bang_equal : token_bang);
+		case '=': return make_token(scanner, 
+			match(scanner, '=') ? token_equal_equal : 
+			match(scanner, '>') ? token_fat_arrow : token_equal);
+		case '<': return make_token(scanner, 
+			match(scanner, '=') ? token_less_equal : token_less);
+		case '>': return make_token(scanner, 
+			match(scanner, '=') ? token_greater_equal : token_greater);
 		case '"': return scan_string(scanner);
 	}
 
@@ -288,6 +294,7 @@ static TokenType identifier_type(Scanner* scanner) {
 			};
 			break;
 		case 'i': return check_keyword(scanner, 1, 1, "f", token_if);
+		case 'm': return check_keyword(scanner, 1, 4, "atch", token_match);
 		case 'n': return check_keyword(scanner, 1, 3, "ull", token_null);
 		case 'o': return check_keyword(scanner, 1, 1, "r", token_or);
 		case 'p': return check_keyword(scanner, 1, 4, "rint", token_print);

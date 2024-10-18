@@ -25,7 +25,6 @@ typedef struct Some_ {
 } Some_;
  
 
-__declspec(noreturn) void panic(const char* message);
 Option_* create_some(Value value);
 Option_* create_none();
 void free_option(Option_* option);
@@ -41,6 +40,7 @@ bool match(Option_* option, ValueType expected_type);
 
 #define is_some(option) ((option)->state == SomeState)
 #define is_none(option) ((option)->state == NoneState)
+#define as_some(option) ((Some_*)option)
 
 #define unwrap(option) (((Some_*)option)->value)
 #define unwrap_or(option, default_value) (is_some(option)? unwrap(option) : (default_value))

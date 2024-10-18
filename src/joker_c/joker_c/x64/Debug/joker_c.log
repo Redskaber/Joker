@@ -1,19 +1,2 @@
-﻿  chunk.c
-  compiler.c
-  debug.c
-  error.c
-  gc.c
-  hashmap.c
-  joker_c.c
-  memory.c
-  object.c
-  option.c
-  parser.c
-  scanner.c
-  string.c
-  test.c
-  token.c
-  value.c
-  vm.c
-  正在生成代码...
+﻿  vm.c
   joker_c.vcxproj -> E:\StudyClass\DataBase\Rust\project\demo\joker\src\joker_c\x64\Debug\joker_c.exe

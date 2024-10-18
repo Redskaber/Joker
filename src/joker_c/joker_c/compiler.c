@@ -50,6 +50,9 @@
 #include <stdlib.h>
 
 #include "common.h"
+#include "error.h"
+#include "memory.h"
+#include "string.h"
 #include "compiler.h"
 #include "scanner.h"
 #include "parser.h"
@@ -65,11 +68,38 @@
 */
 
 
-void init_compiler(Compiler* self) {
+static void free_local_variables(LocalVariable local[], int count) {
+	for (int i = 0; i < count; i++) {
+		free_token(local[i].name);
+	}
+}
+
+
+void init_compiler(Compiler* self, FunctionType type) {
+	self->enclosing = NULL;
+	self->function = NULL;	
 	self->local_count = 0;
 	self->scope_depth = 0;
+	self->function_type = type;
+	self->function = new_function();	// top-level function e.g. main()
+	LocalVariable* local = &self->locals[self->local_count++];
+	local->depth = 0;
+	local->name = new_token("", 0, 0, token_identifier); // name is pointer, don't used struct object.
 }
+
 void free_compiler(Compiler* self) {
+	free_function(self->function);
+	free_local_variables(self->locals, self->local_count);
+	// reset compiler
+	self->local_count = 0;
+	self->scope_depth = 0;
+	self->function_type = type_script;
+	self->function = NULL;
+}
+
+
+Chunk* current_chunk(Compiler* self) {
+	return &self->function->chunk;
 }
 
 void compile_begin_scope(Compiler* self) {
@@ -80,7 +110,7 @@ void compile_end_scope(Compiler* self) {
 }
 
 
-CompileResult compile(VirtualMachine* vm, const char* source) {
+Function* compile(VirtualMachine* vm, const char* source) {
 	Scanner scanner;
 	init_scanner(&scanner, source);
 	scan_tokens(&scanner);
@@ -88,11 +118,11 @@ CompileResult compile(VirtualMachine* vm, const char* source) {
 	Parser parser;
 	init_parser(&parser, scanner.tokens);
 
-	Compiler compiler;
-	init_compiler(&compiler);
+	Compiler top_compiler;
+	init_compiler(&top_compiler, type_script);
+	vm->compiler = &top_compiler;
 
-	vm->compiler = &compiler;
-	parse_tokens(&parser, vm);
+	Function* func = parse_tokens(&parser, vm);
 
 	/*
 	* Parser:
@@ -109,11 +139,10 @@ CompileResult compile(VirtualMachine* vm, const char* source) {
 	*   However, other attributes of the scanner itself do not need to be released 
 	*   because they are local variables and will be automatically released after the function is executed.
 	*/
-	free_compiler(&compiler);
 	free_parser(&parser); 
 	free_scanner(&scanner); 
 
 	// TODO: return compile status can be improved(e.g. return detailed error message and more status information)
-	return parser.had_error ? compile_error : compile_success;
+	return parser.had_error ? NULL : func;
 }
 

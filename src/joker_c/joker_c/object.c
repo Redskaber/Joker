@@ -7,17 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "error.h"
 #include "memory.h"
 #include "object.h"
 #include "string.h"
+#include "function.h"
 #include "value.h"
 
 
-void* panic_error(const char* message) {
-	fprintf(stderr, "Panic: %s\n", message);
-	exit(1);
-	return NULL;
-}
 
 /*
 * Allocate a new object of the given size and type.
@@ -38,7 +35,7 @@ void* panic_error(const char* message) {
 Object* allocate_object(size_t size, ObjectType type) {
 	Object* object = (Object*)reallocate(NULL, 0, size);
 	if (object == NULL) {
-		return panic_error("Failed to allocate object");
+		return panic("[Panic] [allocate_object] Expected to allocate memory for object, Found NULL");
 	} 
 	object->type = type;
 	return object;
@@ -48,6 +45,8 @@ void free_object(Object* object) {
 	if (object == NULL) return;
 	switch (object->type) {
 	case obj_string: free_string(macro_as_string_from_obj(object)); break;
+	case obj_function: free_function(macro_as_function_from_obj(object)); break;
+	case obj_native: free_native(macro_as_native_from_obj(object)); break;
 	default: break;
 	}
 }
@@ -68,11 +67,9 @@ bool object_equal(Object* left, Object* right) {
 
 void print_object(Object* object) {
 	switch (object->type) {
-	case obj_string:
-		print_string(macro_as_string_from_obj(object));
-		break;
-	default:
-		printf("Unknown object type\n");
-		break;
+	case obj_string:	print_string(macro_as_string_from_obj(object)); break;
+	case obj_function:	print_function(macro_as_function_from_obj(object)); break;
+	case obj_native:	print_native(macro_as_native_from_obj(object)); break;
+	default:			warning("[Warning] [print_object] Unsupported object type: %d", object->type); break;
 	}
 }

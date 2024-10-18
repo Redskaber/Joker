@@ -4,16 +4,19 @@
 *	It is a way to represent the code in a way that is easy to manipulate and process.
 *
 *   Declaration    -> classDecl
-*					| funcDecl
-*					| varDecl -> parse_var -> ident_const -> make_const
+*					| funcDecl		-> "fn" ident "(" ident? ("," ident)* ")" ("->" ident)? blockStmt
+*					| varDecl		-> parse_var -> ident_const -> make_const
 *                   | Statement
 *
 *   Statement      -> exprStmt -> expr -> precedence -> dispath { }
-*					| forStmt
+*					| forStmt		-> "for" "(" varDecl | expr ; expr; expr ")" Statement
 *					| ifStmt		-> "if" "(" expr ")" Statement ("else" Statement)?
-* 					| printStmt
-*					| returnStmt
-*					| whileStmt
+* 					| printStmt		-> "print" expr ;
+*					| returnStmt	-> "return" expr? ;
+*					| whileStmt     -> "while" "(" expr ")" Statement
+* 					| matchStmt		-> "match" "(" expr ")" "{" 
+*											expr "=>" Statement ("," expr "=>" Statement)* 
+*										"}"
 *				    | blockStmt		->  "{" Declaration* "}"
 *
 * 
@@ -21,6 +24,8 @@
 *						"{" switchCase* defaultCase? "}" ;
 *	switchCase     → "case" expression ":" statement* ;
 *	defaultCase    → "default" ":" statement* ;
+* 
+* 
 * 
 * 
 * stack effect
@@ -44,6 +49,8 @@
 * TODO: add ?: operator to handle ternary operator.
 * TODO：add 'continue' and 'break' statement to loop statement.
 * TODO: 'goto'?
+* TODO: jump table used ?
+* TODO: lambda function? anonymous function?
 */
 
 
@@ -54,8 +61,10 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "error.h"
 #include "hashmap.h"
 #include "string.h"
+#include "function.h"
 #include "compiler.h"
 
 #include "parser.h"
@@ -70,6 +79,7 @@
 static index_t make_constent(Parser* self, Chunk* chunk, Value value);
 static index_t identifier_constant(Parser* self, VirtualMachine* vm, Token* token);
 static void emit_constant(Parser* self, Chunk* chunk, Value value);
+static void emit_return(Parser* self, Chunk* chunk);
 static void emit_byte(Parser* self, Chunk* chunk, uint8_t byte);
 static void emit_bytes(Parser* self, Chunk* chunk, uint8_t opcode, uint8_t operand);
 static int emit_jump(Parser* self, Chunk* chunk, uint8_t opcode);
@@ -88,6 +98,8 @@ void parse_error_at_previous(Parser* self, const char* message);
 
 /* Abstract Syntax Tree(AST)*/
 static void parse_declaration(Parser* self, VirtualMachine* vm);
+static void parse_fn_declaration(Parser* self, VirtualMachine* vm);
+static void parse_function(Parser* self, VirtualMachine* vm, FunctionType type);
 static void parse_var_declaraton(Parser* self, VirtualMachine* vm);
 static void parse_named_variable(Parser* self, VirtualMachine* vm, Token* variable, bool can_assign);
 static index_t parse_variable(Parser* self, VirtualMachine* vm, const char* message);
@@ -98,13 +110,17 @@ static void parse_for_statement(Parser* self, VirtualMachine* vm);
 static void parse_block_statement(Parser* self, VirtualMachine* vm);
 static void parse_print_stmtement(Parser* self, VirtualMachine* vm);
 static void parse_expr_statement(Parser* self, VirtualMachine* vm);
+static void parse_return_statement(Parser* self, VirtualMachine* vm);
 static void parse_precedence(Parser* self, VirtualMachine* vm, Precedence outer_precedence);
 static void parse_expression(Parser* self, VirtualMachine* vm);
 
 
 /* Compiler */
+static Function* end_compiler(Parser* self, VirtualMachine* vm);
 static void begin_scope(Compiler* compiler);
 static void end_scope(Parser* self, Compiler* compiler, Chunk* chunk);
+static void current_into_sub_compiler(VirtualMachine* vm, Compiler* sub, FunctionType type, Parser* parser);
+static void current_from_sub_compiler(VirtualMachine* vm);
 static bool identifiers_equal(Token* a, Token* b);
 static void declare_variable(Parser* self, Compiler* compiler, Token* name);
 static void define_variable(Parser* self, Compiler* compiler, Chunk* chunk, uint8_t index);
@@ -148,13 +164,19 @@ void print_parser(Parser* self) {
 	printf("panic_mode: %d\n", self->panic_mode);
 }
 
-static void end_parser(Parser* self, Chunk* chunk) {
-	emit_byte(self, chunk, op_return);
+static Function* end_compiler(Parser* self, VirtualMachine* vm) {
+	emit_return(self, current_chunk(vm->compiler));
+
+	// builded func return && return parent compiler's func
+	Function* func = vm->compiler->function;
 #ifdef debug_print_code
 	if (!self->had_error) {
-		disassemble_chunk(chunk, "=================code================");
+		disassemble_chunk(current_chunk(vm->compiler), 
+			is_anonymous_fn(func)? "<script>" : func->name->chars);
 	}
 #endif
+	current_from_sub_compiler(vm);
+	return func;
 }
 
 /* check if is at end of file, return true if is at end of file, false otherwise */
@@ -205,6 +227,10 @@ static void emit_constant(Parser* self, Chunk* chunk, Value value) {
 static void emit_bytes(Parser* self, Chunk* chunk, uint8_t opcode, uint8_t operand) {
 	emit_byte(self, chunk, opcode);
 	emit_byte(self, chunk, operand);
+}
+
+static void emit_return(Parser* self, Chunk* chunk) {
+	emit_byte(self, chunk, op_return);
 }
 
 /*
@@ -316,11 +342,11 @@ static bool identifiers_equal(Token* left, Token* right) {
 * TODO: string -> constent table { (more reference same value)↓ -> memory optimization }
 */
 static index_t identifier_constant(Parser* self, VirtualMachine* vm, Token* token) {
-	return make_constent(self, vm->chunk, macro_obj_from_val(new_string(&vm->strings, token->start, token->length)));
+	return make_constent(self, current_chunk(vm->compiler), macro_obj_from_val(new_string(&vm->strings, token->start, token->length)));
 }
 
 static void add_local(Parser* self, Compiler* compiler, Token* name) {
-	if (compiler->local_count == max_local_variable_count) {
+	if (compiler->local_count == uint8_count) {
 		parse_error_at_current(self, "[Parser::add_local] Expected local variable count less than 256, Found local variable count greater than 256.");
 		return;
 	}
@@ -330,6 +356,7 @@ static void add_local(Parser* self, Compiler* compiler, Token* name) {
 }
 
 static void mark_initialized(Compiler* compiler) {
+	if (compiler->scope_depth == 0) return; // global scope, no need to mark initialized.
 	compiler->locals[compiler->local_count - 1].depth = compiler->scope_depth;
 }
 
@@ -363,6 +390,37 @@ static void end_scope(Parser* self, Compiler* compiler, Chunk* chunk) {
 }
 
 
+static void current_into_sub_compiler(VirtualMachine* vm, Compiler* sub, FunctionType type, Parser* parser) {
+	// set sub compiler
+	init_compiler(sub, type);
+	sub->enclosing = vm->compiler;
+	// set vm compiler to sub compiler
+	vm->compiler = sub;
+
+	if (type != type_script) {
+		// set function name
+		Token* name = &parser->previous->token;
+		sub->function->name = new_string(&vm->strings, name->start, name->length);
+	}
+
+}
+
+static void current_from_sub_compiler(VirtualMachine* vm) {
+/*
+	if (vm->compiler->enclosing == NULL) {
+		panic("Compiler: [Parser::current_from_sub_compiler] Compiler stack underflow");
+	}
+	vm -> main->compiler					--- ↑  => NULL
+	|		|								|
+	|		|   sub_compiler            --- ↑
+	|			|						|
+	|			|   sub_compiler	--- ↑
+
+*/
+	vm->compiler = vm->compiler->enclosing;
+}
+
+
 static void synchronize(Parser* self) {
 	self->panic_mode = false;
 
@@ -385,22 +443,66 @@ static void synchronize(Parser* self) {
 	}
 }
 
-void parse_tokens(Parser* self, VirtualMachine* vm) {
+Function* parse_tokens(Parser* self, VirtualMachine* vm) {
 	while (!parse_is_at_end(self)) {
 		parse_declaration(self, vm);
 	}
 	parse_consume(self, token_eof, "Expected end of expression.");
-	end_parser(self, vm->chunk);
+	return end_compiler(self, vm);
 }
 
 static void parse_declaration(Parser* self, VirtualMachine* vm) {
-	if (parse_match(self, token_var)) {
+	if (parse_match(self, token_fn)) {
+		parse_fn_declaration(self, vm);
+	}
+	else if (parse_match(self, token_var)) {
 		parse_var_declaraton(self, vm);
 	}
 	else {
 		parse_statement(self, vm);
 	}
 	if (self->panic_mode) synchronize(self);
+}
+
+static void parse_fn_declaration(Parser* self, VirtualMachine* vm) {
+	index_t func_index = parse_variable(self, vm, "[Parser::parse_fn_declaration] Expected function name.");
+	mark_initialized(vm->compiler);
+
+	parse_function(self, vm, type_function);
+	define_variable(self, vm->compiler, current_chunk(vm->compiler), func_index);
+}
+
+static void parse_function(Parser* self, VirtualMachine* vm, FunctionType type) {
+	Compiler func_compiler;
+	current_into_sub_compiler(vm, &func_compiler, type, self);
+	begin_scope(vm->compiler);	// this compiler is a sub-compiler(func_compiler), so it has its own scope. 
+
+	parse_consume(self, token_left_paren, "[Parser::parse_function] Expected '(' after function name.");
+	// parameter list
+	if (!parse_check(self, token_right_paren)) {
+		do {
+			vm->compiler->function->arity++;
+			if (vm->compiler->function->arity > argument_count_max) {
+				parse_error_at_current(self, "[Parser::parse_function] Expected function parameter count less than 256, Found function parameter count greater than 256.");
+				return; // error?
+			}
+			uint8_t var_index = parse_variable(self, vm, "[Parser::parse_function] Expected parameter name.");
+			define_variable(self, vm->compiler, current_chunk(vm->compiler), var_index);
+		} while (parse_match(self, token_comma));
+	}
+	parse_consume(self, token_right_paren, "[Parser::parse_function] Expected ')' after function parameters.");
+	parse_consume(self, token_left_brace, "[Parser::parse_function] Expected '{' before function body.");
+	
+	parse_block_statement(self, vm);
+	
+	// get func object && emit define instruction
+	Function* func = end_compiler(self, vm);
+	emit_bytes(
+		self, 
+		current_chunk(vm->compiler), 
+		op_constant, 
+		make_constent(self, current_chunk(vm->compiler), macro_obj_from_val(func))
+	);
 }
 
 /*
@@ -416,12 +518,12 @@ static void parse_var_declaraton(Parser* self, VirtualMachine* vm) {
 		parse_expression(self, vm);				// variable value
 	}
 	else {
-		emit_byte(self, vm->chunk, op_null);	// variable value default is null
+		emit_byte(self, current_chunk(vm->compiler), op_null);	// variable value default is null
 	}
 
 	parse_consume(self, token_semicolon, "[Parser::parse_var_declaraton] Expected ';' after variable declaration.");
 	
-	define_variable(self, vm->compiler, vm->chunk, index);
+	define_variable(self, vm->compiler, current_chunk(vm->compiler), index);
 }
 
 static index_t parse_variable(Parser* self, VirtualMachine* vm, const char* message) {
@@ -454,10 +556,10 @@ static void parse_named_variable(Parser* self, VirtualMachine* vm, Token* var_na
 
 	if (can_assign && parse_match(self, token_equal)) {
 		parse_expression(self, vm);
-		emit_bytes(self, vm->chunk, set_op, (uint8_t)index);
+		emit_bytes(self, current_chunk(vm->compiler), set_op, (uint8_t)index);
 	}
 	else {
-		emit_bytes(self, vm->chunk, get_op, (uint8_t)index);
+		emit_bytes(self, current_chunk(vm->compiler), get_op, (uint8_t)index);
 	}
 }
 
@@ -476,18 +578,37 @@ static void parse_statement(Parser* self, VirtualMachine* vm) {
 	else if (parse_match(self, token_if)) {
 		parse_if_statement(self, vm);
 	}
+	else if (parse_match(self, token_return)) {
+		parse_return_statement(self, vm);
+	}
 	else if (parse_match(self, token_while)) {
 		parse_while_statement(self, vm);
 	}
 	else if (parse_match(self, token_left_brace)) {
 		begin_scope(vm->compiler);
 		parse_block_statement(self, vm);
-		end_scope(self, vm->compiler, vm->chunk);
+		end_scope(self, vm->compiler, current_chunk(vm->compiler));
 	}
 	else {
 		parse_expr_statement(self, vm);
 	}
 }
+
+
+// returnStmt: "return" expression? ";"
+static void parse_return_statement(Parser* self, VirtualMachine* vm) {
+	// check return keywold, don't use in top-level code.
+	if (vm->compiler->function_type== type_script) {
+		parse_error_at_current(self, "[Parser::parse_return_statement] Expected return in function, Found return in top-level code.");
+		return;
+	}
+	if (!parse_match(self, token_semicolon)) {
+		parse_expression(self, vm);
+		parse_consume(self, token_semicolon, "[Parser::parse_return_statement] Expected ';' after return value.");
+	}
+	emit_return(self, current_chunk(vm->compiler));
+}
+
 
 // forStmt: for (varDecl | exprStmt | ; condition ; increment) statement;
 /*
@@ -518,43 +639,43 @@ static void parse_for_statement(Parser* self, VirtualMachine* vm) {
 	}
 
 	// condition: expression
-	int loop_start = vm->chunk->count;
+	int loop_start = current_chunk(vm->compiler)->count;
 	int exit_jump = -1;
 	if (!parse_match(self, token_semicolon)) {
 		parse_expression(self, vm);
 		parse_consume(self, token_semicolon, "[Parser::parse_for_statement] Expected ';' after loop condition.");
 
 		// jump to the end of the loop if the condition is false.
-		exit_jump = emit_jump(self, vm->chunk, op_jump_if_false);
-		emit_byte(self, vm->chunk, op_pop); // condition
+		exit_jump = emit_jump(self, current_chunk(vm->compiler), op_jump_if_false);
+		emit_byte(self, current_chunk(vm->compiler), op_pop); // condition
 	}
 
 	// increment: expression; unconditional jump that hops over the increment clause’s code to the body of the loop. 
 	if (!parse_match(self, token_right_paren)) {
-		int body_jump = emit_jump(self, vm->chunk, op_jump);
-		int increment_start = vm->chunk->count; // label for the increment clause.
+		int body_jump = emit_jump(self, current_chunk(vm->compiler), op_jump);
+		int increment_start = current_chunk(vm->compiler)->count; // label for the increment clause.
 
 		parse_expression(self, vm);
-		emit_byte(self, vm->chunk, op_pop); // increment
+		emit_byte(self, current_chunk(vm->compiler), op_pop); // increment
 		parse_consume(self, token_right_paren, "[Parser::parse_for_statement] Expected ')' after for clauses.");
 		
-		emit_loop(self, vm->chunk, loop_start);  
+		emit_loop(self, current_chunk(vm->compiler), loop_start);  
 		loop_start = increment_start;
-		patch_jump(self, vm->chunk, body_jump);
+		patch_jump(self, current_chunk(vm->compiler), body_jump);
 	}
 
 	// statement: statement;
 	parse_statement(self, vm);
 
 	// emit loop op_loop
-	emit_loop(self, vm->chunk, loop_start);
+	emit_loop(self, current_chunk(vm->compiler), loop_start);
 	// patch exit_jump to here: update loop chunk [opcode, jump_offset, jump_offset]
 	if (exit_jump != -1) {
-		patch_jump(self, vm->chunk, exit_jump);
-		emit_byte(self, vm->chunk, op_pop); // condition
+		patch_jump(self, current_chunk(vm->compiler), exit_jump);
+		emit_byte(self, current_chunk(vm->compiler), op_pop); // condition
 	}
 
-	end_scope(self, vm->compiler, vm->chunk);
+	end_scope(self, vm->compiler, current_chunk(vm->compiler));
 }
 
 // whileStmt: while (expression) statement;
@@ -574,19 +695,19 @@ static void parse_for_statement(Parser* self, VirtualMachine* vm) {
 *	=> offset = chunk->count - loop_start + 2(loop_offset)
 */
 static void parse_while_statement(Parser* self, VirtualMachine* vm) {
-	int loop_start = vm->chunk->count;
+	int loop_start = current_chunk(vm->compiler)->count;
 
 	parse_consume(self, token_left_paren, "[Parser::parse_while_statement] Expected '(' after 'while'.");
 	parse_expression(self, vm);
 	parse_consume(self, token_right_paren, "[Parser::parse_while_statement] Expected ')' after condition.");
 
-	int exit_jump = emit_jump(self, vm->chunk, op_jump_if_false);
-	emit_byte(self, vm->chunk, op_pop);
+	int exit_jump = emit_jump(self, current_chunk(vm->compiler), op_jump_if_false);
+	emit_byte(self, current_chunk(vm->compiler), op_pop);
 	parse_statement(self, vm);
-	emit_loop(self, vm->chunk, loop_start);
+	emit_loop(self, current_chunk(vm->compiler), loop_start);
 
-	patch_jump(self, vm->chunk, exit_jump);
-	emit_byte(self, vm->chunk, op_pop);
+	patch_jump(self, current_chunk(vm->compiler), exit_jump);
+	emit_byte(self, current_chunk(vm->compiler), op_pop);
 }
 
 // ifStmt: if (expression) statement else statement;
@@ -596,20 +717,20 @@ static void parse_if_statement(Parser* self, VirtualMachine* vm) {
 	parse_consume(self, token_right_paren, "[Parser::parse_if_statement] Expected ')' after condition.");
 
 	// backpatching later: chunk [opcode, tempslot, tempslot]
-	int then_jump = emit_jump(self, vm->chunk, op_jump_if_false);
-	emit_byte(self, vm->chunk, op_pop);
+	int then_jump = emit_jump(self, current_chunk(vm->compiler), op_jump_if_false);
+	emit_byte(self, current_chunk(vm->compiler), op_pop);
 	parse_statement(self, vm);
 	
 	// backpatching later: chunk [opcode, tempslot, tempslot]
-	int else_jump = emit_jump(self, vm->chunk, op_jump);  
+	int else_jump = emit_jump(self, current_chunk(vm->compiler), op_jump);  
 	// patch then_jump to here: update then chunk [opcode, jump_offset, jump_offset]
-	patch_jump(self, vm->chunk, then_jump);
+	patch_jump(self, current_chunk(vm->compiler), then_jump);
 	
-	emit_byte(self, vm->chunk, op_pop);
+	emit_byte(self, current_chunk(vm->compiler), op_pop);
 	if (parse_match(self, token_else)) parse_statement(self, vm);
 
 	// patch else_jump to here: update else chunk [opcode, jump_offset, jump_offset]
-	patch_jump(self, vm->chunk, else_jump);
+	patch_jump(self, current_chunk(vm->compiler), else_jump);
 }
 
 static void parse_block_statement(Parser* self, VirtualMachine* vm) {
@@ -622,13 +743,13 @@ static void parse_block_statement(Parser* self, VirtualMachine* vm) {
 static void parse_print_stmtement(Parser* self, VirtualMachine* vm) {
 	parse_expression(self, vm);
 	parse_consume(self, token_semicolon, "[Parser::parse_print_stmtement] Expected ';' after expression.");
-	emit_byte(self, vm->chunk, op_print);
+	emit_byte(self, current_chunk(vm->compiler), op_print);
 }
 
 static void parse_expr_statement(Parser* self, VirtualMachine* vm) {
 	parse_expression(self, vm);
 	parse_consume(self, token_semicolon, "[Parser::parse_expr_statement] Expected ';' after expression.");
-	emit_byte(self, vm->chunk, op_pop);
+	emit_byte(self, current_chunk(vm->compiler), op_pop);
 }
 
 static void parse_expression(Parser* self, VirtualMachine* vm) {
@@ -707,12 +828,12 @@ static void parse_precedence(Parser* self, VirtualMachine* vm, Precedence outer_
 void parse_i32(Parser* self, VirtualMachine* vm, bool _can_assign) {
 	// atoi() converts a string to an integer
 	int value = atoi(self->previous->token.start);
-	emit_constant(self, vm->chunk, macro_i32_from_val(value));
+	emit_constant(self, current_chunk(vm->compiler), macro_i32_from_val(value));
 }
 void parse_f64(Parser* self, VirtualMachine* vm, bool _can_assign) {
 	// strtod() converts a string to a double
     double value = strtod(self->previous->token.start, NULL);
-	emit_constant(self, vm->chunk, macro_f64_from_val(value));
+	emit_constant(self, current_chunk(vm->compiler), macro_f64_from_val(value));
 }
 
 
@@ -721,6 +842,29 @@ void parse_grouping(Parser* self, VirtualMachine* vm, bool can_assign) {
 	parse_consume(self, token_right_paren, "[Parser::parse_grouping] Expected ')' after expression.");
 }
 
+static uint8_t parse_argument_list(Parser* self, VirtualMachine* vm) {
+	uint8_t arg_count = 0;
+	if (!parse_check(self, token_right_paren)) {
+		do {
+			parse_expression(self, vm);
+			if (arg_count == argument_count_max) {
+				parse_error_at_current(self, "[Parser::parse_argument_list] Too many arguments, limit is 255.");
+			}
+			arg_count++;
+		} while (parse_match(self, token_comma));
+	}
+	parse_consume(self, token_right_paren, "[Parser::parse_argument_list] Expected ')' after arguments.");
+	return arg_count;
+}
+
+/*
+* parse function call:
+* {..., [op_call, arg_count], ... } 
+*/
+void parse_call(Parser* self, VirtualMachine* vm, bool can_assign) {
+	uint8_t arg_count = parse_argument_list(self, vm);
+	emit_bytes(self, current_chunk(vm->compiler), op_call, arg_count);
+}
 
 /* pervious suffix expression: -a.b + c; => parse_precedence ; 嵌套一元表达式 */
 void parse_unary(Parser* self, VirtualMachine* vm, bool can_assign) {
@@ -731,8 +875,8 @@ void parse_unary(Parser* self, VirtualMachine* vm, bool can_assign) {
 
 	// emit the operator instruction
 	switch (operator_type) {
-	case token_bang: emit_byte(self, vm->chunk, op_not); break;
-	case token_minus: emit_byte(self, vm->chunk, op_negate); break;
+	case token_bang: emit_byte(self, current_chunk(vm->compiler), op_not); break;
+	case token_minus: emit_byte(self, current_chunk(vm->compiler), op_negate); break;
 	default:
 		return; // Unreachable.
 	}
@@ -749,16 +893,16 @@ void parse_binary(Parser* self, VirtualMachine* vm, bool can_assign) {
 
 	// emit the operator instruction
 	switch (operator_type) {
-	case token_bang_equal:		emit_byte(self, vm->chunk, op_not_equal); break;
-	case token_equal_equal:		emit_byte(self, vm->chunk, op_equal); break;
-	case token_greater:			emit_byte(self, vm->chunk, op_greater); break;
-	case token_greater_equal:	emit_byte(self, vm->chunk, op_greater_equal); break;
-	case token_less:			emit_byte(self, vm->chunk, op_less); break;
-	case token_less_equal:		emit_byte(self, vm->chunk, op_less_equal); break;
-	case token_plus:			emit_byte(self, vm->chunk, op_add); break;
-	case token_minus:			emit_byte(self, vm->chunk, op_subtract); break;
-	case token_star:			emit_byte(self, vm->chunk, op_multiply); break;
-	case token_slash:			emit_byte(self, vm->chunk, op_divide); break;
+	case token_bang_equal:		emit_byte(self, current_chunk(vm->compiler), op_not_equal); break;
+	case token_equal_equal:		emit_byte(self, current_chunk(vm->compiler), op_equal); break;
+	case token_greater:			emit_byte(self, current_chunk(vm->compiler), op_greater); break;
+	case token_greater_equal:	emit_byte(self, current_chunk(vm->compiler), op_greater_equal); break;
+	case token_less:			emit_byte(self, current_chunk(vm->compiler), op_less); break;
+	case token_less_equal:		emit_byte(self, current_chunk(vm->compiler), op_less_equal); break;
+	case token_plus:			emit_byte(self, current_chunk(vm->compiler), op_add); break;
+	case token_minus:			emit_byte(self, current_chunk(vm->compiler), op_subtract); break;
+	case token_star:			emit_byte(self, current_chunk(vm->compiler), op_multiply); break;
+	case token_slash:			emit_byte(self, current_chunk(vm->compiler), op_divide); break;
 	default:
 		return; // Unreachable.
 	}
@@ -766,16 +910,16 @@ void parse_binary(Parser* self, VirtualMachine* vm, bool can_assign) {
 
 void parse_literal(Parser* self, VirtualMachine* vm, bool _can_assign) {
 	switch (self->previous->token.type) {
-	case token_false: emit_byte(self, vm->chunk, op_false); break;
-	case token_true:  emit_byte(self, vm->chunk, op_true);  break;
-	case token_null:  emit_byte(self, vm->chunk, op_null);  break;
+	case token_false: emit_byte(self, current_chunk(vm->compiler), op_false); break;
+	case token_true:  emit_byte(self, current_chunk(vm->compiler), op_true);  break;
+	case token_null:  emit_byte(self, current_chunk(vm->compiler), op_null);  break;
 	default:
 		return; // Unreachable.
 	}
 }
 /* parse string literal */
 void parse_string(Parser* self, VirtualMachine* vm, bool _can_assign) {
-	emit_constant(self, vm->chunk, macro_obj_from_val(new_string(
+	emit_constant(self, current_chunk(vm->compiler), macro_obj_from_val(new_string(
 		&vm->strings,
 		self->previous->token.start + 1,
 		self->previous->token.length - 2
@@ -783,19 +927,19 @@ void parse_string(Parser* self, VirtualMachine* vm, bool _can_assign) {
 }
 
 void parse_and(Parser* self, VirtualMachine* vm, bool _can_assign) {
-	int end_jump = emit_jump(self, vm->chunk, op_jump_if_false);
-	emit_byte(self, vm->chunk, op_pop);
+	int end_jump = emit_jump(self, current_chunk(vm->compiler), op_jump_if_false);
+	emit_byte(self, current_chunk(vm->compiler), op_pop);
 	parse_precedence(self, vm, prec_and);
-	patch_jump(self, vm->chunk, end_jump);
+	patch_jump(self, current_chunk(vm->compiler), end_jump);
 }
 
 void parse_or(Parser* self, VirtualMachine* vm, bool _can_assign) {
-	int else_jump = emit_jump(self, vm->chunk, op_jump_if_false);
-	int end_jump = emit_jump(self, vm->chunk, op_jump);
-	patch_jump(self, vm->chunk, else_jump);
-	emit_byte(self, vm->chunk, op_pop);
+	int else_jump = emit_jump(self, current_chunk(vm->compiler), op_jump_if_false);
+	int end_jump = emit_jump(self, current_chunk(vm->compiler), op_jump);
+	patch_jump(self, current_chunk(vm->compiler), else_jump);
+	emit_byte(self, current_chunk(vm->compiler), op_pop);
 	parse_precedence(self, vm, prec_or);
-	patch_jump(self, vm->chunk, end_jump);
+	patch_jump(self, current_chunk(vm->compiler), end_jump);
 }
 
 

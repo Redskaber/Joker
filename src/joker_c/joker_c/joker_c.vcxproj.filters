@@ -78,6 +78,9 @@
     <ClInclude Include="string.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="function.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="chunk.c">
@@ -131,6 +134,9 @@
     <ClCompile Include="string.c">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="function.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="test_scanner.jk">
@@ -147,6 +153,12 @@
       <Filter>资源文件\tests\源文件</Filter>
     </None>
     <None Include="test_block.jk">
+      <Filter>资源文件\tests\源文件</Filter>
+    </None>
+    <None Include="test_match.jk">
+      <Filter>资源文件\tests\源文件</Filter>
+    </None>
+    <None Include="test_function.jk">
       <Filter>资源文件\tests\源文件</Filter>
     </None>
   </ItemGroup>

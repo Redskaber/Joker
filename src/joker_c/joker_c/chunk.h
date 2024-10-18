@@ -6,8 +6,6 @@
 #include "common.h"
 #include "value.h"
 
-typedef int index_t;
-typedef uint32_t line_t;
 
 /* Error */
 
@@ -35,6 +33,7 @@ typedef enum
 	op_jump_if_false, // 24 bit(jump_if_false + offset[high 8 bit, low 8 bit])
 	op_jump,		  // 24 bit(jump + offset[high 8 bit, low 8 bit])
 	op_loop,		  // 24 bit(loop + offset[high 8 bit, low 8 bit])
+	op_call,		  // 16 bit(call + offset[8 bit])
 	op_equal,		  //  8 bit(==)
 	op_not_equal,	  //  8 bit(!=)
 	op_less,		  //  8 bit(<)
@@ -47,14 +46,12 @@ typedef enum
 	op_divide,		  //  8 bit(/)
 } OpCode;
 
-typedef struct
-{
+typedef struct RleLine {
 	line_t line;
 	int count;
 } RleLine;
 
-typedef struct
-{
+typedef struct RleLines {
 	int count;
 	int capacity;
 	RleLine *lines;

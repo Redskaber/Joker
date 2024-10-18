@@ -53,7 +53,7 @@ typedef enum {
 */
 typedef struct Value {
 	ValueType type;
-	union {
+	union as {
 		int32_t		i32;
 		double		f64;
 		bool	boolean;
@@ -61,11 +61,6 @@ typedef struct Value {
 	} as;
 } Value;
 
-#define __panic(msg) \
-	do { \
-		fprintf(stderr, "Panic: %s\n", msg); \
-		exit(1); \
-	} while (0)	
 
 #define macro_i32_from_val(i32_)	((Value){ VAL_I32,	{ .i32 = (i32_) } })
 #define macro_f64_from_val(f64_)	((Value){ VAL_F64,	{ .f64 = (f64_) } })
@@ -79,6 +74,8 @@ typedef struct Value {
 #define macro_is_bool(value)	((value).type == VAL_BOOL)
 #define macro_is_obj(value)		((value).type == VAL_OBJECT)
 #define macro_is_null(value)	((value).type == VAL_NULL)
+
+#define macro_is_obj_ptr(value_ptr)		((value_ptr) && (value_ptr)->type == VAL_OBJECT)
 
 #define macro_as_i32(value)		((value).as.i32)
 #define macro_as_f64(value)		((value).as.f64)
@@ -104,7 +101,8 @@ typedef struct Value {
 #define macro_check_emptyptr(value_ptr)		\
 	do {									\
 		if (!(value_ptr)) {				    \
-			__panic("Null pointer access detected in macro_check_emptyptr."); \
+			fprintf(stderr, "Error: null pointer\n"); \
+			exit(EXIT_FAILURE);				\
 		}									\
 	} while (0)
 

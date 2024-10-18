@@ -24,6 +24,7 @@
     <ClInclude Include="compiler.h" />
     <ClInclude Include="debug.h" />
     <ClInclude Include="error.h" />
+    <ClInclude Include="function.h" />
     <ClInclude Include="gc.h" />
     <ClInclude Include="hashmap.h" />
     <ClInclude Include="joker_c.h" />
@@ -43,6 +44,7 @@
     <ClCompile Include="compiler.c" />
     <ClCompile Include="debug.c" />
     <ClCompile Include="error.c" />
+    <ClCompile Include="function.c" />
     <ClCompile Include="gc.c" />
     <ClCompile Include="hashmap.c" />
     <ClCompile Include="joker_c.c" />
@@ -63,6 +65,8 @@
     <None Include="parse.jk" />
     <None Include="test_base_constant_and_operator.jk" />
     <None Include="test_block.jk" />
+    <None Include="test_function.jk" />
+    <None Include="test_match.jk" />
     <None Include="test_scanner.jk" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "error.h"
 #include "memory.h"
 #include "string.h"
 
@@ -19,20 +20,13 @@ static uint32_t hash_string(const char* key, uint32_t length);
 
 
 
-static void* panic_error(const char* message) {
-	fprintf(stderr, "Panic: %s\n", message);
-	exit(1);
-	return NULL;
-}
-
-
 /* flexible array member */
 String* new_string_uninterned(const char* chars, uint32_t length) {
 	if (chars == NULL && length != 0) {
-		return panic_error("Expected non-null string chars, Found null string chars.");
+		return panic("Panic: [String::new_string_uninterned] Expected non-null string chars, Found null string chars.");
 	}
 	if (length < 0 || length > UINT32_MAX - 1) {
-		return panic_error("Expected string length between 0 and 4294967295, Found invalid string length.");
+		return panic("Panic: [String::new_string_uninterned] Expected string length between 0 and 4294967295, Found invalid string length.");
 	}
 
 	/* fixed array member*/
@@ -52,10 +46,10 @@ String* new_string_uninterned(const char* chars, uint32_t length) {
 
 String* new_string(HashMap* interned_pool, const char* chars, uint32_t length) {
 	if (chars == NULL && length != 0) {
-		return panic_error("Expected non-null string chars, Found null string chars.");
+		return panic("Panic: [String::new_string] Expected non-null string chars, Found null string chars.");
 	}
 	if (length < 0 || length > UINT32_MAX - 1) {
-		return panic_error("Expected string length between 0 and 4294967295, Found invalid string length.");
+		return panic("Panic: [String::new_string] Expected string length between 0 and 4294967295, Found invalid string length.");
 	}
 	/* Check if the string is already interned */
 	uint32_t hash = hash_string(chars, length);
@@ -79,15 +73,15 @@ String* new_string(HashMap* interned_pool, const char* chars, uint32_t length) {
 
 void free_string(String* string) {
 	if (string == NULL) {
-		panic_error("Expected non-null string, Found null string.");
+		panic("Panic: [String::free_string] Expected non-null string, Found null string.");
 		return;
 	}
 	if (string->chars == NULL) {
-		panic_error("Expected non-null string chars, Found null string chars.");
+		panic("Panic: [String::free_string] Expected non-null string chars, Found null string chars.");
 		return;
 	}
 	if (string->length < 0 || string->length > UINT32_MAX - 1) {
-		panic_error("Expected string length between 0 and 4294967295, Found invalid string length.");
+		panic("Panic: [String::free_string] Expected string length between 0 and 4294967295, Found invalid string length.");
 		return;
 	}
 	macro_free_fixed_array(String, string, char, string->length + 1);
@@ -95,25 +89,25 @@ void free_string(String* string) {
 
 String* concat_string_uninterned(String* left, String* right) {
 	if (left == NULL || right == NULL) {
-		return panic_error("Expected non-null string, Found null string.");
+		return panic("Panic: [String::concat_string_uninterned] Expected non-null string, Found null string.");
 	}
 	if (left->chars == NULL || right->chars == NULL) {
-		return panic_error("Expected non-null string chars, Found null string chars.");
+		return panic("Panic: [String::concat_string_uninterned] Expected non-null string chars, Found null string chars.");
 	}
 	if (left->length < 0 || left->length > UINT32_MAX - 1) {
-		return panic_error("Expected left string length between 0 and 4294967295, Found invalid string length.");
+		return panic("Panic: [String::concat_string_uninterned] Expected left string length between 0 and 4294967295, Found invalid string length.");
 	}
 	if (right->length < 0 || right->length > UINT32_MAX - 1) {
-		return panic_error("Expected right string length between 0 and 4294967295, Found invalid string length.");
+		return panic("Panic: [String::concat_string_uninterned] Expected right string length between 0 and 4294967295, Found invalid string length.");
 	}
 	if (left->length + right->length > UINT32_MAX - 1) {
-		return panic_error("Expected result string length between 0 and 4294967295, Found invalid string length.");
+		return panic("Panic: [String::concat_string_uninterned] Expected result string length between 0 and 4294967295, Found invalid string length.");
 	}
 
 	uint32_t new_length = left->length + right->length;
 	String* result = macro_allocate_fixed_array(String, char, new_length + 1, obj_string);
 	if (result == NULL) {
-		return panic_error("Expected non-null memory, Found null memory.");
+		return panic("Panic: [String::concat_string_uninterned] Expected non-null memory, Found null memory.");
 	}
 
 	result->length = new_length;
@@ -131,7 +125,7 @@ String* concat_string_uninterned(String* left, String* right) {
 String* concat_string(HashMap* interned_pool, String* left, String* right) {
 	String* result = concat_string_uninterned(left, right);
 	if (result == NULL) {
-		return panic_error("Expected non-null string, Found null string.");
+		return panic("Panic: [String::concat_string_uninterned] Expected non-null string, Found null string.");
 	}
 	String* interned_string = hashmap_find_key(interned_pool, result->chars, result->length, result->hash);
 	if (interned_string != NULL) {

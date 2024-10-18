@@ -1,0 +1,67 @@
+/*
+// test: normal call function
+fn main() {
+	print "hello, world!";
+}
+
+main();
+
+
+// test: heap stack trace
+fn a() { b(); }
+fn b() { c(); }
+fn c() { c("too", "many"); }
+
+a();
+
+
+
+// test: non-return 
+fn no_return() {
+	print "do stuff";		// current function current default non-return value, default null-value.
+}
+
+
+// no_return();		// print "do stuff"
+
+print no_return();	// error: current function not find return value,
+
+
+return;				// test: top-level code don't used return keyworld.
+
+
+//////////////////////////////////////////////////////////////////
+fn has_return_func(a, b) {
+	return a + b;
+}
+
+
+fn main() {
+	var a = 100;
+	var b = 200;
+	var c = has_return_func(a, b);
+	print c;
+
+	// test: closure function
+	fn sum(a, b) {
+		return a + b;
+	}
+
+	print sum(10,1000);
+}
+
+main();
+
+*/
+
+
+
+fn fib(n) {
+  if (n < 2) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+var start = clock();
+print fib(35);
+print clock() - start;
+

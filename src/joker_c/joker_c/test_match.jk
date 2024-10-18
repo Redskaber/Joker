@@ -1,0 +1,16 @@
+// this file is joker language match case test file.
+
+
+var label = 10;
+
+match(label) {
+	0 => {print label*0;},
+	1 => {print label*1;},
+	2 => {print label*2;}
+}
+
+
+
+	_ => {
+		print "under";
+	}

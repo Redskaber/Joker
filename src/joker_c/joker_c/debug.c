@@ -7,6 +7,7 @@
 */
 
 #include <stdio.h>
+
 #include "debug.h"
 #include "value.h"
 #include "chunk.h"
@@ -95,6 +96,8 @@ int disassemble_instruction(Chunk* chunk, int offset) {
         return jump_instruction("op_jump_if_false", 1, chunk, offset);
     case op_loop:
         return jump_instruction("op_loop", -1, chunk, offset);
+    case op_call:
+        return byte_instruction("op_call", chunk, offset);
     case op_return:
         return simple_instruction("op_return", offset);
     default:

@@ -6,15 +6,19 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+ 
 
+typedef int index_t;
+typedef int line_t;
 
 
 #define debug_print_code
 #define debug_trace_execution
 /* optional struct Option {Some, None} */
 
+#define argument_count_max UINT8_MAX
 /* define local variable limit count store max*/
-#define max_local_variable_count (UINT8_MAX + 1)
+#define uint8_count (UINT8_MAX + 1)         // static const int uint8_count = UINT8_MAX + 1;
 
 /* define exit code for joker */
 typedef enum

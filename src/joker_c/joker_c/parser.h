@@ -46,8 +46,9 @@ typedef struct {
 } ParseRule;
 
 /* parser function prototypes */
-void parse_tokens(Parser* self, VirtualMachine* vm);
+Function* parse_tokens(Parser* self, VirtualMachine* vm);
 void parse_grouping(Parser* self, VirtualMachine* vm, bool can_assign);
+void parse_call(Parser* self, VirtualMachine* vm, bool can_assign);
 void parse_i32(Parser* self, VirtualMachine* vm, bool _can_assign);
 void parse_f64(Parser* self, VirtualMachine* vm, bool _can_assign);
 void parse_unary(Parser* self, VirtualMachine* vm, bool can_assign);
@@ -63,7 +64,7 @@ void parse_or(Parser* self, VirtualMachine* vm, bool _can_assign);
 /* parser rules table: Patttern-Action table */
 ParseRule static static_syntax_rules[] = {
 	/* entry: [index]	= {prefix,			infix,			infix_precedence} */
-	[token_left_paren]	= {parse_grouping,	NULL,			prec_none},
+	[token_left_paren]	= {parse_grouping,	parse_call,		prec_call},
 	[token_right_paren]	= {NULL,			NULL,			prec_none},
 	[token_left_brace]	= {NULL,			NULL,			prec_none},
 	[token_right_brace]	= {NULL,			NULL,			prec_none},

@@ -1,12 +1,7 @@
 #include "memory.h"
 
+#include "error.h"
 #include "option.h"
-
-
-static __declspec(noreturn) void panic(const char* message) {
-	printf("Panic: %s\n", message);
-	exit(EXIT_FAILURE);
-}
 
 
 
@@ -29,7 +24,7 @@ void free_option(Option_* option) {
 		{
 		case SomeState: macro_free(Some_, option); break;
 		case NoneState: macro_free(Option_, option); break;
-		default: panic("Expected Some or None state, Found invalid state."); break;
+		default: panic("Panic: [Option::free_option] Expected Some or None state, Found invalid state."); break;
 		}
 	}
 }
@@ -44,13 +39,13 @@ void print_option(Option_* option) {
 	if (option != NULL) {
 		switch (option->state)
 		{
-		case SomeState: print_some((Some_*)option); break;
+		case SomeState: print_some(as_some(option)); break;
 		case NoneState: printf("None"); break;
-		default: panic("Expected Some or None state, Found invalid state."); break;
+		default: panic("Panic: [Option::print_option] Expected Some or None state, Found invalid state."); break;
 		}
 	}
 	else {
-		panic("Expected Some or None state, Found option is NULL.");
+		panic("Panic: [Option::print_option] Expected Some or None state, Found option is NULL.");
 	}
 }
 
