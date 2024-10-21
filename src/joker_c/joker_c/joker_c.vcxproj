@@ -24,12 +24,14 @@
     <ClInclude Include="compiler.h" />
     <ClInclude Include="debug.h" />
     <ClInclude Include="error.h" />
-    <ClInclude Include="function.h" />
+    <ClInclude Include="fn.h" />
     <ClInclude Include="gc.h" />
     <ClInclude Include="hashmap.h" />
     <ClInclude Include="joker_c.h" />
     <ClInclude Include="memory.h" />
+    <ClInclude Include="native.h" />
     <ClInclude Include="object.h" />
+    <ClInclude Include="ops.h" />
     <ClInclude Include="option.h" />
     <ClInclude Include="parser.h" />
     <ClInclude Include="scanner.h" />
@@ -44,7 +46,7 @@
     <ClCompile Include="compiler.c" />
     <ClCompile Include="debug.c" />
     <ClCompile Include="error.c" />
-    <ClCompile Include="function.c" />
+    <ClCompile Include="fn.c" />
     <ClCompile Include="gc.c" />
     <ClCompile Include="hashmap.c" />
     <ClCompile Include="joker_c.c" />
@@ -58,6 +60,7 @@
     <ClCompile Include="token.c" />
     <ClCompile Include="value.c" />
     <ClCompile Include="vm.c" />
+    <ClCompile Include="native.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="control.md" />

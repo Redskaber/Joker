@@ -27,7 +27,7 @@ typedef enum {
 	prec_assignment,	// =
 	prec_or,			// or
 	prec_and,			// and
-	prec_equality,		// ==!=
+	prec_equality,		// == !=
 	prec_comparison,	// < > <= >=
 	prec_term,			// + -
 	prec_factor,		// * / %
@@ -46,10 +46,12 @@ typedef struct {
 } ParseRule;
 
 /* parser function prototypes */
-Function* parse_tokens(Parser* self, VirtualMachine* vm);
+Fn* parse_tokens(Parser* self, VirtualMachine* vm);
 void parse_grouping(Parser* self, VirtualMachine* vm, bool can_assign);
 void parse_call(Parser* self, VirtualMachine* vm, bool can_assign);
 void parse_i32(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_i64(Parser* self, VirtualMachine* vm, bool _can_assign);
+void parse_f32(Parser* self, VirtualMachine* vm, bool _can_assign);
 void parse_f64(Parser* self, VirtualMachine* vm, bool _can_assign);
 void parse_unary(Parser* self, VirtualMachine* vm, bool can_assign);
 void parse_binary(Parser* self, VirtualMachine* vm, bool can_assign);
@@ -86,6 +88,8 @@ ParseRule static static_syntax_rules[] = {
 	[token_identifier]	= {parse_identifier,NULL,			prec_none},
 	[token_string]		= {parse_string,	NULL,			prec_none},
 	[token_i32]			= {parse_i32,		NULL,			prec_none},
+	[token_i64]			= {parse_i64,		NULL,			prec_none},
+	[token_f32]			= {parse_f32,		NULL,			prec_none},
 	[token_f64]			= {parse_f64,		NULL,			prec_none},
 	[token_and]			= {NULL,			parse_and,		prec_and},
 	[token_class]		= {NULL,			NULL,			prec_none},

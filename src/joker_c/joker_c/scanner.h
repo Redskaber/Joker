@@ -16,10 +16,10 @@ typedef struct {
 
 
 
-void init_scanner(Scanner* scanner, const char* source);
-void free_scanner(Scanner* scanner);
-Token scan_token(Scanner* scanner);
-void scan_tokens(Scanner* scanner);
+void init_scanner(Scanner* self, const char* source);
+void free_scanner(Scanner* self);
+Token scan_token(Scanner* self);
+void scan_tokens(Scanner* self);
 
 
 

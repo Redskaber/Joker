@@ -4,17 +4,10 @@
 #define joker_compiler_h
 
 #include "common.h"
-#include "function.h"
+#include "fn.h"
 #include "vm.h"
 #include "token.h"
 
-
-/*
-typedef enum {
-    compile_success,
-    compile_error,
-} CompileResult;
-*/
 
 
 typedef struct LocalVariable {
@@ -25,18 +18,18 @@ typedef struct LocalVariable {
 
 typedef struct Compiler {
     struct Compiler* enclosing;                     // enclosing compiler
-    LocalVariable locals[uint8_count];               // TODO: optimize
-    Function* function;                              // top-level function: e.g. main()
-    FunctionType function_type;                      // function type
+    LocalVariable locals[uint8_count];              // TODO: optimize
+    Fn* function;                                   // top-level function: e.g. main()
+    FnType function_type;                           // function type
     int local_count;
     int scope_depth;
 } Compiler;
 
 
-Function* compile(VirtualMachine* vm, const char* source);
+Fn* compile(VirtualMachine* vm, const char* source);
 
 
-void init_compiler(Compiler* self, FunctionType function_type);
+void init_compiler(Compiler* self, FnType function_type);
 void free_compiler(Compiler* self);
 
 Chunk* current_chunk(Compiler* self);

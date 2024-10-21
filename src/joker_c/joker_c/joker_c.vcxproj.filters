@@ -78,7 +78,13 @@
     <ClInclude Include="string.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="function.h">
+    <ClInclude Include="fn.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="native.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ops.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -134,7 +140,10 @@
     <ClCompile Include="string.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="function.c">
+    <ClCompile Include="fn.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="native.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -11,7 +11,8 @@
 #include "memory.h"
 #include "object.h"
 #include "string.h"
-#include "function.h"
+#include "native.h"
+#include "fn.h"
 #include "value.h"
 
 
@@ -45,7 +46,7 @@ void free_object(Object* object) {
 	if (object == NULL) return;
 	switch (object->type) {
 	case obj_string: free_string(macro_as_string_from_obj(object)); break;
-	case obj_function: free_function(macro_as_function_from_obj(object)); break;
+	case obj_fn:     free_fn(macro_as_fn_from_obj(object)); break;
 	case obj_native: free_native(macro_as_native_from_obj(object)); break;
 	default: break;
 	}
@@ -68,7 +69,7 @@ bool object_equal(Object* left, Object* right) {
 void print_object(Object* object) {
 	switch (object->type) {
 	case obj_string:	print_string(macro_as_string_from_obj(object)); break;
-	case obj_function:	print_function(macro_as_function_from_obj(object)); break;
+	case obj_fn:	    print_fn(macro_as_fn_from_obj(object)); break;
 	case obj_native:	print_native(macro_as_native_from_obj(object)); break;
 	default:			warning("[Warning] [print_object] Unsupported object type: %d", object->type); break;
 	}

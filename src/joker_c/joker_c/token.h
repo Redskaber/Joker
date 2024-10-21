@@ -35,6 +35,8 @@
 	(type == token_identifier) ? "identifier" :		\
 	(type == token_string)    ? "string" :			\
 	(type == token_i32)       ? "i32" :				\
+	(type == token_i64)       ? "i64" :				\
+	(type == token_f32)       ? "f32" :				\
 	(type == token_f64)       ? "f64" :				\
 	(type == token_and)       ? "and" :				\
 	(type == token_class)     ? "class" :			\
@@ -79,7 +81,8 @@ typedef enum {
 	// -> (arrow), => (fat arrow)
 	token_arrow, token_fat_arrow,					// -> => _
 	// Literals.
-	token_identifier, token_string, token_i32, token_f64,
+	token_identifier, token_string, 
+	token_i32, token_i64, token_f32, token_f64,
 	// string interpolation: {}
 	// Keywords.
 	token_and, token_class, token_else, token_false,

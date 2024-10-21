@@ -35,6 +35,8 @@ bool values_equal(Value left, Value right) {
 	switch (left.type) {
 	case VAL_NULL:	return true;
 	case VAL_I32:	return macro_as_i32(left) == macro_as_i32(right);
+	case VAL_I64:	return macro_as_i64(left) == macro_as_i64(right);
+	case VAL_F32:	return macro_as_f32(left) == macro_as_f32(right);
 	case VAL_F64:	return macro_as_f64(left) == macro_as_f64(right);
 	case VAL_BOOL:	return macro_as_bool(left) == macro_as_bool(right);
 	case VAL_OBJECT: return object_equal(macro_as_obj(left), macro_as_obj(right));
@@ -45,6 +47,8 @@ bool values_equal(Value left, Value right) {
 void print_value(Value value) {
 	switch (value.type) {
 	case VAL_I32: printf("%d", value.as.i32); break;
+	case VAL_I64: printf("%lld", value.as.i64); break;
+	case VAL_F32: printf("%f", value.as.f32); break;
 	case VAL_F64: printf("%f", value.as.f64); break;
 	case VAL_BOOL: printf("%s", value.as.boolean ? "true" : "false"); break;
 	case VAL_NULL: printf("null"); break;

@@ -5,7 +5,8 @@
 
 #include "common.h"
 #include "chunk.h"
-#include "function.h"
+#include "fn.h"
+#include "native.h"
 #include "value.h"
 #include "hashmap.h"
 
@@ -19,7 +20,7 @@ typedef struct Compiler Compiler;           // forward declaration
 
 typedef struct CallFrame {
     Value* base_pointer;                    // vm stack get function base address. (ptr ->slots {Value, Value, ...})
-    Function* func;                         // func pointer {func->chunk,}.
+    Fn* func;                               // func pointer {func->chunk,}.
     uint8_t* ip;                            // func self instruction pointer. (return address: func ip execute over call caller ip continue execute)
 } CallFrame;
 /*

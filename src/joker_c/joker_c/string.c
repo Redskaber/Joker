@@ -16,17 +16,17 @@
 
 
 
-static uint32_t hash_string(const char* key, uint32_t length);
+static uint32_t hash_string(const char* key, int length);
 
 
 
 /* flexible array member */
-String* new_string_uninterned(const char* chars, uint32_t length) {
+String* new_string_uninterned(const char* chars, int32_t length) {
 	if (chars == NULL && length != 0) {
 		return panic("Panic: [String::new_string_uninterned] Expected non-null string chars, Found null string chars.");
 	}
-	if (length < 0 || length > UINT32_MAX - 1) {
-		return panic("Panic: [String::new_string_uninterned] Expected string length between 0 and 4294967295, Found invalid string length.");
+	if (length < 0 || length > INT32_MAX - 1) {
+		return panic("Panic: [String::new_string_uninterned] Expected string length between 0 and 2147483647, Found invalid string length.");
 	}
 
 	/* fixed array member*/
@@ -44,7 +44,7 @@ String* new_string_uninterned(const char* chars, uint32_t length) {
 	return string;
 }
 
-String* new_string(HashMap* interned_pool, const char* chars, uint32_t length) {
+String* new_string(HashMap* interned_pool, const char* chars, int32_t length) {
 	if (chars == NULL && length != 0) {
 		return panic("Panic: [String::new_string] Expected non-null string chars, Found null string chars.");
 	}
@@ -148,7 +148,7 @@ bool string_equal(String* left, String* right) {
 *  - FNV-1a:
 *  hash need: 1.determistic 2.uniform 3.fast
 */
-static uint32_t hash_string(const char* key, uint32_t length) {
+static uint32_t hash_string(const char* key, int length) {
 	uint32_t hash = 2166136261u;
 	for (size_t i = 0; i < length; i++) {
 		hash ^= (uint8_t)key[i];  // xor with the next byte, 1 char = 1 byte

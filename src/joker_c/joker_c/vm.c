@@ -1,37 +1,33 @@
 #pragma once
 
-#include <time.h>
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "common.h"
-#include "compiler.h"
-#include "error.h"
-#include "value.h"
-#include "string.h"
-#include "function.h"
+#include "ops.h"
 #include "memory.h"
-#include "object.h"
+#include "error.h"
 #include "debug.h"
+#include "native.h"
+#include "fn.h"
+#include "value.h"
+#include "object.h"
+#include "string.h"
+#include "compiler.h"
 #include "vm.h"
 
 
 /* Virtual machine operations */
 static int current_code_index(CallFrame* frame);
 static void define_native(VirtualMachine * self, const char* name, NativeFnPtr function);
-static bool call(VirtualMachine* self, Function* func, int arg_count);
+static bool call(VirtualMachine* self, Fn* fn, int arg_count);
 static bool call_value(VirtualMachine* self, Value* callee, int arg_count);
 static void reset_stack(VirtualMachine* self);
 static InterpretResult run(VirtualMachine* self);
 
-
-/************************ Native Function ************************/
-static Value clock_nativer(Value* args, int arg_count) {
-	return macro_f64_from_val((double)clock() / CLOCKS_PER_SEC);
-}
-/******************************************************************/
 
 
 static __declspec(noreturn) void panic_error(const char* msg, ...) {
@@ -63,12 +59,12 @@ static void runtime_error(VirtualMachine* self, const char* message, ...) {
 	// heap stack trace
 	for (int i = self->frame_count - 1; i >= 0; i--) {
 		CallFrame* frame = &self->frames[i];
-		Function* func = frame->func;
+		Fn* fn = frame->func;
 		int index = current_code_index(frame);
-		fprintf(stderr, "[line %d] in ", get_rle_line(&func->chunk.lines, index));
-		is_anonymous_fn(func) ? 
+		fprintf(stderr, "[line %d] in ", get_rle_line(&fn->chunk.lines, index));
+		is_anonymous_fn(fn) ? 
 			fprintf(stderr, "script\n") : 
-			fprintf(stderr, "%s()\n", func->name->chars);
+			fprintf(stderr, "%s()\n", fn->name->chars);
 	}
 
 	// reset stack
@@ -103,8 +99,11 @@ void init_virtual_machine(VirtualMachine* self) {
 	init_hashmap(&self->strings); // 字符串驻留
 	init_hashmap(&self->globals); // 全局变量
 
-	/* native */
-	define_native(self, "clock", clock_nativer);
+	/* regiter */
+	define_native(self, "clock", native_clock);
+	define_native(self, "time", native_time);
+	define_native(self, "sleep", native_sleep);
+	define_native(self, "date", native_date);
 }
 
 void free_virtual_machine(VirtualMachine* self) {
@@ -212,8 +211,8 @@ static bool call_value(VirtualMachine* self, Value* callee, int arg_count) {
 	if (macro_is_obj_ptr(callee)) {
 		switch (macro_obj_ptr_type(callee))
 		{
-		case obj_function: 
-			return call(self, macro_as_function_from_obj_ptr(callee), arg_count);
+		case obj_fn: 
+			return call(self, macro_as_fn_from_obj_ptr(callee), arg_count);
 		case obj_native: {
 			NativeFnPtr native_fn = macro_as_native(callee);
 			/*
@@ -221,7 +220,7 @@ static bool call_value(VirtualMachine* self, Value* callee, int arg_count) {
 						V		  V 			      V
 				[..., native_fn, arg1, arg2,..., argN, ...]
 			*/
-			Value result = native_fn(self->stack_top - arg_count, arg_count);	// get args
+			Value result = native_fn(self, arg_count, self->stack_top - arg_count);	// get args
 			self->stack_top -= arg_count + 1;	// pop args + function
 			push(self, result);
 			return true;
@@ -234,9 +233,9 @@ static bool call_value(VirtualMachine* self, Value* callee, int arg_count) {
 	return false;
 }
 
-static bool call(VirtualMachine* self, Function* func, int arg_count) {
-	if (arg_count != func->arity) {
-		runtime_error(self, "[VirtualMachine::call] Expected %d arguments, Found %d arguments.", func->arity, arg_count);
+static bool call(VirtualMachine* self, Fn* fn, int arg_count) {
+	if (arg_count != fn->arity) {
+		runtime_error(self, "[VirtualMachine::call] Expected %d arguments, Found %d arguments.", fn->arity, arg_count);
 		return false;
 	}
 	if (self->frame_count == frames_statck_max) {
@@ -245,8 +244,8 @@ static bool call(VirtualMachine* self, Function* func, int arg_count) {
 	}
 	CallFrame* frame = &self->frames[self->frame_count++];
 	// set up the new call frame: execute func frame.
-	frame->func = func;
-	frame->ip = func->chunk.code;
+	frame->func = fn;
+	frame->ip = fn->chunk.code;
 	frame->base_pointer = self->stack_top - arg_count - 1;
 
 	return true;
@@ -258,15 +257,165 @@ static bool call(VirtualMachine* self, Function* func, int arg_count) {
 * Returns an InterpretResult indicating the result of the interpretation.
 */
 InterpretResult interpret(VirtualMachine* self, const char* source) {
-	Function* func = compile(self, source);
-	if (func == NULL) return interpret_compile_error;
+	Fn* fn = compile(self, source);
+	if (fn == NULL) return interpret_compile_error;
 
-	push(self, macro_obj_from_val(func));
-	call(self, func, 0);	// call the top-level function: e.g main()
+	push(self, macro_obj_from_val(fn));
+	call(self, fn, 0);	// call the top-level function: e.g main()
 
 	return run(self);
 }
 
+
+static InterpretResult read_binary(VirtualMachine* self, CallFrame* frame, Ops op) {
+    InterpretResult result = interpret_ok;
+
+	Value* r_slot = peek(self, 0);
+	Value* l_slot = peek(self, 1);
+	macro_check_emptyptr(r_slot);
+	macro_check_emptyptr(l_slot);
+
+	if (macro_matches_ptr(r_slot, VAL_I32) && macro_matches_ptr(l_slot, VAL_I32)) {
+		int r_i32 = macro_as_i32(pop(self));
+		int l_i32 = macro_as_i32(pop(self));
+		switch (op) {
+		case ADD: push(self, macro_i32_from_val(macro_i32_check(l_i32 + r_i32))); break;
+		case SUB: push(self, macro_i32_from_val(macro_i32_check(l_i32 - r_i32))); break;
+		case MUL: push(self, macro_i32_from_val(macro_i32_check(l_i32 * r_i32))); break;
+		case DIV: push(self, macro_i32_from_val(macro_i32_check(l_i32 / r_i32))); break;
+		case MOD: push(self, macro_i32_from_val(macro_i32_check(l_i32 % r_i32))); break;
+		case EQ:  push(self, macro_bool_from_val(l_i32 == r_i32)); break;
+		case NEQ: push(self, macro_bool_from_val(l_i32 != r_i32)); break;
+		case LT:  push(self, macro_bool_from_val(l_i32 < r_i32)); break;
+		case GT:  push(self, macro_bool_from_val(l_i32 > r_i32)); break;
+		case LTE: push(self, macro_bool_from_val(l_i32 <= r_i32)); break;
+		case GTE: push(self, macro_bool_from_val(l_i32 >= r_i32)); break;
+		case AND: push(self, macro_bool_from_val(l_i32 && r_i32)); break;
+		case OR:  push(self, macro_bool_from_val(l_i32 || r_i32)); break;
+		case XOR: push(self, macro_bool_from_val(l_i32 ^ r_i32)); break;
+		case SHL: push(self, macro_i32_from_val(macro_i32_check(l_i32 << r_i32))); break;
+		case SHR: push(self, macro_i32_from_val(macro_i32_check(l_i32 >> r_i32))); break;
+		case BIT_AND: push(self, macro_i32_from_val(macro_i32_check((l_i32 & r_i32)))); break;
+		case BIT_OR:  push(self, macro_i32_from_val(macro_i32_check((l_i32 | r_i32)))); break;
+		case BIT_XOR: push(self, macro_i32_from_val(macro_i32_check((l_i32 ^ r_i32)))); break;
+		case BIT_NOT: push(self, macro_i32_from_val(~l_i32)); break;
+		default:
+			//  raise runtime error, unexpected binary operation
+			runtime_error(self, "[VirtualMachine::read_binary]\n"
+				"[line %d] where at runtime, '%s'.\n"
+				"\tExpected i32 for left and right operands, Found left: %s, right: %s.\n",
+				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				macro_ops_to_string(op),
+				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(r_slot)
+			);
+			result = interpret_runtime_error;
+			break;
+		}
+	}
+	else if (macro_matches_ptr(r_slot, VAL_I64) && macro_matches_ptr(l_slot, VAL_I64)) {
+		int64_t r_i64 = macro_as_i64(pop(self));
+		int64_t l_i64 = macro_as_i64(pop(self));
+		switch (op) {
+		case ADD: push(self, macro_i64_from_val(macro_i64_check(l_i64 + r_i64))); break;
+		case SUB: push(self, macro_i64_from_val(macro_i64_check(l_i64 - r_i64))); break;
+		case MUL: push(self, macro_i64_from_val(macro_i64_check(l_i64 * r_i64))); break;
+		case DIV: push(self, macro_i64_from_val(macro_i64_check(l_i64 / r_i64))); break;
+		case MOD: push(self, macro_i64_from_val(macro_i64_check(l_i64 % r_i64))); break;
+		case EQ:  push(self, macro_bool_from_val(l_i64 == r_i64)); break;
+		case NEQ: push(self, macro_bool_from_val(l_i64 != r_i64)); break;
+		case LT:  push(self, macro_bool_from_val(l_i64 < r_i64)); break;
+		case GT:  push(self, macro_bool_from_val(l_i64 > r_i64)); break;
+		case LTE: push(self, macro_bool_from_val(l_i64 <= r_i64)); break;
+		case GTE: push(self, macro_bool_from_val(l_i64 >= r_i64)); break;
+		case AND: push(self, macro_bool_from_val(l_i64 && r_i64)); break;
+		case OR:  push(self, macro_bool_from_val(l_i64 || r_i64)); break;
+		case XOR: push(self, macro_bool_from_val(l_i64 ^ r_i64)); break;
+		case SHL: push(self, macro_i64_from_val(macro_i64_check(l_i64 << r_i64))); break;
+		case SHR: push(self, macro_i64_from_val(macro_i64_check(l_i64 >> r_i64))); break;
+		case BIT_AND: push(self, macro_i64_from_val(macro_i64_check((l_i64 & r_i64)))); break;
+		case BIT_OR:  push(self, macro_i64_from_val(macro_i64_check((l_i64 | r_i64)))); break;
+		case BIT_XOR: push(self, macro_i64_from_val(macro_i64_check((l_i64 ^ r_i64)))); break;
+		case BIT_NOT: push(self, macro_i64_from_val(~l_i64)); break;
+		default:
+			//  raise runtime error, unexpected binary operation
+			runtime_error(self, "[VirtualMachine::read_binary]\n"
+				"[line %d] where at runtime, '%s'.\n"
+				"\tExpected i64 for left and right operands, Found left: %s, right: %s.\n",
+				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				macro_ops_to_string(op),
+				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(r_slot)
+			);
+			result = interpret_runtime_error;
+			break;
+		}
+	}
+	else if (macro_matches_ptr(r_slot, VAL_F64) && macro_matches_ptr(l_slot, VAL_F64)) {
+		double r_f64 = macro_as_f64(pop(self));
+		double l_f64 = macro_as_f64(pop(self));
+		switch (op) {
+		case ADD: push(self, macro_f64_from_val(l_f64 + r_f64)); break;
+		case SUB: push(self, macro_f64_from_val(l_f64 - r_f64)); break;
+		case MUL: push(self, macro_f64_from_val(l_f64 * r_f64)); break;
+		case DIV: push(self, macro_f64_from_val(l_f64 / r_f64)); break;
+		case EQ:  push(self, macro_bool_from_val(l_f64 == r_f64)); break;
+		case NEQ: push(self, macro_bool_from_val(l_f64 != r_f64)); break;
+		case LT:  push(self, macro_bool_from_val(l_f64 < r_f64)); break;
+		case GT:  push(self, macro_bool_from_val(l_f64 > r_f64)); break;
+		case LTE: push(self, macro_bool_from_val(l_f64 <= r_f64)); break;
+		case GTE: push(self, macro_bool_from_val(l_f64 >= r_f64)); break;
+		default:
+			//  raise runtime error, unexpected binary operation
+			runtime_error(self, "[VirtualMachine::read_binary]\n"
+				"[line %d] where at runtime, '%s'.\n"
+				"\tExpected f64 for left and right operands, Found left: %s, right: %s.\n",
+				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				macro_ops_to_string(op),
+				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(r_slot)
+			);
+			result = interpret_runtime_error;
+			break;
+		}
+	}
+	else if (macro_matches_ptr(r_slot, VAL_BOOL) && macro_matches_ptr(l_slot, VAL_BOOL)) {
+		bool r_bool = macro_as_bool(pop(self));
+		bool l_bool = macro_as_bool(pop(self));
+		switch (op) {
+		case AND: push(self, macro_bool_from_val(l_bool && r_bool)); break;
+		case OR:  push(self, macro_bool_from_val(l_bool || r_bool)); break;
+		case XOR: push(self, macro_bool_from_val(l_bool ^ r_bool)); break;
+		default:
+			//  raise runtime error, unexpected binary operation
+			runtime_error(self, "[VirtualMachine::read_binary]\n"
+				"[line %d] where at runtime, '%s'.\n"
+				"\tExpected bool for left and right operands, Found left: %s, right: %s.\n",
+				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				macro_ops_to_string(op),
+				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(r_slot)
+			);
+			result = interpret_runtime_error;
+			break;
+		}
+	}
+	else {
+		//  raise runtime error, unexpected binary operation
+		runtime_error(self, "[VirtualMachine::read_binary]\n"
+			"[line %d] where at runtime, '%s'.\n"
+			"Expected number[(i32,i32), (i64,i64), (f64,f64), (bool,bool)] for left and right operands, "
+			"Found left: %s, right: %s.\n",
+			get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+			macro_ops_to_string(op),
+			macro_type_name_ptr(l_slot), 
+			macro_type_name_ptr(r_slot)
+		);
+		result = interpret_runtime_error;
+	}
+
+	return result;
+}
 
 /*
 * Runs the virtual machine.
@@ -282,39 +431,18 @@ static InterpretResult run(VirtualMachine* self) {
 #define macro_read_byte() (*frame->ip++)
 /* read a constant from the constant pool */
 #define macro_read_constant() (frame->func->chunk.constants.values[macro_read_byte()])
-/* read a binary operation from the current instruction pointer : TODO: 将binary等操作符的实现分离出来，单独类型判断*/
-#define macro_read_binary_op(op, is_cmp)															\
-    do {																							\
-        Value* r_slot = peek(self, 0);																\
-        Value* l_slot = peek(self, 1);																\
-        macro_check_emptyptr(r_slot);																\
-        macro_check_emptyptr(l_slot);																\
-        if (macro_matches_ptr(r_slot, VAL_I32) && macro_matches_ptr(l_slot, VAL_I32)) {				\
-		    int r_i32 = macro_as_i32(pop(self));													\
-		    int l_i32 = macro_as_i32(pop(self));													\
-		    is_cmp ? push(self, macro_bool_from_val(l_i32 op r_i32)) :								\
-				push(self, macro_i32_from_val(l_i32 op r_i32));										\
-		} else if (macro_matches_ptr(r_slot, VAL_F64) && macro_matches_ptr(l_slot, VAL_F64)) {		\
-			double r_f64 = macro_as_f64(pop(self));													\
-			double l_f64 = macro_as_f64(pop(self));													\
-			is_cmp ? push(self, macro_bool_from_val(l_f64 op r_f64)) :								\
-				push(self, macro_f64_from_val(l_f64 op r_f64));										\
-		} else {																					\
-			runtime_error(self, "[line %d] where: at runtime binary '"#op "' operation.\n"			\
-				"\tExpected number[(i32,i32), (f64,f64)] for left and right operands, "				\
-					"Found left: %s, right: %s",													\
-				get_rle_line(&frame->func->chunk.lines, current_code_index(&self->frames[self->frame_count - 1])), \
-				macro_type_name_ptr(l_slot), macro_type_name_ptr(r_slot)							\
-			);																						\
-			return interpret_runtime_error;															\
-		}																							\
-    } while(false)
-
+/* read a short from the current instruction pointer */
+#define macro_runtime_error_raised(result)			\
+    do {											\
+        if (result == interpret_runtime_error) {	\
+            return result;							\
+        }											\
+    } while (false)
 /* read a string from the constant pool */
 #define macro_read_string() (macro_as_string(macro_read_constant()))
 /* read a short from the current instruction pointer */
-#define macro_read_short()																			\
-	(frame->ip +=2,																					\
+#define macro_read_short()											\
+	(frame->ip +=2,													\
 	((uint16_t)(frame->ip[-2]) << 8) | (uint16_t)(frame->ip[-1]))
 
 
@@ -384,30 +512,24 @@ static InterpretResult run(VirtualMachine* self) {
 			push(self, macro_bool_from_val(!values_equal(left, right)));
 			break;
 		}
-		case op_greater:		macro_read_binary_op(>, true); break;
-		case op_greater_equal:	macro_read_binary_op(>=, true); break;
-		case op_less:			macro_read_binary_op(<, true); break;
-		case op_less_equal:		macro_read_binary_op(<=, true); break;
+		case op_greater:		macro_runtime_error_raised(read_binary(self, frame, GT)); break;
+		case op_greater_equal:	macro_runtime_error_raised(read_binary(self, frame, GTE)); break;
+		case op_less:			macro_runtime_error_raised(read_binary(self, frame, LT)); break;
+		case op_less_equal:		macro_runtime_error_raised(read_binary(self, frame, LTE)); break;
 		case op_add: {
 			Value* r_slot = peek(self, 0);
 			Value* l_slot = peek(self, 1);
 			macro_check_emptyptr(r_slot);
 			macro_check_emptyptr(l_slot);
 			if (macro_is_string(*l_slot) && macro_is_string(*r_slot)) {
-				concatenate_string(self);
-			}
-			else {
-				macro_read_binary_op(+, false);
-			}
-			break;
+								concatenate_string(self);
+			}else {				macro_runtime_error_raised(read_binary(self, frame, ADD));} break;
 		}
-		case op_subtract:		macro_read_binary_op(-, false); break;
-		case op_multiply:		macro_read_binary_op(*, false); break;
-		case op_divide:			macro_read_binary_op(/, false); break;
+		case op_subtract:		macro_runtime_error_raised(read_binary(self, frame, SUB)); break;
+		case op_multiply:		macro_runtime_error_raised(read_binary(self, frame, MUL)); break;
+		case op_divide:			macro_runtime_error_raised(read_binary(self, frame, DIV)); break;
 		case op_print: {
-			print_value(pop(self));
-			printf("\n");
-			break;
+								print_value(pop(self)); printf("\n"); break;
 		}
 		case op_pop: pop(self); break;
 		case op_define_global: {

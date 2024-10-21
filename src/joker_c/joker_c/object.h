@@ -13,7 +13,7 @@
 /* Object type */
 typedef enum ObjectType {
 	obj_string,
-	obj_function,
+	obj_fn,
 	obj_native,
 } ObjectType;
 

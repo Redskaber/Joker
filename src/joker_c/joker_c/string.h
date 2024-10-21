@@ -25,14 +25,14 @@
 typedef struct String {
 	Object base;
 	uint32_t hash;   // hash value of string (string hash)
-	uint32_t length;
+	int32_t length;
 	char chars[];	// flexible array member: from char* need double pointer to char[].
 } String;
 
 
 
-String* new_string_uninterned(const char* chars, uint32_t length);
-String* new_string(HashMap* interned_pool, const char* chars, uint32_t length);
+String* new_string_uninterned(const char* chars, int32_t length);
+String* new_string(HashMap* interned_pool, const char* chars, int32_t length);
 void free_string(String* string);
 String* concat_string_uninterned(String* left, String* right);
 String* concat_string(HashMap* interned_pool, String* left, String* right);

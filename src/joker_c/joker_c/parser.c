@@ -64,7 +64,7 @@
 #include "error.h"
 #include "hashmap.h"
 #include "string.h"
-#include "function.h"
+#include "fn.h"
 #include "compiler.h"
 
 #include "parser.h"
@@ -99,7 +99,7 @@ void parse_error_at_previous(Parser* self, const char* message);
 /* Abstract Syntax Tree(AST)*/
 static void parse_declaration(Parser* self, VirtualMachine* vm);
 static void parse_fn_declaration(Parser* self, VirtualMachine* vm);
-static void parse_function(Parser* self, VirtualMachine* vm, FunctionType type);
+static void parse_function(Parser* self, VirtualMachine* vm, FnType type);
 static void parse_var_declaraton(Parser* self, VirtualMachine* vm);
 static void parse_named_variable(Parser* self, VirtualMachine* vm, Token* variable, bool can_assign);
 static index_t parse_variable(Parser* self, VirtualMachine* vm, const char* message);
@@ -116,10 +116,10 @@ static void parse_expression(Parser* self, VirtualMachine* vm);
 
 
 /* Compiler */
-static Function* end_compiler(Parser* self, VirtualMachine* vm);
+static Fn* end_compiler(Parser* self, VirtualMachine* vm);
 static void begin_scope(Compiler* compiler);
 static void end_scope(Parser* self, Compiler* compiler, Chunk* chunk);
-static void current_into_sub_compiler(VirtualMachine* vm, Compiler* sub, FunctionType type, Parser* parser);
+static void current_into_sub_compiler(VirtualMachine* vm, Compiler* sub, FnType type, Parser* parser);
 static void current_from_sub_compiler(VirtualMachine* vm);
 static bool identifiers_equal(Token* a, Token* b);
 static void declare_variable(Parser* self, Compiler* compiler, Token* name);
@@ -164,19 +164,19 @@ void print_parser(Parser* self) {
 	printf("panic_mode: %d\n", self->panic_mode);
 }
 
-static Function* end_compiler(Parser* self, VirtualMachine* vm) {
+static Fn* end_compiler(Parser* self, VirtualMachine* vm) {
 	emit_return(self, current_chunk(vm->compiler));
 
 	// builded func return && return parent compiler's func
-	Function* func = vm->compiler->function;
+	Fn* fn = vm->compiler->function;
 #ifdef debug_print_code
 	if (!self->had_error) {
 		disassemble_chunk(current_chunk(vm->compiler), 
-			is_anonymous_fn(func)? "<script>" : func->name->chars);
+			is_anonymous_fn(fn)? "<script>" : fn->name->chars);
 	}
 #endif
 	current_from_sub_compiler(vm);
-	return func;
+	return fn;
 }
 
 /* check if is at end of file, return true if is at end of file, false otherwise */
@@ -390,7 +390,7 @@ static void end_scope(Parser* self, Compiler* compiler, Chunk* chunk) {
 }
 
 
-static void current_into_sub_compiler(VirtualMachine* vm, Compiler* sub, FunctionType type, Parser* parser) {
+static void current_into_sub_compiler(VirtualMachine* vm, Compiler* sub, FnType type, Parser* parser) {
 	// set sub compiler
 	init_compiler(sub, type);
 	sub->enclosing = vm->compiler;
@@ -443,7 +443,7 @@ static void synchronize(Parser* self) {
 	}
 }
 
-Function* parse_tokens(Parser* self, VirtualMachine* vm) {
+Fn* parse_tokens(Parser* self, VirtualMachine* vm) {
 	while (!parse_is_at_end(self)) {
 		parse_declaration(self, vm);
 	}
@@ -468,11 +468,11 @@ static void parse_fn_declaration(Parser* self, VirtualMachine* vm) {
 	index_t func_index = parse_variable(self, vm, "[Parser::parse_fn_declaration] Expected function name.");
 	mark_initialized(vm->compiler);
 
-	parse_function(self, vm, type_function);
+	parse_function(self, vm, type_fn);
 	define_variable(self, vm->compiler, current_chunk(vm->compiler), func_index);
 }
 
-static void parse_function(Parser* self, VirtualMachine* vm, FunctionType type) {
+static void parse_function(Parser* self, VirtualMachine* vm, FnType type) {
 	Compiler func_compiler;
 	current_into_sub_compiler(vm, &func_compiler, type, self);
 	begin_scope(vm->compiler);	// this compiler is a sub-compiler(func_compiler), so it has its own scope. 
@@ -496,12 +496,12 @@ static void parse_function(Parser* self, VirtualMachine* vm, FunctionType type) 
 	parse_block_statement(self, vm);
 	
 	// get func object && emit define instruction
-	Function* func = end_compiler(self, vm);
+	Fn* fn = end_compiler(self, vm);
 	emit_bytes(
 		self, 
 		current_chunk(vm->compiler), 
 		op_constant, 
-		make_constent(self, current_chunk(vm->compiler), macro_obj_from_val(func))
+		make_constent(self, current_chunk(vm->compiler), macro_obj_from_val(fn))
 	);
 }
 
@@ -826,12 +826,18 @@ static void parse_precedence(Parser* self, VirtualMachine* vm, Precedence outer_
 /* parse number: {i32, f64,...}, need detailed dispatching */
 /* TODO: add more types */
 void parse_i32(Parser* self, VirtualMachine* vm, bool _can_assign) {
-	// atoi() converts a string to an integer
-	int value = atoi(self->previous->token.start);
+	int32_t value = atoi(self->previous->token.start);
 	emit_constant(self, current_chunk(vm->compiler), macro_i32_from_val(value));
 }
+void parse_i64(Parser* self, VirtualMachine* vm, bool _can_assign) {
+	int64_t value = atoll(self->previous->token.start);
+	emit_constant(self, current_chunk(vm->compiler), macro_i64_from_val(value));
+}
+void parse_f32(Parser* self, VirtualMachine* vm, bool _can_assign) {
+    float value = strtof(self->previous->token.start, NULL);
+	emit_constant(self, current_chunk(vm->compiler), macro_f32_from_val(value));
+}
 void parse_f64(Parser* self, VirtualMachine* vm, bool _can_assign) {
-	// strtod() converts a string to a double
     double value = strtod(self->previous->token.start, NULL);
 	emit_constant(self, current_chunk(vm->compiler), macro_f64_from_val(value));
 }

@@ -75,20 +75,20 @@ static void free_local_variables(LocalVariable local[], int count) {
 }
 
 
-void init_compiler(Compiler* self, FunctionType type) {
+void init_compiler(Compiler* self, FnType type) {
 	self->enclosing = NULL;
 	self->function = NULL;	
 	self->local_count = 0;
 	self->scope_depth = 0;
 	self->function_type = type;
-	self->function = new_function();	// top-level function e.g. main()
+	self->function = new_fn();	// top-level function e.g. main()
 	LocalVariable* local = &self->locals[self->local_count++];
 	local->depth = 0;
 	local->name = new_token("", 0, 0, token_identifier); // name is pointer, don't used struct object.
 }
 
 void free_compiler(Compiler* self) {
-	free_function(self->function);
+	free_fn(self->function);
 	free_local_variables(self->locals, self->local_count);
 	// reset compiler
 	self->local_count = 0;
@@ -110,7 +110,7 @@ void compile_end_scope(Compiler* self) {
 }
 
 
-Function* compile(VirtualMachine* vm, const char* source) {
+Fn* compile(VirtualMachine* vm, const char* source) {
 	Scanner scanner;
 	init_scanner(&scanner, source);
 	scan_tokens(&scanner);
@@ -122,7 +122,7 @@ Function* compile(VirtualMachine* vm, const char* source) {
 	init_compiler(&top_compiler, type_script);
 	vm->compiler = &top_compiler;
 
-	Function* func = parse_tokens(&parser, vm);
+	Fn* fn = parse_tokens(&parser, vm);
 
 	/*
 	* Parser:
@@ -143,6 +143,6 @@ Function* compile(VirtualMachine* vm, const char* source) {
 	free_scanner(&scanner); 
 
 	// TODO: return compile status can be improved(e.g. return detailed error message and more status information)
-	return parser.had_error ? NULL : func;
+	return parser.had_error ? NULL : fn;
 }
 
