@@ -18,7 +18,6 @@
 
 #include "native.h"
 
-
 Native* new_native(NativeFnPtr fn) {
 	Native* native = macro_allocate_object(Native, obj_native);
 	native->fn = fn;
@@ -39,10 +38,6 @@ void print_native(Native* self) {
 
 	printf("<Native Fn>");
 }
-
-
-
-
 
 /* time block */
 Value native_clock(VirtualMachine* vm, int arg_count, Value* args) {
@@ -84,9 +79,3 @@ Value native_date(VirtualMachine* vm, int arg_count, Value* args) {
 Value native_now(VirtualMachine* vm, int arg_count, Value* args) {
 	return native_date(vm, arg_count, args);
 }
-
-
-
-
-
-

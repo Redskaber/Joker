@@ -3,8 +3,6 @@
 #include "error.h"
 #include "option.h"
 
-
-
 Option_* create_some(Value value) {
 	Some_* some = macro_allocate(Some_, 1);
 	some->base.state = SomeState;

@@ -1,6 +1,5 @@
 #pragma once
 
-
 #ifndef __joker_option_h__
 #define __joker_option_h__
 #include <stdio.h>
@@ -8,12 +7,10 @@
 #include "common.h"
 #include "value.h"
 
-
 typedef enum OptionState {
 	NoneState = 0,
 	SomeState = 1,
 } OptionState;
-
 
 typedef struct Option_ {
 	OptionState state;
@@ -23,7 +20,6 @@ typedef struct Some_ {
 	Option_ base;
 	Value value;
 } Some_;
- 
 
 Option_* create_some(Value value);
 Option_* create_none();
@@ -31,7 +27,6 @@ void free_option(Option_* option);
 void print_option(Option_* option);
 void printf_option(Option_* option);
 bool match(Option_* option, ValueType expected_type);
-
 
 #define Option(T) Option_*
 

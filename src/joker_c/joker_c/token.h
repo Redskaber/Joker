@@ -5,7 +5,6 @@
 
 #include "common.h"
 
-
 /* display Token type to string macro */
 #define macro_token_type_to_string(type)			\
 	(type == token_left_paren) ? "left_paren" :		\
@@ -81,7 +80,7 @@ typedef enum {
 	// -> (arrow), => (fat arrow)
 	token_arrow, token_fat_arrow,					// -> => _
 	// Literals.
-	token_identifier, token_string, 
+	token_identifier, token_string,
 	token_i32, token_i64, token_f32, token_f64,
 	// string interpolation: {}
 	// Keywords.
@@ -93,7 +92,6 @@ typedef enum {
 
 	token_error, token_eof
 } TokenType;
-
 
 /* Token struct */
 typedef struct {
@@ -109,7 +107,6 @@ Token eof_token(line_t line);
 void reset_token(Token* token);
 void print_token(Token* token);
 
-
 typedef struct TokenNode {		// self pointer need typedef used struct name, because struct name is used in TokenNode struct
 	Token token;
 	struct TokenNode* next;
@@ -119,8 +116,6 @@ TokenNode* create_token_node(Token token);
 void free_token_node(TokenNode* node);
 void print_token_node(TokenNode* node);
 void reset_token_node(TokenNode* node);
-
-
 
 typedef struct {
 	TokenNode* head;

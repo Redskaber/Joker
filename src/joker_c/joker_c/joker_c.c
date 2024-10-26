@@ -24,20 +24,16 @@
 #include "debug.h"
 #include "test.h"
 
-
-
 static void repl(VirtualMachine* vm);
 static void run_file(VirtualMachine* vm, const char* path);
 static char* read_file(const char* path);
 int run(int argc, char* argv[]);
-
 
 /*
 * The main entry point of the virtual machine.
 * It reads the bytecode from a file and executes it.
 * If no file is specified, it enters a REPL (read-eval-print loop).
 */
-
 
 static void repl(VirtualMachine* vm) {
 	char line[1024];
@@ -56,7 +52,6 @@ static void repl(VirtualMachine* vm) {
 	}
 }
 
-
 /*
 * Runs the bytecode in a file.
 * If there is a compilation or runtime error, it exits with an appropriate status code.
@@ -72,7 +67,6 @@ static void run_file(VirtualMachine* vm, const char* path) {
 	if (result == interpret_runtime_error) exit(enum_runtime_error);
 }
 
-
 /*
 * Reads a file into a buffer.
 * If there is an error, it exits with an appropriate status code.
@@ -85,7 +79,6 @@ static char* read_file(const char* path) {
 			macro_code_to_string(enum_file_error), path);
 		exit(enum_file_error);
 	}
-
 
 	fseek(file, 0L, SEEK_END);		// move the file pointer to the end of the file
 	size_t file_size = ftell(file);	// get the current position of the file pointer
@@ -111,8 +104,6 @@ static char* read_file(const char* path) {
 	return buffer;
 }
 
-
-
 int run(int argc, char* argv[]) {
 	VirtualMachine vm;
 	init_virtual_machine(&vm);
@@ -133,12 +124,10 @@ int run(int argc, char* argv[]) {
 	return 0;
 }
 
-
 int main(int argc, char* argv[]) {
 	run(argc, argv);
 	return 0;
 }
-
 
 int test() {
 	// test_op_constant();
@@ -153,5 +142,3 @@ int test() {
 	// test_expression_4();
 	return 0;
 }
-
-

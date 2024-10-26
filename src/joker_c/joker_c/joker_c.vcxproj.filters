@@ -87,6 +87,12 @@
     <ClInclude Include="ops.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="closure.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="upvalue.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="chunk.c">
@@ -144,6 +150,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="native.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="closure.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="upvalue.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

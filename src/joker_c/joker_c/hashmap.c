@@ -2,7 +2,7 @@
 * hashmap.c: hashmap implementation
 *	- open addressing(开放地址法):
 *   - separate chaining(拉链法):
-* 
+*
 * string interning(字符串驻留技术): 解决字符串比较消耗时间的问题.
 *   - 字符串驻留技术本质上是一个数据去重的过程.(python{set}?)
 *   - 字符串驻留技术的实现:
@@ -21,19 +21,14 @@
 #include "string.h"
 #include "hashmap.h"
 
-
 #define const_max_load_factor 0.75
-
 
 static Entry* find_entry(Entry* entries, size_t capacity, String* key);
 static void adjust_capacity(HashMap* map, size_t new_capacity);
 
-
 bool is_empty_entry(Entry* entry) {
 	return entry->key == NULL && macro_is_null(entry->value);
 }
-
-
 
 void init_hashmap(HashMap* self) {
 	self->count = 0;
@@ -54,7 +49,7 @@ bool hashmap_set(HashMap* self, String* key, Value value) {
 	}
 	Entry* entry = find_entry(self->entries, self->capacity, key);
 	bool is_new_entry = entry->key == NULL;
-    if (is_new_entry && macro_is_null(entry->value)) self->count++; // new entry, count++
+	if (is_new_entry && macro_is_null(entry->value)) self->count++; // new entry, count++
 	entry->key = key;
 	entry->value = value;
 	return is_new_entry;
@@ -67,10 +62,10 @@ bool hashmap_set(HashMap* self, String* key, Value value) {
 *      - if entry->key == key, return entry.
 *      - if entry->key != key, used open addressing to find next entry. [(index +1) % capacity].
 *      - if find entry open addressing find next entry->key == NULL, open addressing over, return NULL.
-* 
+*
 * used motbstone to mark a deleted entry.
 *   - note(log) it and keep going.
-* 
+*
 * how tombstones interact with the table’s load factor and resizing?
 *   - combstone: we used conbstone to one entry, not decrease load factor.(avoid deap loop)
 */
@@ -83,7 +78,7 @@ static Entry* find_entry(Entry* entries, size_t capacity, String* key) {
 		// handler tombstone
 		if (entry->key == NULL) {
 			if (macro_is_null(entry->value)) {
-				return tombstone != NULL? tombstone : entry;
+				return tombstone != NULL ? tombstone : entry;
 			}
 			else {
 				// tombstone: {key: null, value: true(bool)}
@@ -136,10 +131,10 @@ void hashmap_add_all(HashMap* from, HashMap* to) {
 Option(Value) hashmap_get(HashMap* self, String* key) {
 	if (self->count == 0) return None;
 	Entry* entry = find_entry(self->entries, self->capacity, key);
-	return entry->key == NULL? None : Some(entry->value);
+	return entry->key == NULL ? None : Some(entry->value);
 }
 
-/* 
+/*
 * note: used open addressing, so if set value to null is bad idea.used tombstone instead.
 *    - tombstone: a special value to mark a deleted entry.
 *    - when remove an entry, set its key to null and value to true(bool).
@@ -162,7 +157,7 @@ String* hashmap_find_key(HashMap* self, const char* key, uint32_t len, uint32_t 
 	while (true) {
 		Entry* entry = &self->entries[index];
 		if (entry->key == NULL) {
-		    if (macro_is_null(entry->value)) return NULL; // non-combstone, return null.
+			if (macro_is_null(entry->value)) return NULL; // non-combstone, return null.
 		}
 		else if (
 			entry->key->length == len &&

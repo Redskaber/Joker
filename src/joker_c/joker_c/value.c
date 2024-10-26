@@ -1,10 +1,8 @@
 #include <stdio.h>
 
-
 #include "memory.h"
 #include "object.h"
 #include "value.h"
-
 
 void init_value_array(ValueArray* array) {
 	array->count = 0;

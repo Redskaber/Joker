@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -7,8 +6,6 @@
 #include "error.h"
 #include "memory.h"
 #include "token.h"
-
-
 
 /* Token */
 Token* new_token(const char* start, uint32_t length, line_t line, TokenType type) {
@@ -34,7 +31,7 @@ inline void reset_token(Token* token) {
 	token->type = token_eof;
 	token->start = NULL;
 	token->length = 0;
-	token->line = 0;	
+	token->line = 0;
 }
 
 void print_token(Token* token) {
@@ -51,7 +48,6 @@ void print_token(Token* token) {
 	}
 }
 
-
 Token eof_token(line_t line) {
 	Token token = {
 		.type = token_eof,
@@ -61,8 +57,6 @@ Token eof_token(line_t line) {
 	};
 	return token;
 }
-
-
 
 /* TokenNode */
 TokenNode* create_token_node(Token token) {
@@ -85,8 +79,6 @@ void print_token_node(TokenNode* node) {
 	print_token(&node->token);
 }
 
-
-
 /* TokenList */
 TokenList* create_token_list() {
 	TokenList* list = (TokenList*)malloc(sizeof(TokenList));
@@ -94,7 +86,7 @@ TokenList* create_token_list() {
 		panic("Panic: [TokenList::create_token_list] Expected to allocate memory for token list, Found NULL");
 		return NULL;
 	}
-    init_token_list(list);
+	init_token_list(list);
 	return list;
 }
 
@@ -132,7 +124,6 @@ void free_token_list(TokenList* list) {
 	free(list);
 }
 
-
 void list_add_token(TokenList* list, Token token) {
 	/* list->head is NULL => list is empty */
 	if (list->head == NULL) {
@@ -159,7 +150,6 @@ void print_tokens(TokenList* list) {
 		node = node->next;
 	}
 }
-
 
 bool is_empty_tokens(TokenList* list) {
 	return list->head == NULL;
@@ -226,8 +216,6 @@ Token* nth_token(TokenList* list, size_t n) {
 		return &node->token;
 	}
 }
-
-
 
 /* Tests */
 static void test_token() {

@@ -5,7 +5,6 @@
 #include "debug.h"
 #include "test.h"
 
-
 /*
 * test_op_return():
 *	@test_object: op_return
@@ -23,7 +22,6 @@ void test_op_return() {
 	/* so: constant_instruction => (uint8_t)op_code + (uint8_t)value_offset */
 	write_constant(&chunk, macro_i32_from_val(1000), 1);
 
-
 	/* op_return will add to code array, and add line to line array.
 	* after op_return: from Value Stack pop one value, and return it.
 	*
@@ -34,16 +32,13 @@ void test_op_return() {
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
-
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
-
 }
-
 
 /* test_op_constant():
 *	@test_object: op_constant
-*	@test_precautions: op_constant instruction can push one value to Value Stack. 
+*	@test_precautions: op_constant instruction can push one value to Value Stack.
 *						But it's not stop vm run, need op_return auxiliary.
 */
 void test_op_constant() {
@@ -63,16 +58,13 @@ void test_op_constant() {
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
-
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
-
 }
-
 
 /* test_op_constant_long():
 *	@test_object: op_constant_long
-*	@test_precautions: op_constant_long instruction can push one value to Value Stack. 
+*	@test_precautions: op_constant_long instruction can push one value to Value Stack.
 *						But it's not stop vm run, need op_return auxiliary.
 */
 void test_op_constant_long() {
@@ -101,11 +93,9 @@ void test_op_constant_long() {
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
-
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
 }
-
 
 /* test_op_negate():
 *	@test_object: op_negate
@@ -125,15 +115,12 @@ void test_op_negate() {
 	write_chunk(&chunk, op_negate, 4);				// write: operation code
 	write_chunk(&chunk, op_return, 4);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
 }
-
-
 
 /* test_op_add():
 *	@test_object: op_add
@@ -153,14 +140,12 @@ void test_op_add() {
 	write_chunk(&chunk, op_add, 5);					// write: operation code
 	write_chunk(&chunk, op_return, 5);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
 }
-
 
 /* test_op_subtract():
 *	@test_object: op_subtract
@@ -180,14 +165,12 @@ void test_op_subtract() {
 	write_chunk(&chunk, op_subtract, 6);				// write: operation code
 	write_chunk(&chunk, op_return, 6);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
 }
-
 
 /* test_op_multiply():
 *	@test_object: op_multiply
@@ -208,14 +191,12 @@ void test_op_multiply() {
 	write_chunk(&chunk, op_multiply, 7);				// write: operation code
 	write_chunk(&chunk, op_return, 7);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, & chunk);
 
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
 }
-
 
 /* test_op_divide():
 *	@test_object: op_divide
@@ -236,7 +217,6 @@ void test_op_divide() {
 	write_chunk(&chunk, op_divide, 8);				// write: operation code
 	write_chunk(&chunk, op_return, 8);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
@@ -244,10 +224,9 @@ void test_op_divide() {
 	free_virtual_machine(&vm);
 }
 
-
 /* test_expression_1():
 *	@test_object: expression 1 * 2 + 3  = 5
-*	@test_precautions: used Value Stack model to simulate expression tree. 
+*	@test_precautions: used Value Stack model to simulate expression tree.
 *						The default for_each_order is preorder traversal.
 */
 void test_expression_1() {
@@ -260,14 +239,14 @@ void test_expression_1() {
 
 	/* expression: 1 * 2 + 3  = 5
 	* so:
-	*	default for_each_order: 
-	*		preorder traversal of expression tree 
+	*	default for_each_order:
+	*		preorder traversal of expression tree
 	*		(left, root, right) => order(left -> right -> root)
-	* 
+	*
 	*				+
 	*			*		3
 	*		1		2
-	* 
+	*
 	*  preorder traversal: 1, 2, *, 3, +
 	*/
 	write_constant(&chunk, macro_i32_from_val(1), 1001);				// Value Array: [1]
@@ -277,7 +256,6 @@ void test_expression_1() {
 	write_chunk(&chunk, op_add, 1001);
 	write_chunk(&chunk, op_return, 1001);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
@@ -285,10 +263,9 @@ void test_expression_1() {
 	free_virtual_machine(&vm);
 }
 
-
 /* test_expression_2():
 *	@test_object: expression 1 + 2 * 3  = 7
-*	@test_precautions: used Value Stack model to simulate expression tree. 
+*	@test_precautions: used Value Stack model to simulate expression tree.
 *						The default for_each_order is preorder traversal.
 */
 void test_expression_2() {
@@ -301,14 +278,14 @@ void test_expression_2() {
 
 	/* expression: 1 + 2 * 3  = 7
 	* so:
-	*	default for_each_order: 
-	*		preorder traversal of expression tree. 
+	*	default for_each_order:
+	*		preorder traversal of expression tree.
 	*		(left, root, right) => order(left -> right -> root)
-	* 
+	*
 	*				+
 	*		1			*
 	*				2		3
-	* 
+	*
 	*  preorder traversal: 1, 2, 3, *, +
 	*/
 	write_constant(&chunk, macro_i32_from_val(1), 1002);				// Value Array: [1]
@@ -319,7 +296,6 @@ void test_expression_2() {
 	write_chunk(&chunk, op_add, 1002);
 	write_chunk(&chunk, op_return, 1002);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
@@ -327,10 +303,9 @@ void test_expression_2() {
 	free_virtual_machine(&vm);
 }
 
-
 /* test_expression_3():
 * 	@test_object: expression 3 - 2 - 1  = 0
-*	@test_precautions: used Value Stack model to simulate expression tree. 
+*	@test_precautions: used Value Stack model to simulate expression tree.
 *						The default for_each_order is preorder traversal.
 */
 void test_expression_3() {
@@ -338,17 +313,17 @@ void test_expression_3() {
 	VirtualMachine vm;
 	init_virtual_machine(&vm);
 	Chunk chunk;
-	init_chunk(&chunk);	
+	init_chunk(&chunk);
 	/* expression: 3 - 2 - 1  = 0
 	* so:
-	*	default for_each_order: 
-	*		preorder traversal of expression tree. 
+	*	default for_each_order:
+	*		preorder traversal of expression tree.
 	*		(left, root, right) => order(left -> right -> root)
-	* 
+	*
 	*				-
 	*			-		1
 	*		3		2
-	* 
+	*
 	*  preorder traversal: 3, 2, -, 1, -
 	*/
 	write_constant(&chunk, macro_i32_from_val(1), 1003);				// Value Array: [1]
@@ -365,10 +340,9 @@ void test_expression_3() {
 	free_virtual_machine(&vm);
 }
 
-
 /* test_expression_4():
 * 	@test_object: expression 1 + 2 * 3 - 4 / -5
-* 	@test_precautions: used Value Stack model to simulate expression tree. 
+* 	@test_precautions: used Value Stack model to simulate expression tree.
 *						The default for_each_order is preorder traversal.
 */
 void test_expression_4() {
@@ -380,16 +354,16 @@ void test_expression_4() {
 
 	/* expression: 1 + 2 * 3 - 4 / -5 = 7.8
 	* so:
-	*	default for_each_order: 
-	*		preorder traversal of expression tree. 
+	*	default for_each_order:
+	*		preorder traversal of expression tree.
 	*		(left, root, right) => order(left -> right -> root)
-	*					
+	*
 	* 					-
 	*			+				/
 	*		1		*		4		-5
 	*			2	    3
-	*					 
-	* 
+	*
+	*
 	*  preorder traversal: 1, 2, 3, *, +, 4, -5, /, -
 	*/
 	write_constant(&chunk, macro_i32_from_val(1), 1003);				// Stack: [1]
@@ -407,11 +381,9 @@ void test_expression_4() {
 	write_chunk(&chunk, op_subtract, 1004);			// Stack: [7.8]
 	write_chunk(&chunk, op_return, 1004);
 
-
 	disassemble_chunk(&chunk, "Bytecode");
 	// interpret(&vm, &chunk);
 
 	free_chunk(&chunk);
 	free_virtual_machine(&vm);
 }
-

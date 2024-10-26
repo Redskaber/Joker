@@ -7,8 +7,6 @@
 #include "value.h"
 #include "option.h"
 
-
-
 /* TODO: trait impl generic for HashMap */
 typedef struct Entry {
 	String* key;
@@ -32,6 +30,5 @@ bool hashmap_remove(HashMap* self, String* key);
 String* hashmap_find_key(HashMap* self, const char* key, uint32_t len, uint32_t hash);
 bool hashmap_contains_key(HashMap* self, String* key);
 Entry* hashmap_get_entry(HashMap* self, String* key);
-
 
 #endif /* __joker__hashmap_h__ */

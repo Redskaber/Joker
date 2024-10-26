@@ -7,13 +7,11 @@
 #include "error.h"
 #include "fn.h"
 
-
-
-
 Fn* new_fn() {
 	Fn* fn = macro_allocate_object(Fn, obj_fn);
-	fn->arity = 0;
 	fn->name = NULL;
+	fn->arity = 0;
+	fn->upvalue_count = 0;
 	init_chunk(&fn->chunk);
 	return fn;
 }

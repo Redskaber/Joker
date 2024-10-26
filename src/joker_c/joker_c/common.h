@@ -6,11 +6,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
- 
 
 typedef int index_t;
 typedef int line_t;
-
 
 #define debug_print_code
 #define debug_trace_execution
@@ -23,13 +21,13 @@ typedef int line_t;
 /* define exit code for joker */
 typedef enum
 {
-        enum_success = 0,
-        enum_file_error = 74,
-        enum_invalid_arguments = 64,
-        enum_compiler_error = 65,
-        enum_scanner_error = 66,
-        enum_runtime_error = 70,
-        enum_unknown_error = 1
+	enum_success = 0,
+	enum_file_error = 74,
+	enum_invalid_arguments = 64,
+	enum_compiler_error = 65,
+	enum_scanner_error = 66,
+	enum_runtime_error = 70,
+	enum_unknown_error = 1
 } JokerExitCode;
 
 /* Display error code to user message  */

@@ -2,9 +2,9 @@
 	The bytecode virtual machine.
 	This file defines the Value type used in the virtual machine.
 
-	1. 整数（固定大小的值） -(指令集) 
+	1. 整数（固定大小的值） -(指令集)
 		-> immediate instructions( 即时指令[ 对齐、填充、字节顺序 ] ): [opcode + immediate value ]
-		
+
 		值的比特位紧跟在指令码之后。
 	2. 字符串 (可变大小的值) -（二进制可执行文件）-(常量数据区)
 		-> instuctions( 常量指令 )： [opcode + constant index]
@@ -18,7 +18,7 @@
 		加载常量的指令根据数组索引获取值。[index]
 	---------------------------------------
 
-	instruction format( 指令格式 ): 
+	instruction format( 指令格式 ):
 		[opcode + operand1 + operand2 + ... ]
 
 		每个操作码会定义它有多少操作数以及各自的含义
@@ -35,22 +35,19 @@
 typedef struct Object Object;
 typedef struct String String;
 
-
 /* 值类型 */
 typedef enum {
 	VAL_NULL = 0,
-	VAL_I32  = 1,
-	VAL_I64  = 2,
-	VAL_F32  = 3,
-	VAL_F64  = 4,
+	VAL_I32 = 1,
+	VAL_I64 = 2,
+	VAL_F32 = 3,
+	VAL_F64 = 4,
 	VAL_BOOL = 5,
 	VAL_OBJECT = 6,
 } ValueType;
 
-
-
-/* 值: 存储在栈中的值 
-* 
+/* 值: 存储在栈中的值
+*
 * TODO: Value Hasher
 */
 typedef struct Value {
@@ -61,10 +58,9 @@ typedef struct Value {
 		float		f32;
 		double		f64;
 		bool	boolean;
-		Object*  object; // 指针, object 对象本身存储在堆上, 具体对象通过强转为Object* 类型来获取type 属性标签，通过二次强转获取具体对象类型
+		Object* object; // 指针, object 对象本身存储在堆上, 具体对象通过强转为Object* 类型来获取type 属性标签，通过二次强转获取具体对象类型
 	} as;
 } Value;
-
 
 #define macro_matches(value, t)			((value).type == (t))
 #define macro_matches_ptr(value_ptr, t) ((value_ptr) && (value_ptr)->type == (t))
@@ -86,7 +82,6 @@ typedef struct Value {
     (unchecked_value < INT64_MIN || unchecked_value > INT64_MAX) ?				\
     (panic("Expected i64 value, Found overflow or underflow."), (int64_t)0) :	\
     (int64_t)(unchecked_value)
-
 
 #define macro_is_i32(value)		((value).type == VAL_I32)
 #define macro_is_i64(value)		((value).type == VAL_I64)
@@ -115,8 +110,6 @@ typedef struct Value {
 #define macro_as_bool_ptr(value_ptr)	((value_ptr)->as.boolean)
 #define macro_as_obj_ptr(value_ptr)		((value_ptr)->as.object)
 
-
-
 #define macro_type_name(value)					\
 	(											\
 		(value).type == VAL_I32 ? "i32" :		\
@@ -135,15 +128,12 @@ typedef struct Value {
 		}												\
 	} while (0)
 
-
 // 值数组类型
-typedef struct {
+typedef struct ValueArray {
 	uint32_t count;
 	uint32_t capacity;
 	Value* values;
 } ValueArray;
-
-
 
 void init_value_array(ValueArray* array);
 void free_value_array(ValueArray* array);
@@ -153,6 +143,4 @@ bool values_equal(Value left, Value right);
 void print_value(Value value);
 void printf_value(Value value);
 
-
 #endif /* joker_value_h */
-

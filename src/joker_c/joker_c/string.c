@@ -6,7 +6,6 @@
 #include "memory.h"
 #include "string.h"
 
-
 // macro for allocate fixed array
 #define macro_allocate_fixed_array(type, elem_type, arr_size, object_type) \
     (type*)allocate_object((sizeof(type) + arr_size * sizeof(elem_type)), object_type)
@@ -14,11 +13,7 @@
 #define macro_free_fixed_array(type, pointer, elem_type, arr_size) \
     reallocate(pointer, (sizeof(type) + arr_size * sizeof(elem_type)), 0)
 
-
-
 static uint32_t hash_string(const char* key, int length);
-
-
 
 /* flexible array member */
 String* new_string_uninterned(const char* chars, int32_t length) {
@@ -156,7 +151,6 @@ static uint32_t hash_string(const char* key, int length) {
 	}
 	return hash;
 }
-
 
 void print_string(String* string) {
 	printf("%s", string->chars);

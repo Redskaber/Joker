@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="chunk.h" />
+    <ClInclude Include="closure.h" />
     <ClInclude Include="common.h" />
     <ClInclude Include="compiler.h" />
     <ClInclude Include="debug.h" />
@@ -38,11 +39,13 @@
     <ClInclude Include="string.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="token.h" />
+    <ClInclude Include="upvalue.h" />
     <ClInclude Include="value.h" />
     <ClInclude Include="vm.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="chunk.c" />
+    <ClCompile Include="closure.c" />
     <ClCompile Include="compiler.c" />
     <ClCompile Include="debug.c" />
     <ClCompile Include="error.c" />
@@ -58,6 +61,7 @@
     <ClCompile Include="string.c" />
     <ClCompile Include="test.c" />
     <ClCompile Include="token.c" />
+    <ClCompile Include="upvalue.c" />
     <ClCompile Include="value.c" />
     <ClCompile Include="vm.c" />
     <ClCompile Include="native.c" />

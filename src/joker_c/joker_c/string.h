@@ -1,6 +1,5 @@
 #pragma once
 
-
 #ifndef __joker_string_h__
 #define __joker_string_h__
 #include "common.h"
@@ -29,8 +28,6 @@ typedef struct String {
 	char chars[];	// flexible array member: from char* need double pointer to char[].
 } String;
 
-
-
 String* new_string_uninterned(const char* chars, int32_t length);
 String* new_string(HashMap* interned_pool, const char* chars, int32_t length);
 void free_string(String* string);
@@ -38,6 +35,5 @@ String* concat_string_uninterned(String* left, String* right);
 String* concat_string(HashMap* interned_pool, String* left, String* right);
 bool string_equal(String* left, String* right);
 void print_string(String* string);
-
 
 #endif // !__joker_string_h__

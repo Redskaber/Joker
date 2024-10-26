@@ -13,22 +13,20 @@
 #include "debug.h"
 #include "native.h"
 #include "fn.h"
+#include "closure.h"
 #include "value.h"
 #include "object.h"
 #include "string.h"
 #include "compiler.h"
 #include "vm.h"
 
-
 /* Virtual machine operations */
 static int current_code_index(CallFrame* frame);
-static void define_native(VirtualMachine * self, const char* name, NativeFnPtr function);
-static bool call(VirtualMachine* self, Fn* fn, int arg_count);
+static void define_native(VirtualMachine* self, const char* name, NativeFnPtr function);
+static bool call(VirtualMachine* self, Closure* closure, int arg_count);
 static bool call_value(VirtualMachine* self, Value* callee, int arg_count);
 static void reset_stack(VirtualMachine* self);
 static InterpretResult run(VirtualMachine* self);
-
-
 
 static __declspec(noreturn) void panic_error(const char* msg, ...) {
 	va_list args;
@@ -48,7 +46,6 @@ static int convert_check(ptrdiff_t index) {
 	return (int)index;
 }
 
-
 static void runtime_error(VirtualMachine* self, const char* message, ...) {
 	va_list args;
 	va_start(args, message);
@@ -59,11 +56,11 @@ static void runtime_error(VirtualMachine* self, const char* message, ...) {
 	// heap stack trace
 	for (int i = self->frame_count - 1; i >= 0; i--) {
 		CallFrame* frame = &self->frames[i];
-		Fn* fn = frame->func;
+		Fn* fn = frame->closure->fn;
 		int index = current_code_index(frame);
 		fprintf(stderr, "[line %d] in ", get_rle_line(&fn->chunk.lines, index));
-		is_anonymous_fn(fn) ? 
-			fprintf(stderr, "script\n") : 
+		is_anonymous_fn(fn) ?
+			fprintf(stderr, "script\n") :
 			fprintf(stderr, "%s()\n", fn->name->chars);
 	}
 
@@ -71,27 +68,24 @@ static void runtime_error(VirtualMachine* self, const char* message, ...) {
 	reset_stack(self);
 }
 
-
 /*
 * vm->ip: 指向下一条需要执行的指令的指针
 * vm->chunk->code: 指向代码段的起始地址
 * vm->ip - vm->chunk->code - 1: 指向当前指令的偏移量
 */
 static int current_code_index(CallFrame* frame) {
-	return convert_check(frame->ip - frame->func->chunk.code - 1);
+	return convert_check(frame->ip - frame->closure->fn->chunk.code - 1);
 }
-
 
 static bool is_falsey(VirtualMachine* self, Value* value) {
 	switch (value->type) {
 	case VAL_BOOL: return !value->as.boolean;
-	default: 
+	default:
 		//  raise runtime error, expected boolean for not operation, found...
 		runtime_error(self, "Expected boolean for not operation, Found...");
 		return false;
 	}
 }
-
 
 void init_virtual_machine(VirtualMachine* self) {
 	self->compiler = NULL;
@@ -115,6 +109,7 @@ void free_virtual_machine(VirtualMachine* self) {
 static void reset_stack(VirtualMachine* self) {
 	self->stack_top = self->stack;
 	self->frame_count = 0;
+	self->open_upv_ptr = NULL;
 }
 
 Compiler* replace_compiler(VirtualMachine* self, Compiler* compiler) {
@@ -122,7 +117,6 @@ Compiler* replace_compiler(VirtualMachine* self, Compiler* compiler) {
 	self->compiler = compiler;
 	return old_compiler;
 }
-
 
 static void push(VirtualMachine* self, Value value) {
 	if (self->stack_top >= self->stack + constent_stack_max) {
@@ -156,7 +150,7 @@ static InterpretResult negate(VirtualMachine* self) {
 		panic_error("[VirtualMachine::negate] stack underflow.");
 	}
 	Value* slot = peek(self, 0);
-	switch (slot->type)  
+	switch (slot->type)
 	{
 	case VAL_I32: slot->as.i32 = -slot->as.i32; break;
 	case VAL_F64: slot->as.f64 = -slot->as.f64; break;
@@ -174,7 +168,7 @@ static InterpretResult not_(VirtualMachine* self) {
 		panic_error("[VirtualMachine::not_] stack underflow.");
 	}
 	Value* slot = peek(self, 0);
-	switch (slot->type)  
+	switch (slot->type)
 	{
 	case VAL_BOOL: slot->as.boolean = !slot->as.boolean; break;
 	default:
@@ -194,9 +188,9 @@ static void concatenate_string(VirtualMachine* self) {
 /*
 * TODO: push && pop ?  => gc?
 * used stack push and pop, bucause gc need to know the stack pointer change
-*							  |  ---(-2)----> | 
+*							  |  ---(-2)----> |
 * value					      V				  V
-* stack [..., name, function,...]  => [..., name, function,...]  
+* stack [..., name, function,...]  => [..., name, function,...]
 */
 static void define_native(VirtualMachine* self, const char* name, NativeFnPtr function) {
 	push(self, macro_obj_from_val(new_string(&self->strings, name, (int)strlen(name))));
@@ -211,8 +205,8 @@ static bool call_value(VirtualMachine* self, Value* callee, int arg_count) {
 	if (macro_is_obj_ptr(callee)) {
 		switch (macro_obj_ptr_type(callee))
 		{
-		case obj_fn: 
-			return call(self, macro_as_fn_from_obj_ptr(callee), arg_count);
+		case obj_closure:
+			return call(self, macro_as_closure(callee), arg_count);
 		case obj_native: {
 			NativeFnPtr native_fn = macro_as_native(callee);
 			/*
@@ -233,9 +227,9 @@ static bool call_value(VirtualMachine* self, Value* callee, int arg_count) {
 	return false;
 }
 
-static bool call(VirtualMachine* self, Fn* fn, int arg_count) {
-	if (arg_count != fn->arity) {
-		runtime_error(self, "[VirtualMachine::call] Expected %d arguments, Found %d arguments.", fn->arity, arg_count);
+static bool call(VirtualMachine* self, Closure* closure, int arg_count) {
+	if (arg_count != closure->fn->arity) {
+		runtime_error(self, "[VirtualMachine::call] Expected %d arguments, Found %d arguments.", closure->fn->arity, arg_count);
 		return false;
 	}
 	if (self->frame_count == frames_statck_max) {
@@ -244,13 +238,12 @@ static bool call(VirtualMachine* self, Fn* fn, int arg_count) {
 	}
 	CallFrame* frame = &self->frames[self->frame_count++];
 	// set up the new call frame: execute func frame.
-	frame->func = fn;
-	frame->ip = fn->chunk.code;
+	frame->closure = closure;
+	frame->ip = closure->fn->chunk.code;
 	frame->base_pointer = self->stack_top - arg_count - 1;
 
 	return true;
 }
-
 
 /*
 * Interprets the given chunk of code.
@@ -261,14 +254,16 @@ InterpretResult interpret(VirtualMachine* self, const char* source) {
 	if (fn == NULL) return interpret_compile_error;
 
 	push(self, macro_obj_from_val(fn));
-	call(self, fn, 0);	// call the top-level function: e.g main()
+	Closure* closure = new_closure(fn);
+	pop(self);
+	push(self, macro_obj_from_val(closure));
+	call(self, closure, 0);					// call the top-level function closure
 
 	return run(self);
 }
 
-
 static InterpretResult read_binary(VirtualMachine* self, CallFrame* frame, Ops op) {
-    InterpretResult result = interpret_ok;
+	InterpretResult result = interpret_ok;
 
 	Value* r_slot = peek(self, 0);
 	Value* l_slot = peek(self, 1);
@@ -304,9 +299,9 @@ static InterpretResult read_binary(VirtualMachine* self, CallFrame* frame, Ops o
 			runtime_error(self, "[VirtualMachine::read_binary]\n"
 				"[line %d] where at runtime, '%s'.\n"
 				"\tExpected i32 for left and right operands, Found left: %s, right: %s.\n",
-				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				get_rle_line(&frame->closure->fn->chunk.lines, current_code_index(frame)),
 				macro_ops_to_string(op),
-				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(l_slot),
 				macro_type_name_ptr(r_slot)
 			);
 			result = interpret_runtime_error;
@@ -342,9 +337,9 @@ static InterpretResult read_binary(VirtualMachine* self, CallFrame* frame, Ops o
 			runtime_error(self, "[VirtualMachine::read_binary]\n"
 				"[line %d] where at runtime, '%s'.\n"
 				"\tExpected i64 for left and right operands, Found left: %s, right: %s.\n",
-				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				get_rle_line(&frame->closure->fn->chunk.lines, current_code_index(frame)),
 				macro_ops_to_string(op),
-				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(l_slot),
 				macro_type_name_ptr(r_slot)
 			);
 			result = interpret_runtime_error;
@@ -370,9 +365,9 @@ static InterpretResult read_binary(VirtualMachine* self, CallFrame* frame, Ops o
 			runtime_error(self, "[VirtualMachine::read_binary]\n"
 				"[line %d] where at runtime, '%s'.\n"
 				"\tExpected f64 for left and right operands, Found left: %s, right: %s.\n",
-				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				get_rle_line(&frame->closure->fn->chunk.lines, current_code_index(frame)),
 				macro_ops_to_string(op),
-				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(l_slot),
 				macro_type_name_ptr(r_slot)
 			);
 			result = interpret_runtime_error;
@@ -391,9 +386,9 @@ static InterpretResult read_binary(VirtualMachine* self, CallFrame* frame, Ops o
 			runtime_error(self, "[VirtualMachine::read_binary]\n"
 				"[line %d] where at runtime, '%s'.\n"
 				"\tExpected bool for left and right operands, Found left: %s, right: %s.\n",
-				get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+				get_rle_line(&frame->closure->fn->chunk.lines, current_code_index(frame)),
 				macro_ops_to_string(op),
-				macro_type_name_ptr(l_slot), 
+				macro_type_name_ptr(l_slot),
 				macro_type_name_ptr(r_slot)
 			);
 			result = interpret_runtime_error;
@@ -406,9 +401,9 @@ static InterpretResult read_binary(VirtualMachine* self, CallFrame* frame, Ops o
 			"[line %d] where at runtime, '%s'.\n"
 			"Expected number[(i32,i32), (i64,i64), (f64,f64), (bool,bool)] for left and right operands, "
 			"Found left: %s, right: %s.\n",
-			get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+			get_rle_line(&frame->closure->fn->chunk.lines, current_code_index(frame)),
 			macro_ops_to_string(op),
-			macro_type_name_ptr(l_slot), 
+			macro_type_name_ptr(l_slot),
 			macro_type_name_ptr(r_slot)
 		);
 		result = interpret_runtime_error;
@@ -427,10 +422,10 @@ static InterpretResult run(VirtualMachine* self) {
 	// frame: call stack frame
 	CallFrame* frame = &self->frames[self->frame_count - 1];
 
-/* read a byte from the current instruction pointer: vm->ip++ goto frame->ip++ */
+	/* read a byte from the current instruction pointer: vm->ip++ goto frame->ip++ */
 #define macro_read_byte() (*frame->ip++)
 /* read a constant from the constant pool */
-#define macro_read_constant() (frame->func->chunk.constants.values[macro_read_byte()])
+#define macro_read_constant() (frame->closure->fn->chunk.constants.values[macro_read_byte()])
 /* read a short from the current instruction pointer */
 #define macro_runtime_error_raised(result)			\
     do {											\
@@ -445,20 +440,17 @@ static InterpretResult run(VirtualMachine* self) {
 	(frame->ip +=2,													\
 	((uint16_t)(frame->ip[-2]) << 8) | (uint16_t)(frame->ip[-1]))
 
-
 	Value constant;
 
 	while (true) {
-
-/* debug_trace_execution */
+		/* debug_trace_execution */
 #ifdef debug_trace_execution
 		/* stack trace: print the current stack all at once.
-		* 
+		*
 		VirtualMachine:
-			Value* stack_top = vm->stack_top; 
+			Value* stack_top = vm->stack_top;
 			Value* stack = vm->stack;
 			for (int i = 0; i < constent_stack_max; i++) {
-
 		*/
 		printf("		");
 		for (Value* slot = self->stack; slot < self->stack_top; slot++) {
@@ -468,19 +460,18 @@ static InterpretResult run(VirtualMachine* self) {
 		}
 		printf("\n");
 
-
 		/* print current instruction pointer.
-		* 
-		VirtualMachine: 
+		*
+		VirtualMachine:
 			chunk -> chunk->code [first instruction]
 			ip -> current instruction pointer
 		offset:
 			vm->ip - vm->chunk->code
 		*/
-		disassemble_instruction(&frame->func->chunk, (int)(frame->ip - frame->func->chunk.code));
+		disassemble_instruction(&frame->closure->fn->chunk, (int)(frame->ip - frame->closure->fn->chunk.code));
 #endif
 		/* execute the current instruction.
-		* 
+		*
 		VirtualMachine:
 			push(vm, constant);			// push constant to stack
 			pop(vm);					// pop constant from stack
@@ -522,14 +513,15 @@ static InterpretResult run(VirtualMachine* self) {
 			macro_check_emptyptr(r_slot);
 			macro_check_emptyptr(l_slot);
 			if (macro_is_string(*l_slot) && macro_is_string(*r_slot)) {
-								concatenate_string(self);
-			}else {				macro_runtime_error_raised(read_binary(self, frame, ADD));} break;
+				concatenate_string(self);
+			}
+			else { macro_runtime_error_raised(read_binary(self, frame, ADD)); } break;
 		}
 		case op_subtract:		macro_runtime_error_raised(read_binary(self, frame, SUB)); break;
 		case op_multiply:		macro_runtime_error_raised(read_binary(self, frame, MUL)); break;
 		case op_divide:			macro_runtime_error_raised(read_binary(self, frame, DIV)); break;
 		case op_print: {
-								print_value(pop(self)); printf("\n"); break;
+			print_value(pop(self)); printf("\n"); break;
 		}
 		case op_pop: pop(self); break;
 		case op_define_global: {
@@ -543,7 +535,7 @@ static InterpretResult run(VirtualMachine* self) {
 			Entry* entry = hashmap_get_entry(&self->globals, identifier);
 			if (is_empty_entry(entry)) {
 				runtime_error(self, "[line %d] where: at runtime undefined global variable '%s'.",
-					get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+					get_rle_line(&frame->closure->fn->chunk.lines, current_code_index(frame)),
 					identifier->chars
 				);
 				return interpret_runtime_error;
@@ -558,7 +550,7 @@ static InterpretResult run(VirtualMachine* self) {
 			Option(Value) value = hashmap_get(&self->globals, identifier);
 			if (is_none(value)) {
 				runtime_error(self, "[line %d] where: at runtime undefined global variable '%s'.",
-					get_rle_line(&frame->func->chunk.lines, current_code_index(frame)),
+					get_rle_line(&frame->closure->fn->chunk.lines, current_code_index(frame)),
 					identifier->chars
 				);
 				return interpret_runtime_error;
@@ -574,6 +566,19 @@ static InterpretResult run(VirtualMachine* self) {
 		case op_get_local: {
 			uint8_t slot = macro_read_byte();
 			push(self, frame->base_pointer[slot]);
+			break;
+		}
+		case op_get_upvalue: {
+			uint8_t slot = macro_read_byte();
+			// why need -1?:
+			// because the first slot is top-level closure,in constant pool,
+			// so the upvalue index need remove top-level closure index.
+			push(self, *(frame->closure->upvalue_ptrs[slot - 1]->location));
+			break;
+		}
+		case op_set_upvalue: {
+			uint8_t slot = macro_read_byte();
+			*frame->closure->upvalue_ptrs[slot - 1]->location = *peek(self, 0);
 			break;
 		}
 		case op_jump_if_false: {
@@ -604,16 +609,45 @@ static InterpretResult run(VirtualMachine* self) {
 			frame = &self->frames[self->frame_count - 1];
 			break;
 		}
+		case op_break: {
+			// break context loop to outer context loop or fn context.
+			// uint8_t break_offset = macro_read_byte();
+			// frame->ip += break_offset;
+			break;
+		}
+		case op_closure: {
+			Fn* fn = macro_as_fn(macro_read_constant());
+			Closure* closure = new_closure(fn);
+			push(self, macro_obj_from_val(closure));
+
+			for (int i = 0; i < closure->upvalue_count; i++) {
+				upvalue_info_t upv_info = macro_read_byte();
+				bool is_local = upv_info >> 7;
+				uint8_t index = upv_info & 0b0111'1111;
+				if (is_local) {
+					closure->upvalue_ptrs[i] = capture_upvalue(&self->open_upv_ptr, frame->base_pointer + index);
+				}
+				else {
+					closure->upvalue_ptrs[i] = frame->closure->upvalue_ptrs[index];
+				}
+			}
+			break;
+		}
+		case op_close_upvalue:
+			close_upvalues(&self->open_upv_ptr, self->stack_top - 1);
+			pop(self);
+			break;
 		case op_return: {
 			Value result = pop(self);	// pop the return value
+			close_upvalues(&self->open_upv_ptr, frame->base_pointer);
 			self->frame_count--;		// jump to the caller frame
 			if (self->frame_count == 0) {	// if the caller frame is the top-level frame, return the result.
 				return interpret_ok;
 			}
 
 			// update vm stack top pointer point to the caller frame stack top pointer.
-			// this don't need set frame ip pointer, 
-			// because caller frame execute frame->ip over 
+			// this don't need set frame ip pointer,
+			// because caller frame execute frame->ip over
 			// can return to caller frame continue execute caller->frame->ip ++, next.
 			self->stack_top = frame->base_pointer;
 			// push the return value to the caller frame stack.
@@ -627,11 +661,10 @@ static InterpretResult run(VirtualMachine* self) {
 
 #undef macro_read_short
 #undef macro_is_false
-#undef macro_read_string 
+#undef macro_read_string
 #undef macro_binary_op
 #undef macro_read_constant
 #undef macro_read_byte
 }
 
 /* just-in-time compilation(JIT) */
-

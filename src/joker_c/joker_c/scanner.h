@@ -6,7 +6,6 @@
 #include "common.h"
 #include "token.h"
 
-
 typedef struct {
 	TokenList* tokens;
 	const char* start;
@@ -14,14 +13,9 @@ typedef struct {
 	line_t line;
 } Scanner;
 
-
-
 void init_scanner(Scanner* self, const char* source);
 void free_scanner(Scanner* self);
 Token scan_token(Scanner* self);
 void scan_tokens(Scanner* self);
 
-
-
 #endif /* joker_scanner_h*/
-

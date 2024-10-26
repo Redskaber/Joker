@@ -13,31 +13,31 @@
 #include "string.h"
 #include "native.h"
 #include "fn.h"
+#include "closure.h"
 #include "value.h"
-
-
+#include "upvalue.h"
 
 /*
 * Allocate a new object of the given size and type.
-* 
+*
 * -------Object Layout------
 * |  |-----Sub Object----| |
 * |  |                   | |
 * |  |                   | |
 * |  |-------------------| |
 * --------------------------
-* 
+*
 * Object Size = SubObject Size
-* The object object is just the shell of the concrete object, 
+* The object object is just the shell of the concrete object,
 * and the specific size of the object object is determined by the specific type.
-* 
+*
 * The sub object is the actual object data, and its size is determined by the specific type.
 */
 Object* allocate_object(size_t size, ObjectType type) {
 	Object* object = (Object*)reallocate(NULL, 0, size);
 	if (object == NULL) {
 		return panic("[Panic] [allocate_object] Expected to allocate memory for object, Found NULL");
-	} 
+	}
 	object->type = type;
 	return object;
 }
@@ -45,9 +45,11 @@ Object* allocate_object(size_t size, ObjectType type) {
 void free_object(Object* object) {
 	if (object == NULL) return;
 	switch (object->type) {
-	case obj_string: free_string(macro_as_string_from_obj(object)); break;
-	case obj_fn:     free_fn(macro_as_fn_from_obj(object)); break;
-	case obj_native: free_native(macro_as_native_from_obj(object)); break;
+	case obj_string:	free_string(macro_as_string_from_obj(object)); break;
+	case obj_fn:		free_fn(macro_as_fn_from_obj(object)); break;
+	case obj_native:	free_native(macro_as_native_from_obj(object)); break;
+	case obj_closure:	free_closure(macro_as_closure_from_obj(object)); break;
+	case obj_upvalue:	free_upvalue(macro_as_upvalue_from_obj(object)); break;
 	default: break;
 	}
 }
@@ -71,6 +73,8 @@ void print_object(Object* object) {
 	case obj_string:	print_string(macro_as_string_from_obj(object)); break;
 	case obj_fn:	    print_fn(macro_as_fn_from_obj(object)); break;
 	case obj_native:	print_native(macro_as_native_from_obj(object)); break;
+	case obj_closure:   print_closure(macro_as_closure_from_obj(object)); break;
+	case obj_upvalue:   print_upvalue(macro_as_upvalue_from_obj(object)); break;
 	default:			warning("[Warning] [print_object] Unsupported object type: %d", object->type); break;
 	}
 }

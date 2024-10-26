@@ -13,7 +13,6 @@ void test_op_subtract();			// -
 void test_op_multiply();			// *
 void test_op_divide();				// /
 
-
 void test_expression_1();
 void test_expression_2();
 void test_expression_3();

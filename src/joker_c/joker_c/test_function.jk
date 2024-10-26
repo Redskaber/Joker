@@ -52,9 +52,6 @@ fn main() {
 
 main();
 
-*/
-
-
 
 fn fib(n) {
   if (n < 2) return n;
@@ -64,4 +61,68 @@ fn fib(n) {
 var start = clock();
 print fib(35);
 print clock() - start;
+/////////////////////////////////////////////
+fn cmp(a, b) {
+	while( a > b) {
+		if( a == b ) break;
+		a = a - 1;
+		print a;
+	}
+	print a;
+	print b;
+}
+
+cmp(10, 5);
+
+///////////////////////////////////////////////
+// Comment: colsure
+var x = "global";
+
+fn outer() {
+	var x = "local";
+
+	fn local() {
+		print(x);
+	}
+
+	local();
+}
+
+outer();
+/////////////////////////////////////////////
+fn outer() {
+	var a = 1;
+	var b = 2;
+
+	fn middle() {
+		var c = 3;
+		var d = 4;
+
+		fn inner() {
+			print a + b + c + d;
+		}
+	}
+}
+/////////////////////////////////////////////
+fn outer() {
+	var x = "outside";
+	fn inner() {
+		print x;
+	}
+	inner();
+}
+
+outer();
+*/
+
+
+
+
+
+
+
+
+
+
+
 
